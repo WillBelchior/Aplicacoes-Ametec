@@ -705,6 +705,98 @@ function serviceCard(x,showTotalReceivable=false){
     </div>
   </article>`
 }
+function archivedAnalyticsHtml(rows){
+  if(!rows.length)return '<div class="archive-analytics-empty">Arquive serviços concluídos e quitados para começar a formar o histórico financeiro da AMETEC.</div>';
+
+  const summaries=rows.map(x=>({x,p:paySummary(x),c:data.clientes.find(a=>a.id===x.cliente_id)}));
+  const totalReceived=summaries.reduce((s,r)=>s+r.p.received,0);
+  const serviceReceived=summaries.reduce((s,r)=>s+r.p.serviceReceived,0);
+  const materialReceived=summaries.reduce((s,r)=>s+r.p.materialReceived,0);
+  const avgTicket=rows.length?totalReceived/rows.length:0;
+
+  const clientMap={};
+  summaries.forEach(r=>{
+    const id=r.x.cliente_id||'none';
+    if(!clientMap[id])clientMap[id]={name:r.c?.nome_fantasia||'Sem cliente',value:0,count:0};
+    clientMap[id].value+=r.p.received;
+    clientMap[id].count++;
+  });
+  const clients=Object.values(clientMap).sort((a,b)=>b.value-a.value);
+  const topClient=clients[0]||{name:'—',value:0,count:0};
+  const maxClient=Math.max(...clients.map(x=>x.value),1);
+
+  const typeMap={};
+  summaries.forEach(r=>{
+    const type=r.x.tipo||'Outros';
+    if(!typeMap[type])typeMap[type]={name:type,value:0,count:0};
+    typeMap[type].value+=r.p.received;
+    typeMap[type].count++;
+  });
+  const types=Object.values(typeMap).sort((a,b)=>b.value-a.value);
+  const maxType=Math.max(...types.map(x=>x.value),1);
+
+  const archivedIds=new Set(rows.map(x=>x.id));
+  const monthMap={};
+  data.pagamentos.filter(pg=>archivedIds.has(pg.servico_id)&&pg.data_pagamento).forEach(pg=>{
+    const key=String(pg.data_pagamento).slice(0,7);
+    monthMap[key]=(monthMap[key]||0)+(+pg.valor||0);
+  });
+  const monthKeys=Object.keys(monthMap).sort().slice(-12);
+  const months=monthKeys.map(key=>{
+    const [y,m]=key.split('-').map(Number);
+    return {key,label:new Date(y,m-1,1).toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}).replace('.',''),value:monthMap[key]};
+  });
+  const maxMonth=Math.max(...months.map(x=>x.value),1);
+  const lastMonth=months[months.length-1]?.value||0;
+  const prevMonth=months[months.length-2]?.value||0;
+  let growthLabel='—',growthClass='';
+  if(months.length>=2){
+    if(prevMonth>0){
+      const growth=((lastMonth-prevMonth)/prevMonth)*100;
+      growthLabel=(growth>=0?'+':'')+growth.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+      growthClass=growth>=0?'positive':'negative';
+    }else if(lastMonth>0){
+      growthLabel='+100%';growthClass='positive';
+    }
+  }
+
+  const serviceShare=totalReceived>0?Math.round(serviceReceived/totalReceived*100):0;
+  const materialShare=totalReceived>0?Math.round(materialReceived/totalReceived*100):0;
+
+  return '<div class="archive-analytics">'+
+    '<div class="archive-kpis">'+
+      '<div class="archive-kpi primary"><span>Total já recebido</span><b>'+money(totalReceived)+'</b><small>'+rows.length+' serviço(s) arquivado(s)</small></div>'+
+      '<div class="archive-kpi"><span>Recebido • serviços</span><b>'+money(serviceReceived)+'</b><small>'+serviceShare+'% da receita arquivada</small></div>'+
+      '<div class="archive-kpi"><span>Recebido • materiais</span><b>'+money(materialReceived)+'</b><small>'+materialShare+'% da receita arquivada</small></div>'+
+      '<div class="archive-kpi"><span>Ticket médio</span><b>'+money(avgTicket)+'</b><small>por serviço encerrado</small></div>'+
+      '<div class="archive-kpi"><span>Melhor cliente</span><b>'+esc(topClient.name)+'</b><small>'+money(topClient.value)+' • '+topClient.count+' serviço(s)</small></div>'+
+      '<div class="archive-kpi"><span>Crescimento mensal</span><b class="'+growthClass+'">'+growthLabel+'</b><small>último mês com recebimento vs anterior</small></div>'+
+    '</div>'+
+    '<div class="archive-analysis-grid">'+
+      '<section class="archive-chart-card">'+
+        '<div class="archive-chart-head"><div><b>Evolução dos recebimentos</b><small>Últimos 12 meses com movimentação</small></div></div>'+
+        (months.length?'<div class="archive-month-chart">'+months.map(m=>'<div class="archive-month-col" title="'+esc(m.label)+' • '+money(m.value)+'"><div class="archive-month-value">'+money(m.value)+'</div><div class="archive-month-bar-wrap"><i style="height:'+Math.max(5,Math.round(m.value/maxMonth*120))+'px"></i></div><span>'+esc(m.label)+'</span></div>').join('')+'</div>':'<div class="empty">Ainda não há pagamentos datados nos serviços arquivados.</div>')+
+      '</section>'+
+      '<section class="archive-chart-card">'+
+        '<div class="archive-chart-head"><div><b>Composição da receita</b><small>Serviço x material recebido</small></div></div>'+
+        '<div class="archive-composition">'+
+          '<div class="archive-donut" style="--service:'+serviceShare+'"><div><b>'+serviceShare+'%</b><small>serviços</small></div></div>'+
+          '<div class="archive-composition-legend"><div><span>Serviços</span><b>'+money(serviceReceived)+'</b></div><div><span>Materiais</span><b>'+money(materialReceived)+'</b></div></div>'+
+        '</div>'+
+      '</section>'+
+      '<section class="archive-chart-card">'+
+        '<div class="archive-chart-head"><div><b>Clientes com maior receita</b><small>Ranking pelo total efetivamente recebido</small></div></div>'+
+        '<div class="archive-rank">'+clients.slice(0,6).map((c,i)=>'<div class="archive-rank-row"><div class="archive-rank-label"><span>'+(i+1)+'º</span><b>'+esc(c.name)+'</b><small>'+c.count+' serviço(s)</small></div><div class="archive-rank-track"><i style="width:'+Math.max(4,c.value/maxClient*100)+'%"></i></div><strong>'+money(c.value)+'</strong></div>').join('')+'</div>'+
+      '</section>'+
+      '<section class="archive-chart-card">'+
+        '<div class="archive-chart-head"><div><b>Receita por tipo de serviço</b><small>Quais áreas mais contribuíram para o faturamento histórico</small></div></div>'+
+        '<div class="archive-rank">'+types.slice(0,6).map(t=>'<div class="archive-rank-row"><div class="archive-rank-label"><b>'+esc(t.name)+'</b><small>'+t.count+' serviço(s)</small></div><div class="archive-rank-track type"><i style="width:'+Math.max(4,t.value/maxType*100)+'%"></i></div><strong>'+money(t.value)+'</strong></div>').join('')+'</div>'+
+      '</section>'+
+    '</div>'+
+    '<div class="archive-insight">💡 <b>Leitura gerencial:</b> o cliente com maior receita histórica é <b>'+esc(topClient.name)+'</b>, com <b>'+money(topClient.value)+'</b> recebidos em '+topClient.count+' serviço(s). O ticket médio atual dos serviços arquivados é <b>'+money(avgTicket)+'</b>.</div>'+
+  '</div>';
+}
+
 function archivedServiceCard(x){
   const c=data.clientes.find(a=>a.id===x.cliente_id),p=paySummary(x),vals=serviceValues(x);
   return '<article class="archived-service-card">'+
@@ -768,7 +860,11 @@ function pendencias(){
       return !q||[x.titulo,x.tipo,x.responsavel,x.orcamento_status,x.proxima_acao,c?.nome_fantasia].filter(Boolean).join(' ').toLowerCase().includes(q);
     }));
     if(pendingView==='arquivados'){
-      document.querySelector('#pendingBoard').innerHTML='<div class="archived-services-list">'+(rows.map(archivedServiceCard).join('')||'<div class="empty">Nenhum serviço arquivado.</div>')+'</div>';
+      const archivedAll=data.servicos.filter(x=>x.arquivado);
+      document.querySelector('#pendingBoard').innerHTML=
+        archivedAnalyticsHtml(archivedAll)+
+        '<div class="archive-history-head"><div><b>Histórico de serviços arquivados</b><small>'+archivedAll.length+' serviço(s) preservado(s) no histórico</small></div></div>'+
+        '<div class="archived-services-list">'+(rows.map(archivedServiceCard).join('')||'<div class="empty">Nenhum serviço arquivado encontrado.</div>')+'</div>';
       bindArchived();
     }else{
       document.querySelector('#pendingBoard').innerHTML=`<div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
@@ -928,7 +1024,9 @@ function pendencias(){
     document.querySelectorAll('[data-pending-view]').forEach(x=>x.classList.toggle('active',x===b));
     const classTabs=document.querySelector('#pendingClassTabs');
     if(classTabs)classTabs.style.display=pendingView==='ativos'?'flex':'none';
-    draw(document.querySelector('#pendingSearch').value);
+    const search=document.querySelector('#pendingSearch');
+    if(search)search.placeholder=pendingView==='arquivados'?'🔎 Buscar no histórico por cliente, serviço ou tipo':'🔎 Buscar cliente, serviço, responsável, orçamento ou próxima ação';
+    draw(search?.value||'');
   });
   document.querySelectorAll('[data-pending-class]').forEach(b=>b.onclick=()=>{
     pendingClass=b.dataset.pendingClass;
@@ -3045,6 +3143,38 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
   color:#dff5ff!important;
   border:1px solid #28546a!important;
 }
+</style>
+<style id="archive-analytics-v1">
+.archive-analytics{display:grid;gap:12px;margin-bottom:14px}
+.archive-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.archive-kpi{border:1px solid #17384b;background:#071923;border-radius:12px;padding:12px;min-width:0}
+.archive-kpi.primary{background:linear-gradient(135deg,#0b2c3d,#0c4057);border-color:#28667e}
+.archive-kpi span{display:block;font-size:8px;color:#85a4b4;text-transform:uppercase;letter-spacing:.05em}
+.archive-kpi b{display:block;font-size:17px;color:#fff;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.archive-kpi small{display:block;font-size:9px;color:#7693a2;margin-top:3px}
+.archive-kpi b.positive{color:#69dfa9}.archive-kpi b.negative{color:#ff8c8c}
+.archive-analysis-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:10px}
+.archive-chart-card{border:1px solid #17384b;background:#071923;border-radius:14px;padding:13px;min-width:0;overflow:hidden}
+.archive-chart-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}
+.archive-chart-head b{display:block;font-size:13px;color:#f3fbff}.archive-chart-head small{display:block;font-size:9px;color:#7795a5;margin-top:2px}
+.archive-month-chart{height:185px;display:flex;gap:7px;align-items:flex-end;border-bottom:1px solid #214455;padding:10px 4px 0;overflow-x:auto}
+.archive-month-col{min-width:52px;flex:1;display:grid;grid-template-rows:auto 125px auto;align-items:end;text-align:center;gap:5px}
+.archive-month-value{font-size:8px;color:#9db8c5;white-space:nowrap}
+.archive-month-bar-wrap{height:125px;display:flex;align-items:flex-end;justify-content:center}
+.archive-month-bar-wrap i{display:block;width:65%;max-width:36px;min-height:5px;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#36c9f4,#197ea5)}
+.archive-month-col span{font-size:8px;color:#7d9aa9;text-transform:capitalize}
+.archive-composition{display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:center}
+.archive-donut{--service:0;width:124px;height:124px;border-radius:50%;background:conic-gradient(#24bce8 calc(var(--service)*1%),#e0a928 0);display:grid;place-items:center;position:relative}
+.archive-donut:after{content:"";position:absolute;width:82px;height:82px;border-radius:50%;background:#071923}
+.archive-donut div{position:relative;z-index:1;text-align:center}.archive-donut b{display:block;font-size:20px}.archive-donut small{font-size:8px;color:#8da8b6}
+.archive-composition-legend{display:grid;gap:9px}.archive-composition-legend div{border-bottom:1px solid #143343;padding-bottom:8px}.archive-composition-legend span{display:block;font-size:9px;color:#809ead}.archive-composition-legend b{display:block;font-size:13px;margin-top:2px}
+.archive-rank{display:grid;gap:10px}.archive-rank-row{display:grid;grid-template-columns:minmax(120px,.8fr) minmax(80px,1fr) auto;gap:9px;align-items:center}.archive-rank-label{min-width:0}.archive-rank-label span{font-size:8px;color:#6dd0f2;margin-right:5px}.archive-rank-label b{font-size:10px;color:#eaf9ff}.archive-rank-label small{display:block;font-size:8px;color:#718e9d;margin-top:1px}.archive-rank-track{height:8px;background:#05131b;border-radius:99px;overflow:hidden}.archive-rank-track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#20a7db,#35d39c)}.archive-rank-track.type i{background:linear-gradient(90deg,#d09c2c,#f1c451)}.archive-rank-row strong{font-size:9px;color:#fff;white-space:nowrap}
+.archive-insight{border:1px solid #26546a;background:#092331;border-radius:12px;padding:11px 12px;color:#a7c3d0;font-size:10px;line-height:1.55}
+.archive-insight b{color:#effbff}
+.archive-history-head{display:flex;justify-content:space-between;align-items:end;margin:18px 0 10px;padding-top:14px;border-top:1px solid #17384b}.archive-history-head b{display:block;font-size:14px}.archive-history-head small{display:block;font-size:9px;color:#7895a4;margin-top:2px}
+.archive-analytics-empty{border:1px dashed #28536a;border-radius:12px;padding:18px;text-align:center;color:#809ead;font-size:11px;margin-bottom:12px}
+@media(max-width:1000px){.archive-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.archive-analysis-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.archive-kpis{grid-template-columns:1fr 1fr}.archive-kpi b{font-size:14px}.archive-composition{grid-template-columns:105px 1fr}.archive-donut{width:100px;height:100px}.archive-donut:after{width:66px;height:66px}.archive-rank-row{grid-template-columns:minmax(95px,.9fr) minmax(70px,1fr);}.archive-rank-row strong{grid-column:1/-1;text-align:right;margin-top:-5px}}
 </style>
 </body>
 </html>
