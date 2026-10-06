@@ -601,7 +601,7 @@ function pendingCard(x){
           <button class="btn secondary icon-btn" data-edit-service="${x.id}" title="Editar serviço" aria-label="Editar serviço">✏️</button>
           <button class="btn secondary icon-btn" data-duplicate-service="${x.id}" title="Duplicar serviço" aria-label="Duplicar serviço">📄</button>
           <button class="btn secondary icon-btn" data-proposal-service="${x.id}" title="Proposta de orçamento" aria-label="Proposta de orçamento">💼</button>
-          ${closure.key==='closed'?'<button class="btn secondary icon-btn archive-btn" data-archive-service="'+x.id+'" title="Arquivar serviço" aria-label="Arquivar serviço">📦</button>':''}
+          ${closure.key==='closed'?'<button class="btn secondary archive-service-action" data-archive-service="'+x.id+'" title="Arquivar serviço">📦 Arquivar</button>':''}
           <span class="delete-zone"><button class="btn danger icon-btn" data-delete-service="${x.id}" title="Excluir serviço" aria-label="Excluir serviço">🗑️</button></span>
         </div>
         <button class="btn secondary" data-action="${x.id}">✅ Próxima ação</button>
@@ -658,7 +658,7 @@ function dashboard(){
       <div class="panel-head"><div><h3>Serviços por área</h3><div class="dashboard-kanban-note">Role horizontalmente para visualizar todas as áreas.</div></div><button class="btn secondary" data-go="servicos">Ver todos</button></div>
       <div class="dashboard-type-board">
         ${serviceTypes.length?serviceTypes.map(type=>{
-          const rows=sortByPriority(data.servicos.filter(x=>(x.tipo||'Outros')===type));
+          const rows=sortByPriority(currentServices.filter(x=>(x.tipo||'Outros')===type));
           return `<section class="dashboard-type-col"><div class="dashboard-type-head"><b>${esc(type)}</b><span class="dashboard-type-count">${rows.length}</span></div><div class="dashboard-type-list">${rows.map(dashboardTypeCard).join('')||'<div class="empty">Sem serviços</div>'}</div></section>`;
         }).join(''):'<div class="empty">Nenhum serviço cadastrado.</div>'}
       </div>
@@ -3037,6 +3037,14 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .archived-service-grid b{display:block;font-size:11px;color:#edfaff;margin-top:3px}
 @media(max-width:850px){.archived-services-list{grid-template-columns:1fr}}
 @media(max-width:600px){.archived-service-grid{grid-template-columns:1fr 1fr}}
+</style>
+<style id="archive-action-polish-v1">
+.archive-service-action{
+  padding:8px 11px!important;
+  font-size:10px!important;
+  color:#dff5ff!important;
+  border:1px solid #28546a!important;
+}
 </style>
 </body>
 </html>
