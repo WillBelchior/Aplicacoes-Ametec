@@ -601,6 +601,7 @@ function pendingCard(x){
           <button class="btn secondary icon-btn" data-edit-service="${x.id}" title="Editar serviço" aria-label="Editar serviço">✏️</button>
           <button class="btn secondary icon-btn" data-duplicate-service="${x.id}" title="Duplicar serviço" aria-label="Duplicar serviço">📄</button>
           <button class="btn secondary icon-btn" data-proposal-service="${x.id}" title="Proposta de orçamento" aria-label="Proposta de orçamento">💼</button>
+          ${closure.key==='closed'?'<button class="btn secondary icon-btn archive-btn" data-archive-service="'+x.id+'" title="Arquivar serviço" aria-label="Arquivar serviço">📦</button>':''}
           <span class="delete-zone"><button class="btn danger icon-btn" data-delete-service="${x.id}" title="Excluir serviço" aria-label="Excluir serviço">🗑️</button></span>
         </div>
         <button class="btn secondary" data-action="${x.id}">✅ Próxima ação</button>
@@ -704,6 +705,21 @@ function serviceCard(x,showTotalReceivable=false){
     </div>
   </article>`
 }
+function archivedServiceCard(x){
+  const c=data.clientes.find(a=>a.id===x.cliente_id),p=paySummary(x),vals=serviceValues(x);
+  return '<article class="archived-service-card">'+
+    '<div class="archived-service-head"><div><b>📦 '+esc(x.titulo)+'</b><small>🏭 '+esc(c?.nome_fantasia||'Sem cliente')+' • '+esc(x.tipo||'Serviço')+'</small></div><span class="status done">Arquivado</span></div>'+
+    '<div class="archived-service-grid">'+
+      '<div><span>Conclusão</span><b>'+date(x.data_conclusao)+'</b></div>'+
+      '<div><span>Arquivado em</span><b>'+(x.arquivado_em?new Date(x.arquivado_em).toLocaleDateString('pt-BR'):'—')+'</b></div>'+
+      '<div><span>Serviço contratado</span><b>'+money(vals.service)+'</b></div>'+
+      '<div><span>Material cobrado</span><b>'+money(vals.material)+'</b></div>'+
+      '<div><span>Recebido</span><b>'+money(p.received)+'</b></div>'+
+      '<div><span>Situação final</span><b>'+esc(p.state)+'</b></div>'+
+    '</div>'+
+    '<div class="actions"><button class="btn secondary" data-open-archived="'+x.id+'">🔎 Ver serviço</button><button class="btn secondary" data-restore-service="'+x.id+'">↩ Restaurar</button></div>'+
+  '</article>';
+}
 function pendencias(){
   const stages=['Elaborando orçamento','Aguardando aprovação','Orçamento aprovado','Em andamento','Pausada','Concluída'];
   document.querySelector('#app').innerHTML=`
@@ -716,7 +732,11 @@ function pendencias(){
       ${card('Prestação a receber',money(data.servicos.filter(x=>x.tipo==='Prestação de serviço'&&isReceivableStage(x)).reduce((s,x)=>s+paySummary(x).serviceBalance,0)))}
       ${card('Materiais a receber',money(data.servicos.filter(isReceivableStage).reduce((s,x)=>s+paySummary(x).materialBalance,0)))}
     </div>
-    <div class="pending-class-tabs">
+    <div class="pending-main-tabs">
+      <button class="active" data-pending-view="ativos">📋 Pendências</button>
+      <button data-pending-view="arquivados">📦 Arquivados <span>${data.servicos.filter(x=>x.arquivado).length}</span></button>
+    </div>
+    <div class="pending-class-tabs" id="pendingClassTabs">
       <button class="active" data-pending-class="todos">Todos</button>
       <button data-pending-class="prestacao">🤝 Prestação de serviço</button>
       <button data-pending-class="avulsos">🔧 Serviços avulsos</button>
@@ -736,17 +756,24 @@ function pendencias(){
       (overdueAlerts.length?`<div class="management-alert danger"><span style="font-size:22px">🔴</span><div><strong>${overdueAlerts.length} pagamento(s) vencido(s)</strong><small>Serviços: ${money(overdueAlerts.reduce((s,x)=>s+x.payment.serviceBalance,0))} • Materiais: ${money(overdueAlerts.reduce((s,x)=>s+x.payment.materialBalance,0))}</small></div><button class="btn secondary" data-finance-filter="overdue">Ver</button></div>`:'')+
       (pendingAlerts.length?`<div class="management-alert warn"><span style="font-size:22px">⚠</span><div><strong>${pendingAlerts.length} serviço(s) concluído(s) aguardando pagamento</strong><small>Serviços: ${money(pendingAlerts.reduce((s,x)=>s+x.payment.serviceBalance,0))} • Materiais: ${money(pendingAlerts.reduce((s,x)=>s+x.payment.materialBalance,0))}</small></div><button class="btn secondary" data-finance-filter="pending">Ver</button></div>`:'');
   }
-  let pendingClass='todos';
+  let pendingClass='todos',pendingView='ativos';
   const draw=(query='')=>{
     const q=query.trim().toLowerCase();
     const rows=sortByPriority(data.servicos.filter(x=>{
-      if(pendingClass==='prestacao'&&x.tipo!=='Prestação de serviço')return false;
-      if(pendingClass==='avulsos'&&x.tipo==='Prestação de serviço')return false;
+      if(pendingView==='ativos'&&x.arquivado)return false;
+      if(pendingView==='arquivados'&&!x.arquivado)return false;
+      if(pendingView==='ativos'&&pendingClass==='prestacao'&&x.tipo!=='Prestação de serviço')return false;
+      if(pendingView==='ativos'&&pendingClass==='avulsos'&&x.tipo==='Prestação de serviço')return false;
       const c=data.clientes.find(a=>a.id===x.cliente_id);
       return !q||[x.titulo,x.tipo,x.responsavel,x.orcamento_status,x.proxima_acao,c?.nome_fantasia].filter(Boolean).join(' ').toLowerCase().includes(q);
     }));
-    document.querySelector('#pendingBoard').innerHTML=`<div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
-    bindPending();
+    if(pendingView==='arquivados'){
+      document.querySelector('#pendingBoard').innerHTML='<div class="archived-services-list">'+(rows.map(archivedServiceCard).join('')||'<div class="empty">Nenhum serviço arquivado.</div>')+'</div>';
+      bindArchived();
+    }else{
+      document.querySelector('#pendingBoard').innerHTML=`<div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
+      bindPending();
+    }
   };
   const refreshStageCounts=()=>{
     stages.forEach(st=>{
@@ -863,8 +890,29 @@ function pendencias(){
       }
     });
 
+    document.querySelectorAll('[data-archive-service]').forEach(b=>b.onclick=async()=>{
+      const x=data.servicos.find(s=>s.id===b.dataset.archiveService);if(!x)return;
+      if(closureState(x).key!=='closed')return toast('Só é possível arquivar um serviço concluído e totalmente pago.',true);
+      if(!confirm('Arquivar "'+x.titulo+'"?\n\nEle sairá das Pendências e dos valores a receber, mas todo o histórico será preservado.'))return;
+      const stamp=new Date().toISOString();
+      const {error}=await supabase.from('ametec_servicos').update({arquivado:true,arquivado_em:stamp}).eq('id',x.id);
+      if(error)return toast(error.message,true);
+      x.arquivado=true;x.arquivado_em=stamp;
+      refreshPendingMetrics();draw(document.querySelector('#pendingSearch').value);toast('Serviço arquivado');
+    });
     document.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>{
       const x=data.servicos.find(s=>s.id===b.dataset.pay);if(x)openPaymentForm(x)
+    });
+  };
+  const bindArchived=()=>{
+    document.querySelectorAll('[data-open-archived]').forEach(b=>b.onclick=()=>openServiceDetailPage(b.dataset.openArchived));
+    document.querySelectorAll('[data-restore-service]').forEach(b=>b.onclick=async()=>{
+      const x=data.servicos.find(s=>s.id===b.dataset.restoreService);if(!x)return;
+      if(!confirm('Restaurar este serviço para Pendências?'))return;
+      const {error}=await supabase.from('ametec_servicos').update({arquivado:false,arquivado_em:null}).eq('id',x.id);
+      if(error)return toast(error.message,true);
+      x.arquivado=false;x.arquivado_em=null;
+      refreshPendingMetrics();draw(document.querySelector('#pendingSearch').value);toast('Serviço restaurado');
     });
   };
   draw();
@@ -875,6 +923,13 @@ function pendencias(){
     bindPending();
   });
   document.querySelector('#pendingSearch').oninput=e=>draw(e.target.value);
+  document.querySelectorAll('[data-pending-view]').forEach(b=>b.onclick=()=>{
+    pendingView=b.dataset.pendingView;
+    document.querySelectorAll('[data-pending-view]').forEach(x=>x.classList.toggle('active',x===b));
+    const classTabs=document.querySelector('#pendingClassTabs');
+    if(classTabs)classTabs.style.display=pendingView==='ativos'?'flex':'none';
+    draw(document.querySelector('#pendingSearch').value);
+  });
   document.querySelectorAll('[data-pending-class]').forEach(b=>b.onclick=()=>{
     pendingClass=b.dataset.pendingClass;
     document.querySelectorAll('[data-pending-class]').forEach(x=>x.classList.toggle('active',x===b));
@@ -2964,6 +3019,24 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
   font-size:14px;
   color:#ffffff;
 }
+</style>
+<style id="service-archive-v1">
+.pending-main-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.pending-main-tabs button{border:1px solid #234a5d;background:#071923;color:#9fb9c7;border-radius:10px;padding:10px 13px;font-weight:900;cursor:pointer}
+.pending-main-tabs button.active{background:#0e3a50;border-color:#2c91b8;color:#fff}
+.pending-main-tabs button span{margin-left:5px;opacity:.75}
+.archive-btn{color:#e6f5ff!important}
+.archived-services-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.archived-service-card{border:1px solid #17384b;background:#071923;border-radius:14px;padding:13px;display:grid;gap:11px}
+.archived-service-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.archived-service-head b{display:block;font-size:14px;color:#fff}
+.archived-service-head small{display:block;font-size:10px;color:#8da9b8;margin-top:3px}
+.archived-service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.archived-service-grid div{background:#06151d;border-radius:8px;padding:8px}
+.archived-service-grid span{display:block;font-size:8px;color:#7e9aa9;text-transform:uppercase}
+.archived-service-grid b{display:block;font-size:11px;color:#edfaff;margin-top:3px}
+@media(max-width:850px){.archived-services-list{grid-template-columns:1fr}}
+@media(max-width:600px){.archived-service-grid{grid-template-columns:1fr 1fr}}
 </style>
 </body>
 </html>
