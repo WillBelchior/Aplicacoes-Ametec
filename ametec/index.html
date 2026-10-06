@@ -339,7 +339,8 @@ const status=s=>{const c=['Concluído','Operacional','Ativo'].includes(s)?'done'
 const card=(l,v,s='')=>'<div class="metric"><span>'+l+'</span><b>'+v+'</b><small>'+s+'</small></div>';
 const infoTip=t=>'<span class="info-wrap"><button type="button" class="info-btn" data-info-btn aria-label="Mais informações">ⓘ</button><span class="info-popover">'+esc(t)+'</span></span>';
 function priorityRank(p){return ({'Emergencial':0,'Alta':1,'Média':2,'Baixa':3})[p]??9}
-function isReceivableStage(s){return ['Orçamento aprovado','Em andamento','Pausada','Concluída'].includes(s?.atendimento_status)}
+function isReceivableStage(s){return !s?.arquivado&&['Orçamento aprovado','Em andamento','Pausada','Concluída'].includes(s?.atendimento_status)}
+function isCurrentService(s){return !s?.arquivado}
 function sortByPriority(rows){
   return [...rows].sort((a,b)=>{
     const pa=priorityRank(a.prioridade),pb=priorityRank(b.prioridade);
@@ -555,7 +556,7 @@ function closureState(s){
   return {key:'payment_pending',label:'Pagamento pendente',className:'high',payment:p};
 }
 function financialAlerts(){
-  return data.servicos.map(s=>({s,...closureState(s)})).filter(x=>x.key==='payment_pending'||x.key==='overdue');
+  return data.servicos.filter(isCurrentService).map(s=>({s,...closureState(s)})).filter(x=>x.key==='payment_pending'||x.key==='overdue');
 }
 function pendingCard(x){
   const c=data.clientes.find(a=>a.id===x.cliente_id),p=paySummary(x),closure=closureState(x);
@@ -631,17 +632,18 @@ function dashboardTypeCard(x){
   </article>`;
 }
 function dashboard(){
-  const active=data.servicos.filter(x=>x.status==='Em execução').length,urgent=data.servicos.filter(x=>x.prioridade==='Emergencial'&&x.status!=='Concluído').length;
-  const technicalDone=data.servicos.filter(x=>x.atendimento_status==='Concluída'||x.status==='Concluído').length;
-  const closed=data.servicos.filter(x=>closureState(x).key==='closed').length;
+  const currentServices=data.servicos.filter(isCurrentService);
+  const active=currentServices.filter(x=>x.status==='Em execução').length,urgent=currentServices.filter(x=>x.prioridade==='Emergencial'&&x.status!=='Concluído').length;
+  const technicalDone=currentServices.filter(x=>x.atendimento_status==='Concluída'||x.status==='Concluído').length;
+  const closed=currentServices.filter(x=>closureState(x).key==='closed').length;
   const finAlerts=financialAlerts();
-  const totalReceivable=data.servicos.reduce((s,x)=>s+paySummary(x).balance,0);
+  const totalReceivable=currentServices.reduce((s,x)=>s+paySummary(x).balance,0);
   const revenue=data.servicos.reduce((s,x)=>s+serviceValues(x).total,0);
-  const avg=data.servicos.length?Math.round(data.servicos.reduce((s,x)=>s+(+x.progresso||0),0)/data.servicos.length):0;
-  const byType={};data.servicos.forEach(x=>byType[x.tipo||'Outros']=(byType[x.tipo||'Outros']||0)+1);
+  const avg=currentServices.length?Math.round(currentServices.reduce((s,x)=>s+(+x.progresso||0),0)/currentServices.length):0;
+  const byType={};currentServices.forEach(x=>byType[x.tipo||'Outros']=(byType[x.tipo||'Outros']||0)+1);
   const arr=Object.entries(byType).slice(0,5),max=Math.max(...arr.map(x=>x[1]),1);
   const preferredTypes=['Automação','Máquina de padaria','Instalação elétrica','Comando elétrico','Preventiva','Contrato','Emergência','Outro','Outros'];
-  const existingTypes=[...new Set(data.servicos.map(x=>x.tipo||'Outros'))];
+  const existingTypes=[...new Set(currentServices.map(x=>x.tipo||'Outros'))];
   const serviceTypes=[...preferredTypes.filter(t=>existingTypes.includes(t)),...existingTypes.filter(t=>!preferredTypes.includes(t)).sort((a,b)=>a.localeCompare(b,'pt-BR'))];
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">AMETEC • CENTRO DE OPERAÇÕES</div><h2>Tecnologia para manter a indústria em movimento.</h2><p>Clientes, chamados, equipamentos, agenda e custos em uma única central.</p></div><div class="hero-actions"><button class="btn primary" data-new="servico">+ Serviço</button><button class="btn ghost" data-go="agenda">Abrir agenda</button></div></div></section>
@@ -707,9 +709,9 @@ function pendencias(){
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">CENTRAL DE PENDÊNCIAS</div><h2>Atendimentos, orçamentos e recebimentos</h2><p>Organize tudo por etapa e saiba exatamente qual é a próxima ação.</p></div><button class="btn primary" id="newPending">+ Serviço</button></div></section>
     <div class="metrics">
-      ${card('Elaborando orçamento',data.servicos.filter(x=>x.atendimento_status==='Elaborando orçamento').length)}
-      ${card('Aguardando aprovação',data.servicos.filter(x=>x.atendimento_status==='Aguardando aprovação').length)}
-      ${card('Prestações ativas',data.servicos.filter(x=>x.tipo==='Prestação de serviço'&&x.atendimento_status!=='Concluída').length)}
+      ${card('Elaborando orçamento',data.servicos.filter(x=>!x.arquivado&&x.atendimento_status==='Elaborando orçamento').length)}
+      ${card('Aguardando aprovação',data.servicos.filter(x=>!x.arquivado&&x.atendimento_status==='Aguardando aprovação').length)}
+      ${card('Prestações ativas',data.servicos.filter(x=>!x.arquivado&&x.tipo==='Prestação de serviço'&&x.atendimento_status!=='Concluída').length)}
       ${card('Serviços a receber',money(data.servicos.filter(x=>x.tipo!=='Prestação de serviço'&&isReceivableStage(x)).reduce((s,x)=>s+paySummary(x).serviceBalance,0)))}
       ${card('Prestação a receber',money(data.servicos.filter(x=>x.tipo==='Prestação de serviço'&&isReceivableStage(x)).reduce((s,x)=>s+paySummary(x).serviceBalance,0)))}
       ${card('Materiais a receber',money(data.servicos.filter(isReceivableStage).reduce((s,x)=>s+paySummary(x).materialBalance,0)))}
@@ -762,9 +764,9 @@ function pendencias(){
   const refreshPendingMetrics=()=>{
     const metrics=document.querySelectorAll('.metrics .metric b');
     if(metrics.length>=5){
-      metrics[0].textContent=data.servicos.filter(x=>x.atendimento_status==='Elaborando orçamento').length;
-      metrics[1].textContent=data.servicos.filter(x=>x.atendimento_status==='Aguardando aprovação').length;
-      metrics[2].textContent=data.servicos.filter(x=>x.tipo==='Prestação de serviço'&&x.atendimento_status!=='Concluída').length;
+      metrics[0].textContent=data.servicos.filter(x=>!x.arquivado&&x.atendimento_status==='Elaborando orçamento').length;
+      metrics[1].textContent=data.servicos.filter(x=>!x.arquivado&&x.atendimento_status==='Aguardando aprovação').length;
+      metrics[2].textContent=data.servicos.filter(x=>!x.arquivado&&x.tipo==='Prestação de serviço'&&x.atendimento_status!=='Concluída').length;
       metrics[3].textContent=money(data.servicos.filter(x=>x.tipo!=='Prestação de serviço'&&isReceivableStage(x)).reduce((s,x)=>s+paySummary(x).serviceBalance,0));
       metrics[4].textContent=money(data.servicos.filter(x=>x.tipo==='Prestação de serviço'&&isReceivableStage(x)).reduce((s,x)=>s+paySummary(x).serviceBalance,0));
       metrics[5].textContent=money(data.servicos.filter(isReceivableStage).reduce((s,x)=>s+paySummary(x).materialBalance,0));
@@ -2235,7 +2237,7 @@ function colaboradores(){
 }
 function financeiro(){
   let tab=localStorage.getItem('ametecFinanceTab')||'atendimentos';
-  const summaries=data.servicos.map(x=>({x,p:paySummary(x),c:data.clientes.find(a=>a.id===x.cliente_id)}));
+  const summaries=data.servicos.filter(isCurrentService).map(x=>({x,p:paySummary(x),c:data.clientes.find(a=>a.id===x.cliente_id)}));
   const totalBalance=summaries.reduce((s,r)=>s+r.p.balance,0);
   const serviceBalance=summaries.reduce((s,r)=>s+r.p.serviceBalance,0);
   const materialBalance=summaries.reduce((s,r)=>s+r.p.materialBalance,0);
