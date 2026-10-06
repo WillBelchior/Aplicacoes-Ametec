@@ -797,6 +797,33 @@ function archivedAnalyticsHtml(rows){
   '</div>';
 }
 
+function archivedClientFolderCard(clientId,rows){
+  const c=data.clientes.find(x=>x.id===clientId);
+  const totalReceived=rows.reduce((s,x)=>s+paySummary(x).received,0);
+  const serviceReceived=rows.reduce((s,x)=>s+paySummary(x).serviceReceived,0);
+  const materialReceived=rows.reduce((s,x)=>s+paySummary(x).materialReceived,0);
+  const latest=[...rows].sort((a,b)=>String(b.arquivado_em||'').localeCompare(String(a.arquivado_em||'')))[0];
+  return '<button class="archive-client-folder" data-archive-client="'+esc(clientId)+'">'+
+    '<div class="archive-client-folder-head"><div><span class="archive-client-folder-icon">🏭</span><b>'+esc(c?.nome_fantasia||'Cliente sem cadastro')+'</b></div><span class="archive-client-count">'+rows.length+'</span></div>'+
+    '<div class="archive-client-folder-meta">'+
+      '<div><span>Total recebido</span><b>'+money(totalReceived)+'</b></div>'+
+      '<div><span>Serviços</span><b>'+money(serviceReceived)+'</b></div>'+
+      '<div><span>Materiais</span><b>'+money(materialReceived)+'</b></div>'+
+      '<div><span>Último arquivamento</span><b>'+(latest?.arquivado_em?new Date(latest.arquivado_em).toLocaleDateString('pt-BR'):'—')+'</b></div>'+
+    '</div>'+
+  '</button>';
+}
+
+function archivedClientServiceRow(x){
+  const p=paySummary(x),vals=serviceValues(x);
+  return '<article class="service-row archived-service-row" data-open-archived="'+x.id+'">'+
+    '<div class="service-row-title"><b>'+esc(x.titulo)+'</b><small>'+esc(x.tipo||'Serviço')+' • Arquivado '+(x.arquivado_em?new Date(x.arquivado_em).toLocaleDateString('pt-BR'):'—')+'</small></div>'+
+    '<div class="service-row-cell"><span>Conclusão</span><b>'+date(x.data_conclusao)+'</b></div>'+
+    '<div class="service-row-cell"><span>Recebido</span><b>'+money(p.received)+'</b></div>'+
+    '<div class="service-row-cell"><span>Composição</span><b>Serviço '+money(vals.service)+'<br>Material '+money(vals.material)+'</b></div>'+
+  '</article>';
+}
+
 function archivedServiceCard(x){
   const c=data.clientes.find(a=>a.id===x.cliente_id),p=paySummary(x),vals=serviceValues(x);
   return '<article class="archived-service-card">'+
@@ -848,7 +875,7 @@ function pendencias(){
       (overdueAlerts.length?`<div class="management-alert danger"><span style="font-size:22px">🔴</span><div><strong>${overdueAlerts.length} pagamento(s) vencido(s)</strong><small>Serviços: ${money(overdueAlerts.reduce((s,x)=>s+x.payment.serviceBalance,0))} • Materiais: ${money(overdueAlerts.reduce((s,x)=>s+x.payment.materialBalance,0))}</small></div><button class="btn secondary" data-finance-filter="overdue">Ver</button></div>`:'')+
       (pendingAlerts.length?`<div class="management-alert warn"><span style="font-size:22px">⚠</span><div><strong>${pendingAlerts.length} serviço(s) concluído(s) aguardando pagamento</strong><small>Serviços: ${money(pendingAlerts.reduce((s,x)=>s+x.payment.serviceBalance,0))} • Materiais: ${money(pendingAlerts.reduce((s,x)=>s+x.payment.materialBalance,0))}</small></div><button class="btn secondary" data-finance-filter="pending">Ver</button></div>`:'');
   }
-  let pendingClass='todos',pendingView='ativos';
+  let pendingClass='todos',pendingView='ativos',archiveClientId=null;
   const draw=(query='')=>{
     const q=query.trim().toLowerCase();
     const rows=sortByPriority(data.servicos.filter(x=>{
@@ -861,10 +888,34 @@ function pendencias(){
     }));
     if(pendingView==='arquivados'){
       const archivedAll=data.servicos.filter(x=>x.arquivado);
-      document.querySelector('#pendingBoard').innerHTML=
-        archivedAnalyticsHtml(archivedAll)+
-        '<div class="archive-history-head"><div><b>Histórico de serviços arquivados</b><small>'+archivedAll.length+' serviço(s) preservado(s) no histórico</small></div></div>'+
-        '<div class="archived-services-list">'+(rows.map(archivedServiceCard).join('')||'<div class="empty">Nenhum serviço arquivado encontrado.</div>')+'</div>';
+      if(archiveClientId){
+        const client=data.clientes.find(c=>c.id===archiveClientId);
+        const clientRows=rows.filter(x=>x.cliente_id===archiveClientId);
+        const clientAll=archivedAll.filter(x=>x.cliente_id===archiveClientId);
+        const clientReceived=clientAll.reduce((s,x)=>s+paySummary(x).received,0);
+        const clientService=clientAll.reduce((s,x)=>s+paySummary(x).serviceReceived,0);
+        const clientMaterial=clientAll.reduce((s,x)=>s+paySummary(x).materialReceived,0);
+        document.querySelector('#pendingBoard').innerHTML=
+          '<div class="archive-breadcrumb"><button id="archiveClientsHome">Arquivados</button><span>›</span><b>'+esc(client?.nome_fantasia||'Cliente')+'</b></div>'+
+          '<section class="archive-client-hero"><div><div class="eyebrow">HISTÓRICO DO CLIENTE</div><h3>🏭 '+esc(client?.nome_fantasia||'Cliente')+'</h3><p>'+clientAll.length+' serviço(s) arquivado(s) neste histórico.</p></div>'+
+          '<div class="archive-client-summary"><div><span>Total recebido</span><b>'+money(clientReceived)+'</b></div><div><span>Serviços</span><b>'+money(clientService)+'</b></div><div><span>Materiais</span><b>'+money(clientMaterial)+'</b></div></div></section>'+
+          '<div class="archive-history-head"><div><b>Serviços arquivados</b><small>Clique em um serviço para abrir a página completa.</small></div></div>'+
+          '<div class="service-list-rows archive-client-services">'+(clientRows.map(archivedClientServiceRow).join('')||'<div class="empty">Nenhum serviço encontrado para este cliente.</div>')+'</div>';
+      }else{
+        const grouped={};
+        archivedAll.forEach(x=>{const id=x.cliente_id||'sem-cliente';(grouped[id]||(grouped[id]=[])).push(x)});
+        const folderIds=Object.keys(grouped).sort((a,b)=>{
+          const ca=data.clientes.find(x=>x.id===a)?.nome_fantasia||'Sem cliente';
+          const cb=data.clientes.find(x=>x.id===b)?.nome_fantasia||'Sem cliente';
+          return ca.localeCompare(cb,'pt-BR');
+        });
+        document.querySelector('#pendingBoard').innerHTML=
+          archivedAnalyticsHtml(archivedAll)+
+          '<div class="archive-history-head"><div><b>Histórico de serviços arquivados</b><small>Organizado por cliente • '+archivedAll.length+' serviço(s) preservado(s)</small></div></div>'+
+          '<div class="archive-client-folders">'+
+            (folderIds.map(id=>archivedClientFolderCard(id,grouped[id])).join('')||'<div class="empty">Nenhum serviço arquivado encontrado.</div>')+
+          '</div>';
+      }
       bindArchived();
     }else{
       document.querySelector('#pendingBoard').innerHTML=`<div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
@@ -1001,6 +1052,19 @@ function pendencias(){
     });
   };
   const bindArchived=()=>{
+    document.querySelectorAll('[data-archive-client]').forEach(b=>b.onclick=()=>{
+      archiveClientId=b.dataset.archiveClient;
+      const search=document.querySelector('#pendingSearch');
+      if(search){search.value='';search.placeholder='🔎 Buscar nos serviços arquivados deste cliente'}
+      draw('');
+    });
+    const home=document.querySelector('#archiveClientsHome');
+    if(home)home.onclick=()=>{
+      archiveClientId=null;
+      const search=document.querySelector('#pendingSearch');
+      if(search){search.value='';search.placeholder='🔎 Buscar no histórico por cliente, serviço ou tipo'}
+      draw('');
+    };
     document.querySelectorAll('[data-open-archived]').forEach(b=>b.onclick=()=>openServiceDetailPage(b.dataset.openArchived));
     document.querySelectorAll('[data-restore-service]').forEach(b=>b.onclick=async()=>{
       const x=data.servicos.find(s=>s.id===b.dataset.restoreService);if(!x)return;
@@ -1021,6 +1085,7 @@ function pendencias(){
   document.querySelector('#pendingSearch').oninput=e=>draw(e.target.value);
   document.querySelectorAll('[data-pending-view]').forEach(b=>b.onclick=()=>{
     pendingView=b.dataset.pendingView;
+    if(pendingView!=='arquivados')archiveClientId=null;
     document.querySelectorAll('[data-pending-view]').forEach(x=>x.classList.toggle('active',x===b));
     const classTabs=document.querySelector('#pendingClassTabs');
     if(classTabs)classTabs.style.display=pendingView==='ativos'?'flex':'none';
@@ -3175,6 +3240,147 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .archive-analytics-empty{border:1px dashed #28536a;border-radius:12px;padding:18px;text-align:center;color:#809ead;font-size:11px;margin-bottom:12px}
 @media(max-width:1000px){.archive-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.archive-analysis-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.archive-kpis{grid-template-columns:1fr 1fr}.archive-kpi b{font-size:14px}.archive-composition{grid-template-columns:105px 1fr}.archive-donut{width:100px;height:100px}.archive-donut:after{width:66px;height:66px}.archive-rank-row{grid-template-columns:minmax(95px,.9fr) minmax(70px,1fr);}.archive-rank-row strong{grid-column:1/-1;text-align:right;margin-top:-5px}}
+</style>
+<style id="archive-client-folders-v1">
+.archive-client-folders{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+.archive-client-folder{
+  border:1px solid #17384b;
+  background:#071923;
+  color:#eefaff;
+  border-radius:14px;
+  padding:14px;
+  text-align:left;
+  cursor:pointer;
+  display:grid;
+  gap:12px;
+  min-width:0;
+  transition:border-color .18s ease,background .18s ease,transform .18s ease;
+}
+.archive-client-folder:hover{
+  border-color:#2c7a99;
+  background:#0a2230;
+  transform:translateY(-1px);
+}
+.archive-client-folder-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.archive-client-folder-head>div{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.archive-client-folder-icon{font-size:22px}
+.archive-client-folder-head b{
+  font-size:14px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.archive-client-count{
+  min-width:30px;
+  height:30px;
+  border-radius:999px;
+  background:#0d3446;
+  display:grid;
+  place-items:center;
+  font-size:11px;
+  font-weight:900;
+}
+.archive-client-folder-meta{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+}
+.archive-client-folder-meta div{
+  background:#06151d;
+  border-radius:8px;
+  padding:8px;
+}
+.archive-client-folder-meta span{
+  display:block;
+  font-size:8px;
+  color:#7d99a8;
+  text-transform:uppercase;
+}
+.archive-client-folder-meta b{
+  display:block;
+  margin-top:3px;
+  font-size:11px;
+}
+.archive-breadcrumb{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:10px;
+  font-size:11px;
+  color:#7896a5;
+}
+.archive-breadcrumb button{
+  border:0;
+  background:transparent;
+  color:#5dccf5;
+  font-weight:800;
+  padding:0;
+  cursor:pointer;
+}
+.archive-client-hero{
+  border:1px solid #1b5069;
+  background:linear-gradient(135deg,#071d29,#0b3448);
+  border-radius:15px;
+  padding:15px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:16px;
+  align-items:center;
+}
+.archive-client-hero h3{
+  margin:3px 0 4px;
+  font-size:20px;
+}
+.archive-client-hero p{
+  margin:0;
+  font-size:10px;
+  color:#8da9b8;
+}
+.archive-client-summary{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(110px,1fr));
+  gap:7px;
+}
+.archive-client-summary div{
+  background:#061923;
+  border:1px solid #1b455a;
+  border-radius:9px;
+  padding:9px 10px;
+}
+.archive-client-summary span{
+  display:block;
+  font-size:8px;
+  text-transform:uppercase;
+  color:#7d9baa;
+}
+.archive-client-summary b{
+  display:block;
+  margin-top:3px;
+  font-size:12px;
+}
+.archived-service-row{cursor:pointer}
+@media(max-width:1050px){
+  .archive-client-folders{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .archive-client-hero{grid-template-columns:1fr}
+}
+@media(max-width:650px){
+  .archive-client-folders{grid-template-columns:1fr}
+  .archive-client-summary{grid-template-columns:1fr 1fr}
+}
 </style>
 </body>
 </html>
