@@ -637,9 +637,6 @@ function dashboard(){
   const active=currentServices.filter(x=>x.status==='Em execução').length,urgent=currentServices.filter(x=>x.prioridade==='Emergencial'&&x.status!=='Concluído').length;
   const technicalDone=currentServices.filter(x=>x.atendimento_status==='Concluída'||x.status==='Concluído').length;
   const closed=currentServices.filter(x=>closureState(x).key==='closed').length;
-  const finAlerts=financialAlerts();
-  const totalReceivable=currentServices.reduce((s,x)=>s+paySummary(x).balance,0);
-  const revenue=data.servicos.reduce((s,x)=>s+serviceValues(x).total,0);
   const avg=currentServices.length?Math.round(currentServices.reduce((s,x)=>s+(+x.progresso||0),0)/currentServices.length):0;
   const pendingStages=['Elaborando orçamento','Aguardando aprovação','Orçamento aprovado','Em andamento','Pausada','Concluída'];
   const byStage=Object.fromEntries(pendingStages.map(stage=>[stage,currentServices.filter(x=>(x.atendimento_status||'Aguardando aprovação')===stage).length]));
@@ -647,7 +644,7 @@ function dashboard(){
   const maxStage=Math.max(...stageArr.map(x=>x[1]),1);
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">AMETEC • CENTRO DE OPERAÇÕES</div><h2>Tecnologia para manter a indústria em movimento.</h2><p>Clientes, chamados, equipamentos, agenda e custos em uma única central.</p></div><div class="hero-actions"><button class="btn primary" data-new="servico">+ Serviço</button><button class="btn ghost" data-go="agenda">Abrir agenda</button></div></div></section>
-    <div class="metrics">${card('Em execução',active,'serviços ativos')}${card('A receber total',money(totalReceivable),finAlerts.length+' pendência(s) financeira(s)')}${card('Encerrados',closed,technicalDone+' concluído(s) tecnicamente')}${card('Carteira registrada',money(revenue),'serviços + materiais')}</div>
+    <div class="metrics">${card('Em execução',active,'serviços ativos')}${card('Aguardando aprovação',byStage['Aguardando aprovação'],'orçamento(s) aguardando retorno')}${card('Encerrados',closed,technicalDone+' concluído(s) tecnicamente')}${card('Emergenciais',urgent,'atendimento(s) de prioridade emergencial')}</div>
     <div class="quick"><button data-go="clientes"><strong>🏭</strong><b>Clientes</b><small>cadastros e histórico</small></button><button data-new="servico"><strong>⚡</strong><b>Novo chamado</b><small>registre rapidamente</small></button><button data-go="equipamentos"><strong>⚙️</strong><b>Equipamentos</b><small>ativos dos clientes</small></button><button data-go="pendencias"><strong>📋</strong><b>Pendências</b><small>orçamentos e recebimentos</small></button></div>
     <div class="two">
       <section class="panel"><div class="panel-head"><div><h3>Distribuição das pendências</h3><small>por etapa do atendimento</small></div></div><div class="bars">${stageArr.map(([n,v])=>`<div class="bar-wrap"><b>${v}</b><div class="bar" style="height:${Math.max(8,Math.round(v/maxStage*130))}px"></div><small>${esc(n)}</small></div>`).join('')}</div></section>
