@@ -2453,9 +2453,10 @@ function financeiro(){
   let tab=localStorage.getItem('ametecFinanceTab')||'gestao';
   if(tab==='atendimentos')tab='receber';
   const summaries=data.servicos.filter(isCurrentService).map(x=>({x,p:paySummary(x),c:data.clientes.find(a=>a.id===x.cliente_id)}));
-  const totalBalance=summaries.reduce((s,r)=>s+r.p.balance,0);
-  const serviceBalance=summaries.reduce((s,r)=>s+r.p.serviceBalance,0);
-  const materialBalance=summaries.reduce((s,r)=>s+r.p.materialBalance,0);
+  const receivableSummaries=summaries.filter(r=>isReceivableStage(r.x));
+  const totalBalance=receivableSummaries.reduce((s,r)=>s+r.p.balance,0);
+  const serviceBalance=receivableSummaries.reduce((s,r)=>s+r.p.serviceBalance,0);
+  const materialBalance=receivableSummaries.reduce((s,r)=>s+r.p.materialBalance,0);
   const received=data.pagamentos.reduce((s,x)=>s+(+x.valor||0),0);
   const realizedMovements=data.movimentacoes.filter(x=>(x.status||'Realizado')==='Realizado');
   const plannedMovements=data.movimentacoes.filter(x=>x.status==='Previsto');
@@ -2463,7 +2464,7 @@ function financeiro(){
   const manualExits=realizedMovements.filter(x=>x.tipo==='Saída').reduce((s,x)=>s+(+x.valor||0),0);
   const plannedEntries=plannedMovements.filter(x=>x.tipo==='Entrada').reduce((s,x)=>s+(+x.valor||0),0);
   const plannedExits=plannedMovements.filter(x=>x.tipo==='Saída').reduce((s,x)=>s+(+x.valor||0),0);
-  const eligibleSummaries=summaries.filter(r=>isReceivableStage(r.x));
+  const eligibleSummaries=receivableSummaries;
   const eligibleBalance=eligibleSummaries.reduce((s,r)=>s+r.p.balance,0);
   const overdue=eligibleSummaries.reduce((s,r)=>s+(r.p.state==='Vencido'?r.p.balance:0),0);
   const month=today.slice(0,7);
@@ -2626,7 +2627,7 @@ function financeiro(){
         <section class="panel"><div class="panel-head"><div><h3>Histórico financeiro por atendimento</h3><small>Cada cartão mostra a composição real da cobrança e os pagamentos.</small></div></div><div class="finance-tools"><input id="financeSearch" placeholder="🔎 Buscar serviço ou cliente"></div><div id="financeCards" class="finance-grid" style="margin-top:12px"></div></section>`;
       const draw=(q='')=>{
         q=q.trim().toLowerCase();
-        const rows=summaries.filter(r=>!q||[r.x.titulo,r.c?.nome_fantasia,r.x.tipo].filter(Boolean).join(' ').toLowerCase().includes(q)).sort((a,b)=>{const ao=a.p.state==='Vencido'?0:a.p.balance>0?1:2,bo=b.p.state==='Vencido'?0:b.p.balance>0?1:2;if(ao!==bo)return ao-bo;return b.p.balance-a.p.balance});
+        const rows=eligibleSummaries.filter(r=>!q||[r.x.titulo,r.c?.nome_fantasia,r.x.tipo].filter(Boolean).join(' ').toLowerCase().includes(q)).sort((a,b)=>{const ao=a.p.state==='Vencido'?0:a.p.balance>0?1:2,bo=b.p.state==='Vencido'?0:b.p.balance>0?1:2;if(ao!==bo)return ao-bo;return b.p.balance-a.p.balance});
         document.querySelector('#financeCards').innerHTML=rows.map(({x,p,c})=>{const vals=p.values,pays=data.pagamentos.filter(a=>a.servico_id===x.id).sort((a,b)=>(b.data_pagamento||'').localeCompare(a.data_pagamento||'')),pc=p.state==='Pago'?'done':p.state==='Vencido'?'late':p.state==='Parcial'?'run':'',mode=vals.materialMode||'Sem material';const materialInfo=mode==='Cliente compra'?'Cliente compra • '+money(vals.materialQuoted)+' não entra no A receber':mode==='Estoque AMETEC'?'Estoque AMETEC • venda de material':mode==='AMETEC compra para o serviço'?'AMETEC compra • valor a recuperar':'Sem fornecimento de material';return `<article class="finance-card"><div class="finance-card-head"><div><b>${esc(x.titulo)}</b><small>${esc(c?.nome_fantasia||'Sem cliente')} • ${esc(x.tipo||'Serviço')}${x.tipo==='Prestação de serviço'?' • 🤝 Recorrente':''}</small></div><span class="status ${pc}">${p.state}</span></div><div class="finance-card-body"><div class="finance-balance"><div><span>Saldo total</span><b>${money(p.balance)}</b></div><div><span>Serviço a receber</span><b>${money(p.serviceBalance)}</b></div><div><span>Material a receber</span><b>${money(p.materialBalance)}</b></div></div><div class="finance-composition"><div><span>Serviço contratado</span><b>${money(vals.service)}</b></div><div><span>Material cobrado</span><b>${money(vals.material)}</b></div><div><span>Total AMETEC</span><b>${money(vals.total)}</b></div></div><div class="material-mode">📦 ${esc(materialInfo)} ${infoTip(mode==='Cliente compra'?'O material é adquirido pelo próprio cliente e não compõe o valor a receber da AMETEC.':mode==='Estoque AMETEC'?'O material já pertence à AMETEC e é tratado como venda de material da empresa.':'A AMETEC compra o material para executar o serviço e o valor é tratado como material a recuperar do cliente.')}</div>${data.adicionais.filter(a=>a.servico_id===x.id).map(a=>`<div class="pending-line"><span>Adicional • ${esc(a.descricao||'Sem descrição')}</span><b>Serviço ${money(a.valor_servico)} • Material ${money(a.valor_material)}</b></div>`).join('')}<div class="finance-history"><div class="finance-history-title">MOVIMENTAÇÕES</div>${pays.length?pays.slice(0,4).map(pg=>`<div class="finance-history-row"><span>🟢 Entrada • ${date(pg.data_pagamento)} • ${esc(pg.forma_pagamento||'Não informado')}${pg.categoria&&pg.categoria!=='Geral'?' • '+esc(pg.categoria):''}</span><b>+${money(pg.valor)}</b></div>`).join(''):'<small style="color:#82909f">Nenhuma movimentação registrada.</small>'}</div><div class="actions"><button class="btn primary" data-fin-pay="${x.id}">+ Registrar pagamento</button><button class="btn secondary icon-btn" data-fin-edit="${x.id}" title="Editar serviço">✏️</button></div></div></article>`}).join('')||'<div class="empty">Nenhum atendimento financeiro encontrado.</div>';
         document.querySelectorAll('[data-fin-pay]').forEach(b=>b.onclick=()=>{const x=data.servicos.find(s=>s.id===b.dataset.finPay);if(x)openPaymentForm(x)});document.querySelectorAll('[data-fin-edit]').forEach(b=>b.onclick=()=>editService(b.dataset.finEdit));
       };
