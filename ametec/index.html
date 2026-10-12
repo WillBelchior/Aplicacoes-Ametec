@@ -641,26 +641,25 @@ function dashboard(){
   const totalReceivable=currentServices.reduce((s,x)=>s+paySummary(x).balance,0);
   const revenue=data.servicos.reduce((s,x)=>s+serviceValues(x).total,0);
   const avg=currentServices.length?Math.round(currentServices.reduce((s,x)=>s+(+x.progresso||0),0)/currentServices.length):0;
-  const byType={};currentServices.forEach(x=>byType[x.tipo||'Outros']=(byType[x.tipo||'Outros']||0)+1);
-  const arr=Object.entries(byType).slice(0,5),max=Math.max(...arr.map(x=>x[1]),1);
-  const preferredTypes=['Automação','Máquina de padaria','Instalação elétrica','Comando elétrico','Preventiva','Contrato','Emergência','Outro','Outros'];
-  const existingTypes=[...new Set(currentServices.map(x=>x.tipo||'Outros'))];
-  const serviceTypes=[...preferredTypes.filter(t=>existingTypes.includes(t)),...existingTypes.filter(t=>!preferredTypes.includes(t)).sort((a,b)=>a.localeCompare(b,'pt-BR'))];
+  const pendingStages=['Elaborando orçamento','Aguardando aprovação','Orçamento aprovado','Em andamento','Pausada','Concluída'];
+  const byStage=Object.fromEntries(pendingStages.map(stage=>[stage,currentServices.filter(x=>(x.atendimento_status||'Aguardando aprovação')===stage).length]));
+  const stageArr=pendingStages.map(stage=>[stage,byStage[stage]]);
+  const maxStage=Math.max(...stageArr.map(x=>x[1]),1);
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">AMETEC • CENTRO DE OPERAÇÕES</div><h2>Tecnologia para manter a indústria em movimento.</h2><p>Clientes, chamados, equipamentos, agenda e custos em uma única central.</p></div><div class="hero-actions"><button class="btn primary" data-new="servico">+ Serviço</button><button class="btn ghost" data-go="agenda">Abrir agenda</button></div></div></section>
     <div class="metrics">${card('Em execução',active,'serviços ativos')}${card('A receber total',money(totalReceivable),finAlerts.length+' pendência(s) financeira(s)')}${card('Encerrados',closed,technicalDone+' concluído(s) tecnicamente')}${card('Carteira registrada',money(revenue),'serviços + materiais')}</div>
     <div class="quick"><button data-go="clientes"><strong>🏭</strong><b>Clientes</b><small>cadastros e histórico</small></button><button data-new="servico"><strong>⚡</strong><b>Novo chamado</b><small>registre rapidamente</small></button><button data-go="equipamentos"><strong>⚙️</strong><b>Equipamentos</b><small>ativos dos clientes</small></button><button data-go="pendencias"><strong>📋</strong><b>Pendências</b><small>orçamentos e recebimentos</small></button></div>
     <div class="two">
-      <section class="panel"><div class="panel-head"><div><h3>Distribuição dos serviços</h3><small>por tipo de atendimento</small></div></div><div class="bars">${arr.length?arr.map(([n,v])=>`<div class="bar-wrap"><b>${v}</b><div class="bar" style="height:${Math.max(8,Math.round(v/max*130))}px"></div><small>${esc(n)}</small></div>`).join(''):'<div class="empty">Sem serviços ainda.</div>'}</div></section>
+      <section class="panel"><div class="panel-head"><div><h3>Distribuição das pendências</h3><small>por etapa do atendimento</small></div></div><div class="bars">${stageArr.map(([n,v])=>`<div class="bar-wrap"><b>${v}</b><div class="bar" style="height:${Math.max(8,Math.round(v/maxStage*130))}px"></div><small>${esc(n)}</small></div>`).join('')}</div></section>
       <section class="panel"><div class="panel-head"><div><h3>Evolução operacional</h3><small>média dos serviços</small></div></div><div class="donut" style="--p:${avg}"><b>${avg}%</b></div></section>
     </div>
     <section class="panel">
-      <div class="panel-head"><div><h3>Serviços por área</h3><div class="dashboard-kanban-note">Role horizontalmente para visualizar todas as áreas.</div></div><button class="btn secondary" data-go="servicos">Ver todos</button></div>
+      <div class="panel-head"><div><h3>Pendências por etapa</h3><div class="dashboard-kanban-note">Acompanhe o fluxo dos serviços desde o orçamento até a conclusão.</div></div><button class="btn secondary" data-go="pendencias">Abrir Pendências</button></div>
       <div class="dashboard-type-board">
-        ${serviceTypes.length?serviceTypes.map(type=>{
-          const rows=sortByPriority(currentServices.filter(x=>(x.tipo||'Outros')===type));
-          return `<section class="dashboard-type-col"><div class="dashboard-type-head"><b>${esc(type)}</b><span class="dashboard-type-count">${rows.length}</span></div><div class="dashboard-type-list">${rows.map(dashboardTypeCard).join('')||'<div class="empty">Sem serviços</div>'}</div></section>`;
-        }).join(''):'<div class="empty">Nenhum serviço cadastrado.</div>'}
+        ${pendingStages.map(stage=>{
+          const rows=sortByPriority(currentServices.filter(x=>(x.atendimento_status||'Aguardando aprovação')===stage));
+          return `<section class="dashboard-type-col"><div class="dashboard-type-head"><b>${esc(stage)}</b><span class="dashboard-type-count">${rows.length}</span></div><div class="dashboard-type-list">${rows.map(dashboardTypeCard).join('')||'<div class="empty">Sem serviços</div>'}</div></section>`;
+        }).join('')}
       </div>
     </section>`;
   bindCommon();
