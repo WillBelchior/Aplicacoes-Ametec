@@ -314,6 +314,9 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 @media(max-width:420px){.modal .form,.modal .optional-block{grid-template-columns:minmax(0,1fr)}.modal .field.full{grid-column:1/-1}}
 /* Contraste explícito para o tema escuro da gestão financeira */
 .dre-receipts{border-top-color:#274354}.dre-receipts summary{color:#a8bdca}.dre-receipts summary:hover{color:#f1f7fa}.dre-receipts-body{background:#102837;color:#e4edf4;border:1px solid #25465a}.dre-receipt-row{border-bottom-color:#284454;color:#e4edf4}.dre-receipt-row strong,.dre-receipt-row>b,.dre-receipt-footer,.dre-receipt-footer b{color:#e4edf4}.dre-receipt-row small,.dre-receipt-note,.dre-receipt-empty{color:#a8bdca}
+
+/* Alertas de vencimento: cores e organização compatíveis com o tema financeiro */
+.finance-due-panel{margin-bottom:14px}.finance-due-list{display:grid;gap:0}.finance-due-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 2px;border-bottom:1px solid #244255}.finance-due-row:last-child{border-bottom:0}.finance-due-info{display:grid;gap:4px;min-width:0}.finance-due-info>b{color:#ebf7ff;font-size:12px;overflow-wrap:anywhere}.finance-due-info>small,.finance-due-note{color:#9bb5c5;font-size:10px}.finance-due-type{width:max-content;font-size:9px;font-weight:700;border-radius:6px;padding:4px 7px}.finance-due-type.pagar{background:#3b2516;color:#ffd49d}.finance-due-type.receber{background:#133d33;color:#8df3bd}.finance-due-actions{display:grid;justify-items:end;gap:5px;flex-shrink:0}.finance-due-actions>b{font-size:12px;color:#edf8ff}.finance-due-actions>small{font-size:10px}.finance-due-late{color:#ff998f}.finance-due-soon{color:#ffd28b}.finance-due-normal{color:#a2bdcd}.finance-calendar-link{font-size:10px;color:#74d7ff;text-decoration:none;border:1px solid #2b5d77;border-radius:7px;padding:6px 8px}.finance-calendar-link:hover{background:#15384b}.finance-due-note{display:block;margin-top:12px;line-height:1.5}.finance-due-empty{padding:17px;color:#9bb5c5;font-size:12px}@media(max-width:460px){.finance-due-row{align-items:flex-start}.finance-due-actions{min-width:100px;text-align:right}}
 </style>
 </head>
 <body>
@@ -2497,6 +2500,35 @@ function financeiro(){
   const monthResult=entriesMonth-exitsMonth;
   const overduePayables=plannedMovements.filter(x=>x.tipo==='Saída'&&x.data_vencimento&&x.data_vencimento<today).reduce((s,x)=>s+(+x.valor||0),0);
 
+  // Alertas de caixa: apenas movimentos previstos e serviços financeiramente elegíveis.
+  const dueDay=d=>Math.round((new Date(String(d)+'T12:00:00')-new Date(today+'T12:00:00'))/86400000);
+  const alertRows=[
+    ...plannedMovements.filter(x=>x.tipo==='Saída'&&x.data_vencimento).map(x=>({
+      kind:'pagar',title:x.descricao||x.fornecedor||x.categoria||'Conta a pagar',
+      subtitle:x.fornecedor||x.categoria||'Despesa prevista',amount:+x.valor||0,due:x.data_vencimento
+    })),
+    ...receivableSummaries.filter(r=>r.p.balance>0&&r.x.vencimento_pagamento).map(r=>({
+      kind:'receber',title:r.c?.nome_fantasia||r.x.titulo||'Conta a receber',
+      subtitle:r.x.titulo||'Serviço',amount:r.p.balance,due:r.x.vencimento_pagamento
+    }))
+  ].filter(x=>x.amount>0).sort((a,b)=>a.due.localeCompare(b.due));
+  const dueLabel=d=>{const days=dueDay(d);return days<0?'Atrasado '+Math.abs(days)+' dia(s)':days===0?'Vence hoje':days<=7?'Em '+days+' dia(s)':'Previsto'};
+  const googleLink=a=>{
+    const title=(a.kind==='pagar'?'AMETEC • Pagar: ':'AMETEC • Receber: ')+a.title;
+    const description=a.subtitle+'\\nValor: '+money(a.amount)+'\\nConfira a situação atual no Gestão AMETEC antes de efetuar o pagamento.';
+    const day=a.due.replace(/-/g,'');
+    const end=new Date(a.due+'T12:00:00');end.setDate(end.getDate()+1);
+    const endDay=[end.getFullYear(),String(end.getMonth()+1).padStart(2,'0'),String(end.getDate()).padStart(2,'0')].join('');
+    return 'https://calendar.google.com/calendar/render?'+new URLSearchParams({action:'TEMPLATE',text:title,dates:day+'/'+endDay,details:description}).toString();
+  };
+  const alertsHtml='<section class="panel finance-due-panel"><div class="panel-head"><div><h3>🔔 Alertas financeiros</h3><small>Contas a pagar e receber • vencimentos e atrasos</small></div></div>'+
+    (alertRows.length?'<div class="finance-due-list">'+alertRows.map(a=>{
+      const days=dueDay(a.due),priority=days<0?'late':days<=3?'soon':'normal';
+      return '<div class="finance-due-row"><div class="finance-due-info"><span class="finance-due-type '+a.kind+'">'+(a.kind==='pagar'?'A pagar':'A receber')+'</span><b>'+esc(a.title)+'</b><small>'+esc(a.subtitle)+' • '+date(a.due)+'</small></div><div class="finance-due-actions"><b>'+money(a.amount)+'</b><small class="finance-due-'+priority+'">'+dueLabel(a.due)+'</small><a class="finance-calendar-link" href="'+esc(googleLink(a))+'" target="_blank" rel="noopener noreferrer" title="Adicionar vencimento ao Google Agenda">↗ Google Agenda</a></div></div>';
+    }).join('')+'</div>':'<div class="finance-due-empty">Nenhuma conta com vencimento registrado.</div>')+
+    '<small class="finance-due-note">O botão abre o Google Agenda para você confirmar cada evento. Atualizações e baixas não são sincronizadas automaticamente nesta etapa.</small></section>';
+
+
   const openMovementForm=(initial={})=>openForm(initial.id?'Editar movimentação':'Nova movimentação',[
     ['tipo','Tipo','select',['Entrada','Saída']],
     ['status','Situação','select',['Previsto','Realizado','Cancelado']],
@@ -2580,6 +2612,7 @@ function financeiro(){
           '<div class="finance-kpi"><span>A receber em aberto</span><b>'+money(eligibleBalance)+'</b><small>'+(overdue>0?'Vencido: '+money(overdue):'Nenhum recebimento vencido')+'</small></div>'+
         '</div>'+
         ((overdue>0||overduePayables>0)?'<div class="management-alert danger"><span style="font-size:22px">⚠️</span><div><strong>Atenção financeira necessária</strong><small>A receber vencido: '+money(overdue)+' • A pagar vencido: '+money(overduePayables)+'</small></div></div>':'')+
+        alertsHtml+
         '<div class="finance-manager-grid">'+
           '<section class="panel"><div class="panel-head"><div><h3>DRE simplificada • '+esc(monthLabel(month))+'</h3><small>Visão por regime de caixa: só considera o que efetivamente entrou ou saiu no mês.</small></div></div>'+
             '<div class="finance-dre">'+
