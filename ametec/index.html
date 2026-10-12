@@ -298,6 +298,9 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 }
 @media(max-width:520px){.top h1{font-size:13px}.top small{display:none}}
 
+
+/* Detalhamento discreto dos recebimentos na DRE */
+.dre-receipts{border-top:1px solid #edf0f3;margin-top:5px}.dre-receipts summary{cursor:pointer;list-style:none;display:flex;justify-content:center;align-items:center;gap:8px;padding:12px 4px 4px;color:#788797;font-size:11px;font-weight:500}.dre-receipts summary::-webkit-details-marker{display:none}.dre-receipts summary:hover{color:#273448}.dre-chevron{font-size:20px;line-height:12px;transition:transform .2s}.dre-receipts[open] .dre-chevron{transform:rotate(180deg)}.dre-receipts-body{margin-top:12px;padding:8px 12px 12px;background:#f8fafc;border-radius:10px}.dre-receipt-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #e9eef3}.dre-receipt-row>div{min-width:0}.dre-receipt-row strong{display:block;font-size:12px;color:#293648;font-weight:600}.dre-receipt-row small{display:block;color:#8793a1;font-size:10px;margin-top:3px}.dre-receipt-row>b{font-size:12px;white-space:nowrap}.dre-receipt-footer{display:flex;justify-content:space-between;gap:10px;padding:12px 0 5px;font-size:12px;font-weight:700}.dre-receipt-note{display:block;color:#8793a1;font-size:10px}.dre-receipt-empty{padding:15px 0;font-size:12px;color:#8793a1}
 </style>
 </head>
 <body>
@@ -2543,6 +2546,18 @@ function financeiro(){
       const legacyRevenue=paymentRowsMonth.reduce((sum,p)=>!p.categoria||p.categoria==='Geral'?sum+(+p.valor||0):sum,0);
       const otherRevenue=movementRowsMonth.filter(x=>x.tipo==='Entrada').reduce((s,x)=>s+(+x.valor||0),0);
 
+      const receiptDetails=[
+        ...paymentRowsMonth.map(p=>{
+          const service=data.servicos.find(x=>String(x.id)===String(p.servico_id));
+          const client=service&&data.clientes.find(x=>String(x.id)===String(service.cliente_id));
+          return {when:p.data_pagamento||'',label:(client?.nome_fantasia||'Cliente não informado'),detail:service?.titulo||'Pagamento de serviço',value:+p.valor||0};
+        }),
+        ...movementRowsMonth.filter(x=>x.tipo==='Entrada').map(x=>({
+          when:x.data_movimentacao||'',label:x.descricao||x.categoria||'Outra entrada',detail:x.categoria||'Movimentação financeira',value:+x.valor||0
+        }))
+      ].sort((a,b)=>String(b.when).localeCompare(String(a.when)));
+      const receiptLines=receiptDetails.map(x=>'<div class="dre-receipt-row"><div><strong>'+esc(x.label)+'</strong><small>'+esc(x.detail)+' • '+date(x.when)+'</small></div><b>'+money(x.value)+'</b></div>').join('');
+
       root.innerHTML=
         '<div class="finance-period-bar"><div><b>Competência financeira</b><small>Regime de caixa: o valor entra no mês em que o pagamento foi recebido, independentemente da data do serviço.</small></div><label><span>Mês analisado</span><input id="financeMonth" type="month" value="'+esc(month)+'"></label></div>'+
         '<div class="finance-summary">'+
@@ -2562,6 +2577,11 @@ function financeiro(){
               '<div class="dre-total"><span>Entradas totais</span><b>'+money(entriesMonth)+'</b></div>'+
               expenseRows.map(([name,value])=>'<div><span>(-) '+esc(name)+'</span><b class="finance-negative">-'+money(value)+'</b></div>').join('')+
               '<div class="dre-result"><span>Resultado do mês</span><b class="'+(monthResult>=0?'finance-positive':'finance-negative')+'">'+money(monthResult)+'</b></div>'+
+              '<details class="dre-receipts"><summary title="Exibir ou ocultar os recebimentos do mês"><span>Ver recebimentos do mês</span><span class="dre-chevron" aria-hidden="true">⌄</span></summary><div class="dre-receipts-body">'+
+                (receiptLines||'<div class="dre-receipt-empty">Nenhum recebimento registrado neste mês.</div>')+
+                '<div class="dre-receipt-footer"><span>Total recebido</span><b>'+money(entriesMonth)+'</b></div>'+
+                '<small class="dre-receipt-note">O resultado do mês considera este total menos as saídas realizadas.</small>'+
+              '</div></details>'+
             '</div>'+
           '</section>'+
           '<section class="panel"><div class="panel-head"><div><h3>Previsão financeira</h3><small>Compromissos ainda não realizados.</small></div><button class="btn secondary" data-manager-go="pagar">Contas a pagar</button></div><div class="finance-forecast"><div><span>Entradas previstas</span><b>'+money(plannedEntries)+'</b></div><div><span>Saídas previstas</span><b>'+money(plannedExits)+'</b></div><div><span>Saldo projetado</span><b class="'+((cashBalance+plannedEntries-plannedExits)>=0?'finance-positive':'finance-negative')+'">'+money(cashBalance+plannedEntries-plannedExits)+'</b></div></div></section>'+
