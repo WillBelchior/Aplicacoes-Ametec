@@ -178,6 +178,34 @@ aside .aside-bottom{display:block;padding:16px 14px;border-top:1px solid #ffffff
   .card,.simple-metrics > div,.mobile-record,.gallery-meta{padding:15px}
   .progress-hero > div{padding:18px}
 }
+
+/* Smartphone: impede arrasto horizontal do conteúdo sem bloquear rolagem vertical */
+@media (max-width:768px){
+  html,body{
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden;
+    overflow-x:clip;
+    overscroll-behavior-x:none;
+  }
+  .app{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    overflow-x:clip;
+  }
+  main,aside,#content{
+    box-sizing:border-box;
+    max-width:100%;
+    min-width:0;
+  }
+  /* Navegação continua deslizável dentro da própria barra, sem deslocar a página */
+  aside nav{
+    max-width:100%;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+}
 </style></head><body><div class="app"><aside><div class="brand-modern"><span class="brand-symbol" aria-hidden="true">⚓</span><span class="brand-title"><span class="brand-prefix">Projetos</span><span>Barquinha</span></span></div><nav id="nav"></nav><div class="aside-bottom"><strong>OBRA 001</strong><div>Controle de execução</div><div>Projeto interno • Versão 2.0</div></div></aside><main><div class="topbar"><span>PROJETOS / CONSTRUÇÃO / <strong>OBRA 001</strong></span><span><span class="dot"></span> Ambiente de acompanhamento</span></div><header><div><div class="head-kicker">CENTRAL DE GERENCIAMENTO</div><h2 id="pageTitle"></h2><div class="muted">Estrutura de concreto armado · Terreno inclinado · 33 m²</div></div><span class="pill" id="mode">Modo local • somente neste aparelho</span></header><div class="warn"><b>Estudo preliminar:</b> fundações, base elevada, contenção, pilares e vigas exigem dimensionamento de profissional habilitado, levantamento do terreno e avaliação do solo. Este aplicativo não substitui projeto com ART.</div><section id="cloudCard" class="cloud-box"><div class="cloud-head"><strong>☁ Dados na nuvem</strong><span id="cloudStatus">Conectando…</span></div><div id="cloudControls"><form id="cloudLogin" class="cloud-login"><input id="cloudEmail" type="email" autocomplete="email" required placeholder="Seu e-mail" aria-label="E-mail"/><input id="cloudPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Sua senha" aria-label="Senha"/><button type="submit" class="btn">Entrar</button><button type="button" class="btn alt" id="cloudSignUp">Criar conta</button></form><p class="cloud-helper">Entre para sincronizar seus registros com segurança. Seu conteúdo local não será apagado.</p></div></section><div id="content"></div><footer>Projetos Barquinha • Versão inicial sem servidor: dados guardados neste navegador. Não use o link como controle de acesso ou como armazenamento definitivo.</footer></main></div><div id="photoViewer" class="photo-viewer photo-overlay" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden><button id="closeViewer" class="viewer-close" type="button" aria-label="Fechar foto">✕</button><div class="viewer-content"><img id="viewerImage" alt="Foto da obra"><div id="viewerCaption"></div><p id="viewerError" hidden>Não foi possível carregar esta foto. Atualize a página e tente novamente.</p></div></div><dialog id="modal"><h3 id="modalTitle"></h3><form id="itemForm"><div id="fields" class="formgrid"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn alt" type="button" id="cancel">Cancelar</button><button class="btn" type="submit">Salvar</button></div></form></dialog><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
 const tabs=[["painel","▦ Painel"],["projeto","▤ Projeto"],["etapas","▣ Etapas"],["materiais","▥ Materiais"],["equipe","♙ Equipe"],["financeiro","＄ Financeiro"],["diario","✎ Diário"],["fotos","▧ Fotos"]];
 const definitions={etapas:[["nome","Etapa","text",true],["status","Situação","select",false,["Pendente","Em andamento","Concluído","Bloqueado"]],["progresso","Avanço (%)","number"],["prazo","Previsão","date"],["responsavel","Responsável","text"],["observacoes","Observações","textarea"]],materiais:[["nome","Material","text",true],["unidade","Unidade","select",false,["un","m","m²","m³","kg","saco","litro","serviço"]],["previsto","Qtd. prevista","number"],["comprado","Qtd. comprada","number"],["recebido","Qtd. recebida","number"],["consumido","Qtd. consumida","number"],["valor","Preço unitário (R$)","number"],["fornecedor","Fornecedor","text"],["observacoes","Observações","textarea"]],equipe:[["nome","Nome","text",true],["funcao","Função","select",false,["Pedreiro","Servente","Mestre de obras","Outro"]],["telefone","Telefone","tel"],["diaria","Diária (R$)","number"],["dias","Dias trabalhados","number"],["observacoes","Observações","textarea"]],financeiro:[["descricao","Descrição","text",true],["categoria","Categoria","select",false,["Material","Mão de obra","Serviço","Transporte","Outros"]],["valor","Valor (R$)","number",true],["data","Data","date"],["status","Situação","select",false,["Pago","Pendente"]],["observacoes","Observações","textarea"]],diario:[["data","Data","date",true],["etapa","Etapa","text"],["clima","Clima","select",false,["Ensolarado","Nublado","Chuva","Não informado"]],["atividades","Atividades realizadas","textarea",true],["ocorrencias","Ocorrências/pendências","textarea"]]};
