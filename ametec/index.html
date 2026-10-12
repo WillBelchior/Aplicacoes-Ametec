@@ -301,6 +301,17 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 
 /* Detalhamento discreto dos recebimentos na DRE */
 .dre-receipts{border-top:1px solid #edf0f3;margin-top:5px}.dre-receipts summary{cursor:pointer;list-style:none;display:flex;justify-content:center;align-items:center;gap:8px;padding:12px 4px 4px;color:#788797;font-size:11px;font-weight:500}.dre-receipts summary::-webkit-details-marker{display:none}.dre-receipts summary:hover{color:#273448}.dre-chevron{font-size:20px;line-height:12px;transition:transform .2s}.dre-receipts[open] .dre-chevron{transform:rotate(180deg)}.dre-receipts-body{margin-top:12px;padding:8px 12px 12px;background:#f8fafc;border-radius:10px}.dre-receipt-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #e9eef3}.dre-receipt-row>div{min-width:0}.dre-receipt-row strong{display:block;font-size:12px;color:#293648;font-weight:600}.dre-receipt-row small{display:block;color:#8793a1;font-size:10px;margin-top:3px}.dre-receipt-row>b{font-size:12px;white-space:nowrap}.dre-receipt-footer{display:flex;justify-content:space-between;gap:10px;padding:12px 0 5px;font-size:12px;font-weight:700}.dre-receipt-note{display:block;color:#8793a1;font-size:10px}.dre-receipt-empty{padding:15px 0;font-size:12px;color:#8793a1}
+/* Correção de campos recortados em todos os formulários modais */
+.modal{max-width:calc(100vw - 24px);overflow-x:hidden}
+.modal .form{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;min-width:0}
+.modal .field,.modal .optional-block,.modal .extra-picker{min-width:0;max-width:100%}
+.modal .field input,.modal .field select,.modal .field textarea{display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.modal .field input[type="date"],.modal .field input[type="month"],.modal .field input[type="datetime-local"]{font-family:inherit;font-size:13px;padding:9px 7px;min-height:38px;color-scheme:dark}
+.modal .field input[type="date"]::-webkit-calendar-picker-indicator,.modal .field input[type="month"]::-webkit-calendar-picker-indicator{margin:0 0 0 2px;flex-shrink:0}
+.modal .field span{overflow-wrap:anywhere}
+.modal .field textarea{resize:vertical;overflow-wrap:anywhere}
+.modal .optional-block{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:420px){.modal .form,.modal .optional-block{grid-template-columns:minmax(0,1fr)}.modal .field.full{grid-column:1/-1}}
 /* Contraste explícito para o tema escuro da gestão financeira */
 .dre-receipts{border-top-color:#274354}.dre-receipts summary{color:#a8bdca}.dre-receipts summary:hover{color:#f1f7fa}.dre-receipts-body{background:#102837;color:#e4edf4;border:1px solid #25465a}.dre-receipt-row{border-bottom-color:#284454;color:#e4edf4}.dre-receipt-row strong,.dre-receipt-row>b,.dre-receipt-footer,.dre-receipt-footer b{color:#e4edf4}.dre-receipt-row small,.dre-receipt-note,.dre-receipt-empty{color:#a8bdca}
 </style>
