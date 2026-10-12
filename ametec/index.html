@@ -2450,25 +2450,102 @@ function colaboradores(){
   document.querySelector('#add').onclick=()=>openForm('Novo colaborador',[['nome','Nome','text'],['funcao','Função','text'],['telefone','Telefone','text'],['tipo_pagamento','Pagamento','select',['diária','hora','mensal','valor fechado']],['valor_base','Valor base','number'],['ativo','Ativo?','select',[{value:'true',label:'Sim'},{value:'false',label:'Não'}]]],async v=>{v.valor_base=+v.valor_base||0;v.ativo=v.ativo==='true';const {error}=await supabase.from('ametec_colaboradores').insert(v);if(error)throw error})
 }
 function financeiro(){
-  let tab=localStorage.getItem('ametecFinanceTab')||'atendimentos';
+  let tab=localStorage.getItem('ametecFinanceTab')||'gestao';
+  if(tab==='atendimentos')tab='receber';
   const summaries=data.servicos.filter(isCurrentService).map(x=>({x,p:paySummary(x),c:data.clientes.find(a=>a.id===x.cliente_id)}));
   const totalBalance=summaries.reduce((s,r)=>s+r.p.balance,0);
   const serviceBalance=summaries.reduce((s,r)=>s+r.p.serviceBalance,0);
   const materialBalance=summaries.reduce((s,r)=>s+r.p.materialBalance,0);
   const received=data.pagamentos.reduce((s,x)=>s+(+x.valor||0),0);
-  const manualEntries=data.movimentacoes.filter(x=>x.tipo==='Entrada').reduce((s,x)=>s+(+x.valor||0),0);
-  const manualExits=data.movimentacoes.filter(x=>x.tipo==='Saída').reduce((s,x)=>s+(+x.valor||0),0);
-  const overdue=summaries.reduce((s,r)=>s+(r.p.state==='Vencido'?r.p.balance:0),0);
+  const realizedMovements=data.movimentacoes.filter(x=>(x.status||'Realizado')==='Realizado');
+  const plannedMovements=data.movimentacoes.filter(x=>x.status==='Previsto');
+  const manualEntries=realizedMovements.filter(x=>x.tipo==='Entrada').reduce((s,x)=>s+(+x.valor||0),0);
+  const manualExits=realizedMovements.filter(x=>x.tipo==='Saída').reduce((s,x)=>s+(+x.valor||0),0);
+  const plannedEntries=plannedMovements.filter(x=>x.tipo==='Entrada').reduce((s,x)=>s+(+x.valor||0),0);
+  const plannedExits=plannedMovements.filter(x=>x.tipo==='Saída').reduce((s,x)=>s+(+x.valor||0),0);
+  const eligibleSummaries=summaries.filter(r=>isReceivableStage(r.x));
+  const eligibleBalance=eligibleSummaries.reduce((s,r)=>s+r.p.balance,0);
+  const overdue=eligibleSummaries.reduce((s,r)=>s+(r.p.state==='Vencido'?r.p.balance:0),0);
+  const month=today.slice(0,7);
+  const paymentsMonth=data.pagamentos.filter(x=>String(x.data_pagamento||'').slice(0,7)===month).reduce((s,x)=>s+(+x.valor||0),0);
+  const entriesMonth=paymentsMonth+realizedMovements.filter(x=>x.tipo==='Entrada'&&String(x.data_movimentacao||'').slice(0,7)===month).reduce((s,x)=>s+(+x.valor||0),0);
+  const exitsMonth=realizedMovements.filter(x=>x.tipo==='Saída'&&String(x.data_movimentacao||'').slice(0,7)===month).reduce((s,x)=>s+(+x.valor||0),0);
+  const cashBalance=received+manualEntries-manualExits;
+  const monthResult=entriesMonth-exitsMonth;
+  const overduePayables=plannedMovements.filter(x=>x.tipo==='Saída'&&x.data_vencimento&&x.data_vencimento<today).reduce((s,x)=>s+(+x.valor||0),0);
+
+  const openMovementForm=(initial={})=>openForm(initial.id?'Editar movimentação':'Nova movimentação',[
+    ['tipo','Tipo','select',['Entrada','Saída']],
+    ['status','Situação','select',['Previsto','Realizado','Cancelado']],
+    ['data_movimentacao','Data do registro / realização','date'],
+    ['data_vencimento','Vencimento','date'],
+    ['competencia','Competência','date'],
+    ['valor','Valor','number'],
+    ['categoria','Categoria','select',['Material','Ferramenta','Deslocamento','Alimentação','Serviço','Imposto','Despesa operacional','Equipe','Veículo','Outros']],
+    ['centro_custo','Centro de custo','select',['Serviços','Materiais','Operação','Administrativo','Impostos','Equipe','Veículo','Outros']],
+    ['descricao','Descrição','text'],
+    ['fornecedor','Fornecedor / favorecido','text'],
+    ['forma_pagamento','Forma de pagamento','select',['','PIX','Dinheiro','Cartão','Transferência','Boleto','Outro']],
+    ['servico_id','Vincular a serviço','select',[{value:'',label:'Nenhum'},...data.servicos.map(x=>({value:x.id,label:x.titulo}))]],
+    ['recorrente','Recorrente?','select',[{value:'false',label:'Não'},{value:'true',label:'Sim'}]],
+    ['observacoes','Observações','textarea']
+  ],async v=>{
+    v.valor=+v.valor||0;
+    if(v.valor<=0)throw new Error('Informe um valor maior que zero.');
+    v.status=v.status||'Realizado';
+    v.data_movimentacao=v.data_movimentacao||today;
+    v.data_vencimento=v.data_vencimento||null;
+    v.competencia=v.competencia||null;
+    v.servico_id=v.servico_id||null;
+    v.fornecedor=v.fornecedor||null;
+    v.centro_custo=v.centro_custo||null;
+    v.forma_pagamento=v.forma_pagamento||null;
+    v.recorrente=v.recorrente==='true';
+    v.origem='Manual';
+    const q=initial.id?supabase.from('ametec_movimentacoes').update(v).eq('id',initial.id):supabase.from('ametec_movimentacoes').insert(v);
+    const {error}=await q;if(error)throw error;
+  },{tipo:'Saída',status:'Realizado',data_movimentacao:today,recorrente:false,...initial});
 
   document.querySelector('#app').innerHTML=`
-    <section class="hero"><div class="hero-grid"><div><div class="eyebrow">CONTROLE FINANCEIRO</div><h2>Financeiro AMETEC</h2><p>Recebimentos por atendimento e extrato completo de entradas e saídas.</p></div></div></section>
-    <div class="subtabs"><button data-fin-tab="atendimentos">Atendimentos</button><button data-fin-tab="prestacoes">🤝 Prestações de serviço</button><button data-fin-tab="extrato">Extrato</button></div>
+    <section class="hero"><div class="hero-grid"><div><div class="eyebrow">GESTÃO FINANCEIRA</div><h2>Financeiro AMETEC</h2><p>Caixa, contas a receber, despesas, previsões e resultado integrados aos serviços.</p></div><div class="hero-actions"><button class="btn primary" id="financeQuickMovement">+ Entrada / Saída</button></div></div></section>
+    <div class="subtabs"><button data-fin-tab="gestao">📊 Visão do gestor</button><button data-fin-tab="receber">💰 A receber</button><button data-fin-tab="prestacoes">🤝 Prestações</button><button data-fin-tab="extrato">📒 Extrato</button></div>
     <div id="financeContent"></div>`;
 
   const renderTab=()=>{
     document.querySelectorAll('[data-fin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.finTab===tab));
     const root=document.querySelector('#financeContent');
-    if(tab==='prestacoes'){
+    if(tab==='gestao'){
+      const receivableTop=[...eligibleSummaries].filter(r=>r.p.balance>0).sort((a,b)=>{const av=a.p.state==='Vencido'?0:1,bv=b.p.state==='Vencido'?0:1;return av-bv||b.p.balance-a.p.balance}).slice(0,6);
+      const payables=[...plannedMovements].filter(x=>x.tipo==='Saída').sort((a,b)=>String(a.data_vencimento||'9999').localeCompare(String(b.data_vencimento||'9999')));
+      const monthExpenses=realizedMovements.filter(x=>x.tipo==='Saída'&&String(x.data_movimentacao||'').slice(0,7)===month);
+      const expenseGroups={};monthExpenses.forEach(x=>expenseGroups[x.categoria||'Outros']=(expenseGroups[x.categoria||'Outros']||0)+(+x.valor||0));
+      const expenseRows=Object.entries(expenseGroups).sort((a,b)=>b[1]-a[1]);
+      const expenseMax=Math.max(...expenseRows.map(x=>x[1]),1);
+      root.innerHTML=
+        '<div class="finance-summary">'+
+          '<div class="finance-kpi primary"><span>Saldo registrado</span><b>'+money(cashBalance)+'</b><small>entradas realizadas menos saídas realizadas</small></div>'+
+          '<div class="finance-kpi"><span>Resultado do mês</span><b class="'+(monthResult>=0?'finance-positive':'finance-negative')+'">'+money(monthResult)+'</b><small>Entradas '+money(entriesMonth)+' • Saídas '+money(exitsMonth)+'</small></div>'+
+          '<div class="finance-kpi"><span>A receber</span><b>'+money(eligibleBalance)+'</b><small>'+(overdue>0?'Vencido: '+money(overdue):'Nenhum recebimento vencido')+'</small></div>'+
+          '<div class="finance-kpi"><span>A pagar previsto</span><b>'+money(plannedExits)+'</b><small>'+(overduePayables>0?'Vencido: '+money(overduePayables):'Compromissos futuros registrados')+'</small></div>'+
+        '</div>'+
+        ((overdue>0||overduePayables>0)?'<div class="management-alert danger"><span style="font-size:22px">⚠️</span><div><strong>Atenção financeira necessária</strong><small>A receber vencido: '+money(overdue)+' • A pagar vencido: '+money(overduePayables)+'</small></div></div>':'')+
+        '<div class="finance-manager-grid">'+
+          '<section class="panel"><div class="panel-head"><div><h3>Contas a receber prioritárias</h3><small>Geradas automaticamente pelos serviços aprovados, em andamento, pausados ou concluídos.</small></div><button class="btn secondary" data-manager-go="receber">Ver tudo</button></div>'+
+            '<div class="finance-manager-list">'+(receivableTop.map(r=>'<article class="finance-manager-row"><div><b>'+esc(r.x.titulo)+'</b><small>'+esc(r.c?.nome_fantasia||'Sem cliente')+' • '+esc(r.p.state)+'</small></div><div><span>Vencimento</span><b>'+date(r.x.vencimento_pagamento)+'</b></div><div><span>Saldo</span><b>'+money(r.p.balance)+'</b></div><button class="btn primary" data-manager-pay="'+r.x.id+'">Receber</button></article>').join('')||'<div class="empty">Nenhum valor a receber.</div>')+'</div>'+
+          '</section>'+
+          '<section class="panel"><div class="panel-head"><div><h3>Contas a pagar / compromissos</h3><small>Despesas previstas e vinculáveis aos serviços.</small></div><button class="btn primary" id="managerNewExpense">+ Despesa</button></div>'+
+            '<div class="finance-manager-list">'+(payables.slice(0,7).map(m=>{const s=data.servicos.find(x=>x.id===m.servico_id);const late=m.data_vencimento&&m.data_vencimento<today;return '<article class="finance-manager-row '+(late?'is-late':'')+'"><div><b>'+esc(m.descricao)+'</b><small>'+esc([m.categoria,s?.titulo,m.fornecedor].filter(Boolean).join(' • ')||'Despesa prevista')+'</small></div><div><span>Vencimento</span><b>'+date(m.data_vencimento)+'</b></div><div><span>Valor</span><b>'+money(m.valor)+'</b></div><button class="btn secondary" data-realize-movement="'+m.id+'">Pagar</button></article>'}).join('')||'<div class="empty">Nenhuma despesa prevista.</div>')+'</div>'+
+          '</section>'+
+        '</div>'+
+        '<div class="finance-manager-grid">'+
+          '<section class="panel"><div class="panel-head"><div><h3>Despesas do mês por categoria</h3><small>Onde o dinheiro está sendo utilizado.</small></div></div><div class="finance-category-list">'+(expenseRows.map(([name,value])=>'<div class="finance-category-row"><div><span>'+esc(name)+'</span><b>'+money(value)+'</b></div><div class="finance-category-track"><i style="width:'+Math.max(4,Math.round(value/expenseMax*100))+'%"></i></div></div>').join('')||'<div class="empty">Nenhuma saída realizada neste mês.</div>')+'</div></section>'+
+          '<section class="panel"><div class="panel-head"><div><h3>Previsão financeira</h3><small>Valores futuros já registrados.</small></div></div><div class="finance-forecast"><div><span>Entradas previstas</span><b>'+money(plannedEntries)+'</b></div><div><span>Saídas previstas</span><b>'+money(plannedExits)+'</b></div><div><span>Saldo projetado</span><b class="'+((cashBalance+plannedEntries-plannedExits)>=0?'finance-positive':'finance-negative')+'">'+money(cashBalance+plannedEntries-plannedExits)+'</b></div></div></section>'+
+        '</div>';
+      root.querySelectorAll('[data-manager-pay]').forEach(b=>b.onclick=()=>{const x=data.servicos.find(s=>s.id===b.dataset.managerPay);if(x)openPaymentForm(x)});
+      root.querySelectorAll('[data-realize-movement]').forEach(b=>b.onclick=async()=>{const m=data.movimentacoes.find(x=>x.id===b.dataset.realizeMovement);if(!m)return;const {error}=await supabase.from('ametec_movimentacoes').update({status:'Realizado',data_movimentacao:today}).eq('id',m.id);if(error)return toast(error.message,true);await load();toast('Despesa registrada como paga.')});
+      root.querySelectorAll('[data-manager-go]').forEach(b=>b.onclick=()=>{tab=b.dataset.managerGo;localStorage.setItem('ametecFinanceTab',tab);renderTab()});
+      document.querySelector('#managerNewExpense').onclick=()=>openMovementForm({tipo:'Saída',status:'Previsto'});
+    }else if(tab==='prestacoes'){
       const rows=summaries.filter(r=>r.x.tipo==='Prestação de serviço');
       const balance=rows.reduce((s,r)=>s+r.p.serviceBalance,0);
       const receivedRows=rows.reduce((s,r)=>s+r.p.serviceReceived,0);
@@ -2512,7 +2589,7 @@ function financeiro(){
       drawProvision();
     }else if(tab==='extrato'){
       const paymentRows=data.pagamentos.map(pg=>{const s=data.servicos.find(x=>x.id===pg.servico_id),c=data.clientes.find(x=>x.id===s?.cliente_id);return {kind:'Entrada',date:pg.data_pagamento,value:+pg.valor||0,desc:s?.titulo||'Recebimento',detail:[c?.nome_fantasia,pg.forma_pagamento,pg.categoria&&pg.categoria!=='Geral'?pg.categoria:null].filter(Boolean).join(' • '),source:'payment',id:pg.id}});
-      const manualRows=data.movimentacoes.map(m=>{const s=data.servicos.find(x=>x.id===m.servico_id);return {kind:m.tipo,date:m.data_movimentacao,value:+m.valor||0,desc:m.descricao,detail:[m.categoria,m.forma_pagamento,s?.titulo].filter(Boolean).join(' • '),source:'manual',id:m.id}});
+      const manualRows=realizedMovements.map(m=>{const s=data.servicos.find(x=>x.id===m.servico_id);return {kind:m.tipo,date:m.data_movimentacao,value:+m.valor||0,desc:m.descricao,detail:[m.categoria,m.forma_pagamento,s?.titulo].filter(Boolean).join(' • '),source:'manual',id:m.id}});
       const all=[...paymentRows,...manualRows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
       const entries=received+manualEntries,exits=manualExits,balance=entries-exits;
       root.innerHTML=`
@@ -2536,9 +2613,9 @@ function financeiro(){
         document.querySelector('#statementList').innerHTML=rows.map(r=>`<div class="statement-row ${r.kind==='Entrada'?'entry':'exit'}"><div class="statement-date"><b>${date(r.date)}</b><small style="display:block">${r.kind==='Entrada'?'🟢 Entrada':'🔴 Saída'}</small></div><div><b>${esc(r.desc)}</b><small style="display:block">${esc(r.detail||'—')}</small></div><b>${r.kind==='Entrada'?'+':'-'}${money(r.value)}</b><div class="statement-balance">Saldo após: <b>${money(balances.get(r.source+':'+r.id)||0)}</b></div></div>`).join('')||'<div class="empty">Nenhuma movimentação encontrada.</div>';
       };
       document.querySelector('#statementSearch').oninput=drawStatement;document.querySelector('#statementType').onchange=drawStatement;
-      document.querySelector('#newMovement').onclick=()=>openForm('Nova movimentação',[['tipo','Tipo','select',['Entrada','Saída']],['data_movimentacao','Data','date'],['valor','Valor','number'],['categoria','Categoria','select',['Material','Ferramenta','Deslocamento','Alimentação','Serviço','Imposto','Despesa operacional','Outros']],['descricao','Descrição','text'],['forma_pagamento','Forma de pagamento','select',['PIX','Dinheiro','Cartão','Transferência','Boleto','Outro']],['servico_id','Vincular a serviço','select',[{value:'',label:'Nenhum'},...data.servicos.map(x=>({value:x.id,label:x.titulo}))]],['observacoes','Observações','textarea']],async v=>{v.valor=+v.valor||0;if(v.valor<=0)throw new Error('Informe um valor maior que zero.');if(!v.data_movimentacao)v.data_movimentacao=today;if(!v.servico_id)v.servico_id=null;const {error}=await supabase.from('ametec_movimentacoes').insert(v);if(error)throw error});
+      document.querySelector('#newMovement').onclick=()=>openMovementForm();
       drawStatement();
-    }else{
+    }else if(tab==='receber'){
       root.innerHTML=`
         <div class="finance-summary">
           <div class="finance-kpi primary"><div class="finance-label-row"><span>A receber total</span>${infoTip('Soma de tudo que ainda falta entrar na AMETEC, considerando serviço e materiais cobrados do cliente.')}</div><b>${money(totalBalance)}</b><small>Saldo financeiro geral</small></div>
@@ -2557,6 +2634,7 @@ function financeiro(){
     }
   };
   document.querySelectorAll('[data-fin-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.finTab;localStorage.setItem('ametecFinanceTab',tab);renderTab()});
+  const quickMovement=document.querySelector('#financeQuickMovement');if(quickMovement)quickMovement.onclick=()=>openMovementForm();
   renderTab();
 }
 function relatorios(){
@@ -3377,6 +3455,22 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
   .archive-client-folders{grid-template-columns:1fr}
   .archive-client-summary{grid-template-columns:1fr 1fr}
 }
+</style>
+
+<style id="ametec-finance-manager-v1">
+.finance-manager-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;margin:14px 0}
+.finance-manager-list{display:grid;gap:8px}
+.finance-manager-row{display:grid;grid-template-columns:minmax(0,1fr) 110px 120px auto;gap:10px;align-items:center;padding:11px 12px;border:1px solid #17384b;background:#071923;border-radius:11px;min-width:0}
+.finance-manager-row>div:first-child{min-width:0}.finance-manager-row>div:first-child b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.finance-manager-row small{display:block;color:#7898a9;font-size:10px;margin-top:3px}
+.finance-manager-row span{display:block;color:#7898a9;font-size:9px;text-transform:uppercase}.finance-manager-row>div b{font-size:12px}
+.finance-manager-row.is-late{border-color:#744044;background:#241317}
+.finance-category-list{display:grid;gap:11px}.finance-category-row>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:11px}.finance-category-row span{color:#95afbd}.finance-category-row b{font-size:11px}
+.finance-category-track{height:8px;background:#05131b;border-radius:99px;overflow:hidden;margin-top:5px}.finance-category-track i{display:block;height:100%;background:linear-gradient(90deg,#1a9fd2,#35d39c);border-radius:99px}
+.finance-forecast{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.finance-forecast>div{background:#071923;border:1px solid #17384b;border-radius:11px;padding:13px}.finance-forecast span{display:block;color:#809ead;font-size:10px;text-transform:uppercase}.finance-forecast b{display:block;font-size:17px;margin-top:5px}
+.finance-positive{color:#69dfa9!important}.finance-negative{color:#ff8c8c!important}
+@media(max-width:1050px){.finance-manager-grid{grid-template-columns:1fr}.finance-manager-row{grid-template-columns:minmax(0,1fr) 100px 110px auto}}
+@media(max-width:700px){.finance-manager-row{grid-template-columns:1fr 1fr}.finance-manager-row>div:first-child{grid-column:1/-1}.finance-manager-row button{width:100%}.finance-forecast{grid-template-columns:1fr}.finance-summary{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.finance-summary{grid-template-columns:1fr}.finance-manager-row{grid-template-columns:1fr}.finance-manager-row>div:first-child{grid-column:auto}}
 </style>
 </body>
 </html>
