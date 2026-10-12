@@ -2467,10 +2467,16 @@ function financeiro(){
   const eligibleSummaries=receivableSummaries;
   const eligibleBalance=eligibleSummaries.reduce((s,r)=>s+r.p.balance,0);
   const overdue=eligibleSummaries.reduce((s,r)=>s+(r.p.state==='Vencido'?r.p.balance:0),0);
-  const month=today.slice(0,7);
-  const paymentsMonth=data.pagamentos.filter(x=>String(x.data_pagamento||'').slice(0,7)===month).reduce((s,x)=>s+(+x.valor||0),0);
-  const entriesMonth=paymentsMonth+realizedMovements.filter(x=>x.tipo==='Entrada'&&String(x.data_movimentacao||'').slice(0,7)===month).reduce((s,x)=>s+(+x.valor||0),0);
-  const exitsMonth=realizedMovements.filter(x=>x.tipo==='Saída'&&String(x.data_movimentacao||'').slice(0,7)===month).reduce((s,x)=>s+(+x.valor||0),0);
+  const month=localStorage.getItem('ametecFinanceMonth')||today.slice(0,7);
+  const monthLabel=m=>{
+    const [y,mo]=String(m||today.slice(0,7)).split('-').map(Number);
+    return new Date(y,Math.max(0,(mo||1)-1),1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  };
+  const paymentRowsMonth=data.pagamentos.filter(x=>String(x.data_pagamento||'').slice(0,7)===month);
+  const movementRowsMonth=realizedMovements.filter(x=>String(x.data_movimentacao||'').slice(0,7)===month);
+  const paymentsMonth=paymentRowsMonth.reduce((s,x)=>s+(+x.valor||0),0);
+  const entriesMonth=paymentsMonth+movementRowsMonth.filter(x=>x.tipo==='Entrada').reduce((s,x)=>s+(+x.valor||0),0);
+  const exitsMonth=movementRowsMonth.filter(x=>x.tipo==='Saída').reduce((s,x)=>s+(+x.valor||0),0);
   const cashBalance=received+manualEntries-manualExits;
   const monthResult=entriesMonth-exitsMonth;
   const overduePayables=plannedMovements.filter(x=>x.tipo==='Saída'&&x.data_vencimento&&x.data_vencimento<today).reduce((s,x)=>s+(+x.valor||0),0);
@@ -2509,7 +2515,7 @@ function financeiro(){
 
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">GESTÃO FINANCEIRA</div><h2>Financeiro AMETEC</h2><p>Caixa, contas a receber, despesas, previsões e resultado integrados aos serviços.</p></div><div class="hero-actions"><button class="btn primary" id="financeQuickMovement">+ Entrada / Saída</button></div></div></section>
-    <div class="subtabs"><button data-fin-tab="gestao">📊 Visão do gestor</button><button data-fin-tab="receber">💰 A receber</button><button data-fin-tab="prestacoes">🤝 Prestações</button><button data-fin-tab="extrato">📒 Extrato</button></div>
+    <div class="subtabs"><button data-fin-tab="gestao">📊 Visão do gestor</button><button data-fin-tab="receber">💰 A receber</button><button data-fin-tab="pagar">🧾 A pagar</button><button data-fin-tab="fluxo">📈 Fluxo de caixa</button><button data-fin-tab="prestacoes">🤝 Prestações</button><button data-fin-tab="extrato">📒 Extrato</button></div>
     <div id="financeContent"></div>`;
 
   const renderTab=()=>{
@@ -2518,43 +2524,119 @@ function financeiro(){
     if(tab==='gestao'){
       const receivableTop=[...eligibleSummaries].filter(r=>r.p.balance>0).sort((a,b)=>{const av=a.p.state==='Vencido'?0:1,bv=b.p.state==='Vencido'?0:1;return av-bv||b.p.balance-a.p.balance}).slice(0,6);
       const payables=[...plannedMovements].filter(x=>x.tipo==='Saída').sort((a,b)=>String(a.data_vencimento||'9999').localeCompare(String(b.data_vencimento||'9999')));
-      const monthExpenses=realizedMovements.filter(x=>x.tipo==='Saída'&&String(x.data_movimentacao||'').slice(0,7)===month);
+      const monthExpenses=movementRowsMonth.filter(x=>x.tipo==='Saída');
       const expenseGroups={};monthExpenses.forEach(x=>expenseGroups[x.categoria||'Outros']=(expenseGroups[x.categoria||'Outros']||0)+(+x.valor||0));
       const expenseRows=Object.entries(expenseGroups).sort((a,b)=>b[1]-a[1]);
       const expenseMax=Math.max(...expenseRows.map(x=>x[1]),1);
+
+      const serviceRevenue=paymentRowsMonth.reduce((sum,p)=>{
+        if(p.categoria==='Material')return sum;
+        if(p.categoria==='Ambos')return sum+(+p.valor_servico||0);
+        if(p.categoria==='Serviço')return sum+(+p.valor||0);
+        return sum;
+      },0);
+      const materialRevenue=paymentRowsMonth.reduce((sum,p)=>{
+        if(p.categoria==='Material')return sum+(+p.valor||0);
+        if(p.categoria==='Ambos')return sum+(+p.valor_material||0);
+        return sum;
+      },0);
+      const legacyRevenue=paymentRowsMonth.reduce((sum,p)=>!p.categoria||p.categoria==='Geral'?sum+(+p.valor||0):sum,0);
+      const otherRevenue=movementRowsMonth.filter(x=>x.tipo==='Entrada').reduce((s,x)=>s+(+x.valor||0),0);
+
       root.innerHTML=
+        '<div class="finance-period-bar"><div><b>Competência financeira</b><small>Regime de caixa: o valor entra no mês em que o pagamento foi recebido, independentemente da data do serviço.</small></div><label><span>Mês analisado</span><input id="financeMonth" type="month" value="'+esc(month)+'"></label></div>'+
         '<div class="finance-summary">'+
-          '<div class="finance-kpi primary"><span>Saldo registrado</span><b>'+money(cashBalance)+'</b><small>entradas realizadas menos saídas realizadas</small></div>'+
-          '<div class="finance-kpi"><span>Resultado do mês</span><b class="'+(monthResult>=0?'finance-positive':'finance-negative')+'">'+money(monthResult)+'</b><small>Entradas '+money(entriesMonth)+' • Saídas '+money(exitsMonth)+'</small></div>'+
-          '<div class="finance-kpi"><span>A receber</span><b>'+money(eligibleBalance)+'</b><small>'+(overdue>0?'Vencido: '+money(overdue):'Nenhum recebimento vencido')+'</small></div>'+
-          '<div class="finance-kpi"><span>A pagar previsto</span><b>'+money(plannedExits)+'</b><small>'+(overduePayables>0?'Vencido: '+money(overduePayables):'Compromissos futuros registrados')+'</small></div>'+
+          '<div class="finance-kpi primary"><span>Resultado do mês</span><b class="'+(monthResult>=0?'finance-positive':'finance-negative')+'">'+money(monthResult)+'</b><small>'+esc(monthLabel(month))+' • entradas menos saídas efetivamente realizadas</small></div>'+
+          '<div class="finance-kpi"><span>Entradas no mês</span><b>'+money(entriesMonth)+'</b><small>Recebimentos: '+money(paymentsMonth)+' • outras entradas: '+money(otherRevenue)+'</small></div>'+
+          '<div class="finance-kpi"><span>Saídas no mês</span><b>'+money(exitsMonth)+'</b><small>custos e despesas pagos no período</small></div>'+
+          '<div class="finance-kpi"><span>A receber em aberto</span><b>'+money(eligibleBalance)+'</b><small>'+(overdue>0?'Vencido: '+money(overdue):'Nenhum recebimento vencido')+'</small></div>'+
         '</div>'+
         ((overdue>0||overduePayables>0)?'<div class="management-alert danger"><span style="font-size:22px">⚠️</span><div><strong>Atenção financeira necessária</strong><small>A receber vencido: '+money(overdue)+' • A pagar vencido: '+money(overduePayables)+'</small></div></div>':'')+
         '<div class="finance-manager-grid">'+
-          '<section class="panel"><div class="panel-head"><div><h3>Contas a receber prioritárias</h3><small>Geradas automaticamente pelos serviços aprovados, em andamento, pausados ou concluídos.</small></div><button class="btn secondary" data-manager-go="receber">Ver tudo</button></div>'+
-            '<div class="finance-manager-list">'+(receivableTop.map(r=>'<article class="finance-manager-row"><div><b>'+esc(r.x.titulo)+'</b><small>'+esc(r.c?.nome_fantasia||'Sem cliente')+' • '+esc(r.p.state)+'</small></div><div><span>Vencimento</span><b>'+date(r.x.vencimento_pagamento)+'</b></div><div><span>Saldo</span><b>'+money(r.p.balance)+'</b></div><button class="btn primary" data-manager-pay="'+r.x.id+'">Receber</button></article>').join('')||'<div class="empty">Nenhum valor a receber.</div>')+'</div>'+
+          '<section class="panel"><div class="panel-head"><div><h3>DRE simplificada • '+esc(monthLabel(month))+'</h3><small>Visão por regime de caixa: só considera o que efetivamente entrou ou saiu no mês.</small></div></div>'+
+            '<div class="finance-dre">'+
+              '<div><span>Receita de serviços recebida</span><b>'+money(serviceRevenue)+'</b></div>'+
+              '<div><span>Receita de materiais recebida</span><b>'+money(materialRevenue)+'</b></div>'+
+              (legacyRevenue>0?'<div><span>Recebimentos antigos não classificados</span><b>'+money(legacyRevenue)+'</b></div>':'')+
+              '<div><span>Outras entradas</span><b>'+money(otherRevenue)+'</b></div>'+
+              '<div class="dre-total"><span>Entradas totais</span><b>'+money(entriesMonth)+'</b></div>'+
+              expenseRows.map(([name,value])=>'<div><span>(-) '+esc(name)+'</span><b class="finance-negative">-'+money(value)+'</b></div>').join('')+
+              '<div class="dre-result"><span>Resultado do mês</span><b class="'+(monthResult>=0?'finance-positive':'finance-negative')+'">'+money(monthResult)+'</b></div>'+
+            '</div>'+
           '</section>'+
-          '<section class="panel"><div class="panel-head"><div><h3>Contas a pagar / compromissos</h3><small>Despesas previstas e vinculáveis aos serviços.</small></div><button class="btn primary" id="managerNewExpense">+ Despesa</button></div>'+
-            '<div class="finance-manager-list">'+(payables.slice(0,7).map(m=>{const s=data.servicos.find(x=>x.id===m.servico_id);const late=m.data_vencimento&&m.data_vencimento<today;return '<article class="finance-manager-row '+(late?'is-late':'')+'"><div><b>'+esc(m.descricao)+'</b><small>'+esc([m.categoria,s?.titulo,m.fornecedor].filter(Boolean).join(' • ')||'Despesa prevista')+'</small></div><div><span>Vencimento</span><b>'+date(m.data_vencimento)+'</b></div><div><span>Valor</span><b>'+money(m.valor)+'</b></div><button class="btn secondary" data-realize-movement="'+m.id+'">Pagar</button></article>'}).join('')||'<div class="empty">Nenhuma despesa prevista.</div>')+'</div>'+
-          '</section>'+
+          '<section class="panel"><div class="panel-head"><div><h3>Previsão financeira</h3><small>Compromissos ainda não realizados.</small></div><button class="btn secondary" data-manager-go="pagar">Contas a pagar</button></div><div class="finance-forecast"><div><span>Entradas previstas</span><b>'+money(plannedEntries)+'</b></div><div><span>Saídas previstas</span><b>'+money(plannedExits)+'</b></div><div><span>Saldo projetado</span><b class="'+((cashBalance+plannedEntries-plannedExits)>=0?'finance-positive':'finance-negative')+'">'+money(cashBalance+plannedEntries-plannedExits)+'</b></div></div></section>'+
         '</div>'+
         '<div class="finance-manager-grid">'+
-          '<section class="panel"><div class="panel-head"><div><h3>Despesas do mês por categoria</h3><small>Onde o dinheiro está sendo utilizado.</small></div></div><div class="finance-category-list">'+(expenseRows.map(([name,value])=>'<div class="finance-category-row"><div><span>'+esc(name)+'</span><b>'+money(value)+'</b></div><div class="finance-category-track"><i style="width:'+Math.max(4,Math.round(value/expenseMax*100))+'%"></i></div></div>').join('')||'<div class="empty">Nenhuma saída realizada neste mês.</div>')+'</div></section>'+
-          '<section class="panel"><div class="panel-head"><div><h3>Previsão financeira</h3><small>Valores futuros já registrados.</small></div></div><div class="finance-forecast"><div><span>Entradas previstas</span><b>'+money(plannedEntries)+'</b></div><div><span>Saídas previstas</span><b>'+money(plannedExits)+'</b></div><div><span>Saldo projetado</span><b class="'+((cashBalance+plannedEntries-plannedExits)>=0?'finance-positive':'finance-negative')+'">'+money(cashBalance+plannedEntries-plannedExits)+'</b></div></div></section>'+
+          '<section class="panel"><div class="panel-head"><div><h3>Contas a receber prioritárias</h3><small>Serviços com saldo pendente, priorizando os vencidos.</small></div><button class="btn secondary" data-manager-go="receber">Ver tudo</button></div>'+
+            '<div class="finance-manager-list">'+(receivableTop.map(r=>'<article class="finance-manager-row"><div><b>'+esc(r.x.titulo)+'</b><small>'+esc(r.c?.nome_fantasia||'Sem cliente')+' • '+esc(r.p.state)+'</small></div><div><span>Vencimento</span><b>'+date(r.x.vencimento_pagamento)+'</b></div><div><span>Saldo</span><b>'+money(r.p.balance)+'</b></div><button class="btn primary" data-manager-pay="'+r.x.id+'">Receber</button></article>').join('')||'<div class="empty">Nenhum valor a receber.</div>')+'</div>'+
+          '</section>'+
+          '<section class="panel"><div class="panel-head"><div><h3>Despesas do mês por categoria</h3><small>Onde o dinheiro foi utilizado em '+esc(monthLabel(month))+'.</small></div></div><div class="finance-category-list">'+(expenseRows.map(([name,value])=>'<div class="finance-category-row"><div><span>'+esc(name)+'</span><b>'+money(value)+'</b></div><div class="finance-category-track"><i style="width:'+Math.max(4,Math.round(value/expenseMax*100))+'%"></i></div></div>').join('')||'<div class="empty">Nenhuma saída realizada neste mês.</div>')+'</div></section>'+
         '</div>';
+      const monthInput=root.querySelector('#financeMonth');if(monthInput)monthInput.onchange=e=>{localStorage.setItem('ametecFinanceMonth',e.target.value||today.slice(0,7));financeiro()};
       root.querySelectorAll('[data-manager-pay]').forEach(b=>b.onclick=()=>{const x=data.servicos.find(s=>s.id===b.dataset.managerPay);if(x)openPaymentForm(x)});
-      root.querySelectorAll('[data-realize-movement]').forEach(b=>b.onclick=async()=>{const m=data.movimentacoes.find(x=>x.id===b.dataset.realizeMovement);if(!m)return;const {error}=await supabase.from('ametec_movimentacoes').update({status:'Realizado',data_movimentacao:today}).eq('id',m.id);if(error)return toast(error.message,true);await load();toast('Despesa registrada como paga.')});
       root.querySelectorAll('[data-manager-go]').forEach(b=>b.onclick=()=>{tab=b.dataset.managerGo;localStorage.setItem('ametecFinanceTab',tab);renderTab()});
-      document.querySelector('#managerNewExpense').onclick=()=>openMovementForm({tipo:'Saída',status:'Previsto'});
+    }else if(tab==='pagar'){
+      const payables=[...plannedMovements].filter(x=>x.tipo==='Saída').sort((a,b)=>String(a.data_vencimento||'9999').localeCompare(String(b.data_vencimento||'9999')));
+      const payableTotal=payables.reduce((s,x)=>s+(+x.valor||0),0);
+      const payableOverdue=payables.filter(x=>x.data_vencimento&&x.data_vencimento<today);
+      const next7=new Date();next7.setDate(next7.getDate()+7);const next7iso=next7.toISOString().slice(0,10);
+      const dueSoon=payables.filter(x=>x.data_vencimento&&x.data_vencimento>=today&&x.data_vencimento<=next7iso);
+      root.innerHTML=
+        '<div class="finance-summary">'+
+          '<div class="finance-kpi primary"><span>Total a pagar</span><b>'+money(payableTotal)+'</b><small>'+payables.length+' compromisso(s) previsto(s)</small></div>'+
+          '<div class="finance-kpi"><span>Vencido</span><b class="'+(payableOverdue.length?'finance-negative':'')+'">'+money(payableOverdue.reduce((s,x)=>s+(+x.valor||0),0))+'</b><small>'+payableOverdue.length+' conta(s) vencida(s)</small></div>'+
+          '<div class="finance-kpi"><span>Próximos 7 dias</span><b>'+money(dueSoon.reduce((s,x)=>s+(+x.valor||0),0))+'</b><small>'+dueSoon.length+' compromisso(s)</small></div>'+
+          '<div class="finance-kpi"><span>Recorrentes</span><b>'+payables.filter(x=>x.recorrente).length+'</b><small>despesas marcadas como recorrentes</small></div>'+
+        '</div>'+
+        '<section class="panel"><div class="panel-head"><div><h3>Contas a pagar</h3><small>Planeje compromissos, vincule despesas aos serviços e confirme o pagamento somente quando ele ocorrer.</small></div><button class="btn primary" id="newPayable">+ Conta a pagar</button></div>'+
+          '<div class="finance-tools"><input id="payableSearch" placeholder="🔎 Buscar descrição, fornecedor, categoria ou serviço"></div>'+
+          '<div id="payableList" class="finance-manager-list" style="margin-top:12px"></div>'+
+        '</section>';
+      const drawPayables=(q='')=>{
+        q=q.trim().toLowerCase();
+        const rows=payables.filter(m=>{const s=data.servicos.find(x=>x.id===m.servico_id);return !q||[m.descricao,m.fornecedor,m.categoria,m.centro_custo,s?.titulo].filter(Boolean).join(' ').toLowerCase().includes(q)});
+        root.querySelector('#payableList').innerHTML=rows.map(m=>{const s=data.servicos.find(x=>x.id===m.servico_id),late=m.data_vencimento&&m.data_vencimento<today;return '<article class="finance-manager-row '+(late?'is-late':'')+'"><div><b>'+esc(m.descricao)+'</b><small>'+esc([m.fornecedor,m.categoria,m.centro_custo,s?.titulo].filter(Boolean).join(' • ')||'Sem detalhes')+'</small></div><div><span>Vencimento</span><b>'+date(m.data_vencimento)+'</b></div><div><span>Valor</span><b>'+money(m.valor)+'</b></div><div class="finance-row-actions"><button class="btn primary" data-payable-realize="'+m.id+'">Pagar</button><button class="btn secondary icon-btn" data-payable-edit="'+m.id+'" title="Editar">✏️</button><button class="btn secondary icon-btn" data-payable-cancel="'+m.id+'" title="Cancelar">✕</button></div></article>'}).join('')||'<div class="empty">Nenhuma conta a pagar prevista.</div>';
+        root.querySelectorAll('[data-payable-realize]').forEach(b=>b.onclick=async()=>{const {error}=await supabase.from('ametec_movimentacoes').update({status:'Realizado',data_movimentacao:today}).eq('id',b.dataset.payableRealize);if(error)return toast(error.message,true);await load();toast('Pagamento realizado e lançado no caixa.')});
+        root.querySelectorAll('[data-payable-edit]').forEach(b=>{b.onclick=()=>{const m=data.movimentacoes.find(x=>x.id===b.dataset.payableEdit);if(m)openMovementForm(m)}});
+        root.querySelectorAll('[data-payable-cancel]').forEach(b=>b.onclick=async()=>{const {error}=await supabase.from('ametec_movimentacoes').update({status:'Cancelado'}).eq('id',b.dataset.payableCancel);if(error)return toast(error.message,true);await load();toast('Conta cancelada.')});
+      };
+      root.querySelector('#newPayable').onclick=()=>openMovementForm({tipo:'Saída',status:'Previsto'});
+      root.querySelector('#payableSearch').oninput=e=>drawPayables(e.target.value);
+      drawPayables();
+    }else if(tab==='fluxo'){
+      const monthsSet=new Set([today.slice(0,7)]);
+      data.pagamentos.forEach(x=>{const m=String(x.data_pagamento||'').slice(0,7);if(m)monthsSet.add(m)});
+      realizedMovements.forEach(x=>{const m=String(x.data_movimentacao||'').slice(0,7);if(m)monthsSet.add(m)});
+      const months=[...monthsSet].sort().reverse().slice(0,18);
+      const rows=months.map(m=>{
+        const pay=data.pagamentos.filter(x=>String(x.data_pagamento||'').slice(0,7)===m).reduce((s,x)=>s+(+x.valor||0),0);
+        const ent=realizedMovements.filter(x=>x.tipo==='Entrada'&&String(x.data_movimentacao||'').slice(0,7)===m).reduce((s,x)=>s+(+x.valor||0),0);
+        const out=realizedMovements.filter(x=>x.tipo==='Saída'&&String(x.data_movimentacao||'').slice(0,7)===m).reduce((s,x)=>s+(+x.valor||0),0);
+        return {m,entries:pay+ent,exits:out,result:pay+ent-out};
+      });
+      const best=rows.length?[...rows].sort((a,b)=>b.result-a.result)[0]:null;
+      root.innerHTML=
+        '<div class="finance-summary">'+
+          '<div class="finance-kpi primary"><span>Resultado atual</span><b class="'+(monthResult>=0?'finance-positive':'finance-negative')+'">'+money(monthResult)+'</b><small>'+esc(monthLabel(month))+'</small></div>'+
+          '<div class="finance-kpi"><span>Melhor mês</span><b>'+(best?money(best.result):money(0))+'</b><small>'+(best?esc(monthLabel(best.m)):'Sem histórico')+'</small></div>'+
+          '<div class="finance-kpi"><span>Meses no histórico</span><b>'+rows.length+'</b><small>até 18 meses exibidos</small></div>'+
+          '<div class="finance-kpi"><span>Critério</span><b style="font-size:17px">Regime de caixa</b><small>receita reconhecida na data do recebimento</small></div>'+
+        '</div>'+
+        '<section class="panel"><div class="panel-head"><div><h3>Fluxo de caixa mensal</h3><small>Histórico de entradas, saídas e resultado efetivo por mês.</small></div></div>'+
+          '<div class="finance-flow-table"><div class="finance-flow-head"><b>Mês</b><b>Entradas</b><b>Saídas</b><b>Resultado</b></div>'+
+          rows.map(r=>'<button class="finance-flow-row" data-flow-month="'+r.m+'"><span>'+esc(monthLabel(r.m))+'</span><b>'+money(r.entries)+'</b><b>'+money(r.exits)+'</b><strong class="'+(r.result>=0?'finance-positive':'finance-negative')+'">'+money(r.result)+'</strong></button>').join('')+
+          '</div></section>';
+      root.querySelectorAll('[data-flow-month]').forEach(b=>b.onclick=()=>{localStorage.setItem('ametecFinanceMonth',b.dataset.flowMonth);tab='gestao';localStorage.setItem('ametecFinanceTab','gestao');financeiro()});
     }else if(tab==='prestacoes'){
       const rows=summaries.filter(r=>r.x.tipo==='Prestação de serviço');
       const balance=rows.reduce((s,r)=>s+r.p.serviceBalance,0);
-      const receivedRows=rows.reduce((s,r)=>s+r.p.serviceReceived,0);
+      const prestationIds=new Set(rows.map(r=>r.x.id));
+      const receivedRows=paymentRowsMonth.filter(p=>prestationIds.has(p.servico_id)).reduce((s,p)=>s+(+p.valor||0),0);
       const overdueRows=rows.reduce((s,r)=>s+(r.p.state==='Vencido'?r.p.serviceBalance:0),0);
       root.innerHTML=`
         <div class="finance-summary">
           <div class="finance-kpi primary"><span>Prestação a receber</span><b>${money(balance)}</b><small>saldo das prestações de serviço</small></div>
-          <div class="finance-kpi"><span>Recebido</span><b>${money(receivedRows)}</b><small>recebimentos registrados</small></div>
+          <div class="finance-kpi"><span>Recebido no mês</span><b>${money(receivedRows)}</b><small>${esc(monthLabel(month))}</small></div>
           <div class="finance-kpi"><span>Vencido</span><b>${money(overdueRows)}</b><small>prestações com vencimento ultrapassado</small></div>
           <div class="finance-kpi"><span>Contratos / prestações</span><b>${rows.length}</b><small>registros ativos e históricos</small></div>
         </div>
@@ -2592,28 +2674,25 @@ function financeiro(){
       const paymentRows=data.pagamentos.map(pg=>{const s=data.servicos.find(x=>x.id===pg.servico_id),c=data.clientes.find(x=>x.id===s?.cliente_id);return {kind:'Entrada',date:pg.data_pagamento,value:+pg.valor||0,desc:s?.titulo||'Recebimento',detail:[c?.nome_fantasia,pg.forma_pagamento,pg.categoria&&pg.categoria!=='Geral'?pg.categoria:null].filter(Boolean).join(' • '),source:'payment',id:pg.id}});
       const manualRows=realizedMovements.map(m=>{const s=data.servicos.find(x=>x.id===m.servico_id);return {kind:m.tipo,date:m.data_movimentacao,value:+m.valor||0,desc:m.descricao,detail:[m.categoria,m.forma_pagamento,s?.titulo].filter(Boolean).join(' • '),source:'manual',id:m.id}});
       const all=[...paymentRows,...manualRows].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-      const entries=received+manualEntries,exits=manualExits,balance=entries-exits;
+      const availableMonths=[...new Set(all.map(r=>String(r.date||'').slice(0,7)).filter(Boolean))].sort().reverse();
       root.innerHTML=`
-        <div class="finance-summary">
-          <div class="finance-kpi primary"><span>Saldo do extrato</span><b>${money(balance)}</b><small>entradas menos saídas registradas</small></div>
-          <div class="finance-kpi"><span>Entradas</span><b>${money(entries)}</b><small>recebimentos + entradas manuais</small></div>
-          <div class="finance-kpi"><span>Saídas</span><b>${money(exits)}</b><small>custos e despesas registradas</small></div>
-          <div class="finance-kpi"><span>Movimentações</span><b>${all.length}</b><small>histórico financeiro</small></div>
-        </div>
         <section class="panel">
-          <div class="panel-head"><div><h3>Extrato de entradas e saídas</h3><small>Histórico cronológico das movimentações.</small></div><button class="btn primary" id="newMovement">+ Movimentação</button></div>
-          <div class="statement-toolbar"><input id="statementSearch" placeholder="🔎 Buscar descrição, serviço ou categoria"><select id="statementType"><option>Todos</option><option>Entrada</option><option>Saída</option></select></div>
+          <div class="panel-head"><div><h3>Extrato financeiro completo</h3><small>Histórico permanente para auditoria e análise de qualquer período.</small></div><button class="btn primary" id="newMovement">+ Movimentação</button></div>
+          <div class="statement-toolbar"><input id="statementSearch" placeholder="🔎 Buscar descrição, serviço ou categoria"><select id="statementType"><option>Todos</option><option>Entrada</option><option>Saída</option></select><select id="statementMonth"><option value="">Todos os meses</option>${availableMonths.map(m=>`<option value="${m}">${esc(monthLabel(m))}</option>`).join('')}</select></div>
+          <div id="statementKpis" class="finance-summary"></div>
           <div id="statementList" class="statement-list" style="margin-top:12px"></div>
         </section>`;
       const drawStatement=()=>{
-        const q=document.querySelector('#statementSearch').value.trim().toLowerCase(),t=document.querySelector('#statementType').value;
+        const q=document.querySelector('#statementSearch').value.trim().toLowerCase(),t=document.querySelector('#statementType').value,m=document.querySelector('#statementMonth').value;
         let running=0;
         const chronological=[...all].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
         const balances=new Map();chronological.forEach(r=>{running+=r.kind==='Entrada'?r.value:-r.value;balances.set(r.source+':'+r.id,running)});
-        const rows=all.filter(r=>(t==='Todos'||r.kind===t)&&(!q||[r.desc,r.detail,r.kind].filter(Boolean).join(' ').toLowerCase().includes(q)));
+        const rows=all.filter(r=>(t==='Todos'||r.kind===t)&&(!m||String(r.date||'').slice(0,7)===m)&&(!q||[r.desc,r.detail,r.kind].filter(Boolean).join(' ').toLowerCase().includes(q)));
+        const periodEntries=rows.filter(r=>r.kind==='Entrada').reduce((s,r)=>s+r.value,0),periodExits=rows.filter(r=>r.kind==='Saída').reduce((s,r)=>s+r.value,0),periodResult=periodEntries-periodExits;
+        document.querySelector('#statementKpis').innerHTML='<div class="finance-kpi primary"><span>Resultado do período</span><b class="'+(periodResult>=0?'finance-positive':'finance-negative')+'">'+money(periodResult)+'</b><small>'+(m?esc(monthLabel(m)):'Histórico selecionado')+'</small></div><div class="finance-kpi"><span>Entradas</span><b>'+money(periodEntries)+'</b><small>movimentações filtradas</small></div><div class="finance-kpi"><span>Saídas</span><b>'+money(periodExits)+'</b><small>movimentações filtradas</small></div><div class="finance-kpi"><span>Movimentações</span><b>'+rows.length+'</b><small>itens encontrados</small></div>';
         document.querySelector('#statementList').innerHTML=rows.map(r=>`<div class="statement-row ${r.kind==='Entrada'?'entry':'exit'}"><div class="statement-date"><b>${date(r.date)}</b><small style="display:block">${r.kind==='Entrada'?'🟢 Entrada':'🔴 Saída'}</small></div><div><b>${esc(r.desc)}</b><small style="display:block">${esc(r.detail||'—')}</small></div><b>${r.kind==='Entrada'?'+':'-'}${money(r.value)}</b><div class="statement-balance">Saldo após: <b>${money(balances.get(r.source+':'+r.id)||0)}</b></div></div>`).join('')||'<div class="empty">Nenhuma movimentação encontrada.</div>';
       };
-      document.querySelector('#statementSearch').oninput=drawStatement;document.querySelector('#statementType').onchange=drawStatement;
+      document.querySelector('#statementSearch').oninput=drawStatement;document.querySelector('#statementType').onchange=drawStatement;document.querySelector('#statementMonth').onchange=drawStatement;
       document.querySelector('#newMovement').onclick=()=>openMovementForm();
       drawStatement();
     }else if(tab==='receber'){
@@ -2622,7 +2701,7 @@ function financeiro(){
           <div class="finance-kpi primary"><div class="finance-label-row"><span>A receber total</span>${infoTip('Soma de tudo que ainda falta entrar na AMETEC, considerando serviço e materiais cobrados do cliente.')}</div><b>${money(totalBalance)}</b><small>Saldo financeiro geral</small></div>
           <div class="finance-kpi"><div class="finance-label-row"><span>A receber • serviços</span>${infoTip('Valor pendente referente à mão de obra, instalação, manutenção, automação e adicionais classificados como serviço.')}</div><b>${money(serviceBalance)}</b><small>Receita de serviço ainda não recebida</small></div>
           <div class="finance-kpi"><div class="finance-label-row"><span>A receber • materiais</span>${infoTip('Valor pendente de materiais fornecidos pela AMETEC. Material comprado diretamente pelo cliente não entra neste saldo.')}</div><b>${money(materialBalance)}</b><small>Materiais fornecidos pela AMETEC</small></div>
-          <div class="finance-kpi"><div class="finance-label-row"><span>Recebido</span>${infoTip('Total de pagamentos já registrados no sistema, independentemente de serem referentes a serviço ou material.')}</div><b>${money(received)}</b><small>${overdue>0?'Vencido: '+money(overdue):'Nenhum valor vencido'}</small></div>
+          <div class="finance-kpi"><div class="finance-label-row"><span>Vencido</span>${infoTip('Valor atualmente em aberto cujo vencimento já passou.')}</div><b class="${overdue>0?'finance-negative':''}">${money(overdue)}</b><small>${overdue>0?'Requer cobrança ou negociação':'Nenhum valor vencido'}</small></div>
         </div>
         <section class="panel"><div class="panel-head"><div><h3>Histórico financeiro por atendimento</h3><small>Cada cartão mostra a composição real da cobrança e os pagamentos.</small></div></div><div class="finance-tools"><input id="financeSearch" placeholder="🔎 Buscar serviço ou cliente"></div><div id="financeCards" class="finance-grid" style="margin-top:12px"></div></section>`;
       const draw=(q='')=>{
@@ -3472,6 +3551,17 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 @media(max-width:1050px){.finance-manager-grid{grid-template-columns:1fr}.finance-manager-row{grid-template-columns:minmax(0,1fr) 100px 110px auto}}
 @media(max-width:700px){.finance-manager-row{grid-template-columns:1fr 1fr}.finance-manager-row>div:first-child{grid-column:1/-1}.finance-manager-row button{width:100%}.finance-forecast{grid-template-columns:1fr}.finance-summary{grid-template-columns:1fr 1fr}}
 @media(max-width:480px){.finance-summary{grid-template-columns:1fr}.finance-manager-row{grid-template-columns:1fr}.finance-manager-row>div:first-child{grid-column:auto}}
+</style>
+
+<style id="ametec-finance-manager-v2">
+.finance-period-bar{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:14px 0;padding:12px 14px;border:1px solid #1c4b61;background:#081b26;border-radius:12px}
+.finance-period-bar b{display:block;color:#f2fbff;font-size:13px}.finance-period-bar small{display:block;color:#88a8b8;font-size:10px;margin-top:3px;line-height:1.45}
+.finance-period-bar label{display:grid;gap:5px;min-width:185px}.finance-period-bar label span{font-size:9px;color:#819daa;text-transform:uppercase}.finance-period-bar input{background:#06151e;color:#eefaff;border:1px solid #24556b;border-radius:9px;padding:9px 10px;font-size:14px}
+.finance-dre{display:grid;gap:0}.finance-dre>div{display:flex;justify-content:space-between;gap:16px;padding:9px 2px;border-bottom:1px solid #143343}.finance-dre span{color:#95adba;font-size:11px}.finance-dre b{font-size:12px}.finance-dre .dre-total{margin-top:6px;padding-top:12px;border-top:1px solid #2b627a}.finance-dre .dre-result{margin-top:7px;padding:12px;border:1px solid #285b72;background:#092431;border-radius:10px}.finance-dre .dre-result span,.finance-dre .dre-result b{font-size:14px;font-weight:900}
+.finance-row-actions{display:flex;gap:5px;align-items:center;justify-content:flex-end}.finance-row-actions .icon-btn{min-width:36px}
+.finance-flow-table{display:grid;border:1px solid #17384b;border-radius:12px;overflow:hidden}.finance-flow-head,.finance-flow-row{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:10px;align-items:center;padding:11px 13px}.finance-flow-head{background:#0a2230;color:#89a7b7;font-size:10px;text-transform:uppercase}.finance-flow-row{border:0;border-top:1px solid #143343;background:#071923;color:#e9f8ff;text-align:left;cursor:pointer}.finance-flow-row:hover{background:#0a2533}.finance-flow-row span{font-size:11px;text-transform:capitalize}.finance-flow-row b,.finance-flow-row strong{font-size:12px}
+.statement-toolbar{display:grid!important;grid-template-columns:minmax(0,1fr) 150px 180px;gap:8px!important}
+@media(max-width:760px){.finance-period-bar{align-items:stretch;flex-direction:column}.finance-period-bar label{min-width:0}.finance-flow-head,.finance-flow-row{grid-template-columns:1fr 1fr}.finance-flow-head b:nth-child(3),.finance-flow-head b:nth-child(4){display:none}.finance-flow-row b,.finance-flow-row strong{text-align:right}.statement-toolbar{grid-template-columns:1fr!important}.finance-row-actions{grid-column:1/-1;justify-content:flex-start}}
 </style>
 </body>
 </html>
