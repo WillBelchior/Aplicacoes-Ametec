@@ -471,7 +471,11 @@ body.auth-locked{overflow:hidden}body.auth-locked .app{display:none!important;vi
 .reuse-controls>button{min-height:45px}
 .reuse-panel>.muted,.reuse-hint{font-size:12px;color:#7b91a2;line-height:1.5}
 @media(max-width:768px){.reuse-controls{flex-direction:column;align-items:stretch}.reuse-controls>label,.reuse-controls>button{width:100%;min-width:0;flex:auto}}
-</style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><div id="gatePending" hidden><p>Seu cadastro foi recebido. Um <strong>ADM</strong> precisa autorizar seu acesso.</p><button class="btn alt" type="button" id="gateCheckAccess">Verificar autorização</button></div><div class="auth-links"><button type="button" id="gateSwitch">Criar uma conta</button><button type="button" id="gateReset">Esqueci minha senha</button><button type="button" id="gateResend">Reenviar confirmação</button></div><p class="auth-privacy">Em aparelhos confiáveis, a sessão continua ativa até você sair. Não marque essa opção em celulares ou computadores compartilhados.</p></div></section><div class="app" inert aria-hidden="true"><aside><div class="brand-modern"><span class="brand-symbol" aria-hidden="true">⚓</span><span class="brand-title"><span class="brand-prefix">Projetos</span><span>Barquinha</span></span></div><nav id="nav"></nav><div class="aside-bottom"><button class="sidebar-logout" type="button" id="sidebarLogout"><span aria-hidden="true">↪</span> Sair</button><div class="aside-caption">Projetos Barquinha · Controle de obras</div></div></aside><main><div class="topbar"><span>PROJETOS / <strong id="breadcrumbProject">OBRA 001</strong></span><span><span class="dot"></span> Ambiente de acompanhamento</span></div><header><div><div class="head-kicker">CENTRAL DE GERENCIAMENTO</div><h2 id="pageTitle"></h2><div class="muted" id="activeProjectDescription">Obra 001 · Acompanhamento</div></div><div class="header-project-actions"><button type="button" class="btn alt" id="switchProject">Trocar obra ↗</button><details class="account-menu" id="accountMenu"><summary id="accountSummary" aria-label="Abrir opções da conta">♙ Minha conta</summary><div class="account-menu-panel" id="cloudControls"></div></details><span class="pill" id="mode">Dados locais</span></div></header><div class="warn" id="technicalNotice"><b>Estudo preliminar:</b> fundações, base elevada, contenção, pilares e vigas exigem dimensionamento de profissional habilitado, levantamento do terreno e avaliação do solo. Este aplicativo não substitui projeto com ART.</div><span id="cloudStatus" class="account-sync-status" role="status" aria-live="polite"></span><div id="content"></div><footer><button type="button" class="mobile-footer-logout" id="footerLogout">↪ Sair da conta</button>Projetos Barquinha · Os dados das obras ficam separados e sincronizados quando houver conexão.</footer></main></div><div id="photoViewer" class="photo-viewer photo-overlay" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden><button id="closeViewer" class="viewer-close" type="button" aria-label="Fechar foto">✕</button><div class="viewer-content"><img id="viewerImage" alt="Foto da obra"><div id="viewerCaption"></div><p id="viewerError" hidden>Não foi possível carregar esta foto. Atualize a página e tente novamente.</p></div></div><dialog id="contactModal" class="contact-modal" aria-label="Cadastro de pessoa ou empresa"><div class="contact-modal-header"><div><span class="section-overline">AGENDA COMPARTILHADA</span><h3 id="contactModalTitle">Novo cadastro</h3></div><button class="contact-close" id="contactCancel" type="button" aria-label="Fechar cadastro">✕</button></div><form id="contactForm" class="contact-form"><div class="contact-form-row"><label>Tipo de cadastro<select name="tipo" id="contactType" required><option value="Pessoa">Pessoa</option><option value="Empresa">Empresa</option></select></label><label>Categoria<select name="categoria" required><option>Prestador de serviço</option><option>Fornecedor de materiais</option><option>Profissional técnico</option><option>Parceiro</option><option>Outros</option></select></label></div><label id="contactNameLabel">Nome da pessoa<input name="nome" maxlength="160" required autocomplete="name" placeholder="Nome completo"></label><label>Atividade ou especialidade<input name="especialidade" maxlength="160" placeholder="Ex.: Pedreiro, elétrica, loja de materiais"></label><div class="contact-form-row"><label>Telefone<input name="telefone" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label><label>WhatsApp<input name="whatsapp" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label></div><label>E-mail<input name="email" type="email" maxlength="150" placeholder="contato@exemplo.com"></label><label>Localização / endereço<input name="localizacao" maxlength="240" placeholder="Cidade, bairro ou endereço"></label><div id="contactCompanyFields" hidden><label>CNPJ (opcional)<input name="documento" maxlength="25" placeholder="00.000.000/0000-00"></label><label>Responsável / contato comercial<input name="responsavel" maxlength="130" placeholder="Pessoa de contato da empresa"></label></div><label>Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações úteis, serviços prestados, referências..."></textarea></label><div class="contact-modal-actions"><button type="button" class="btn alt" id="contactClose">Cancelar</button><button class="btn" type="submit" id="contactSave">Salvar cadastro</button></div></form></dialog><dialog id="boardGalleryModal" class="board-gallery-modal"><div class="board-gallery-head"><h3>Escolher foto da galeria</h3><button type="button" class="btn alt" id="boardGalleryClose">Fechar</button></div><div id="boardGalleryOptions" class="board-gallery-grid"></div></dialog><dialog id="newProjectModal" class="new-project-modal"><h3>+ Nova obra</h3><p class="muted">Preencha os dados iniciais. Cada obra terá registros independentes.</p><form id="newProjectForm" class="formgrid"><label>Nome da obra <input name="nome" required maxlength="120" placeholder="Ex.: Ampliação da casa"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option></select></label><label class="full">Descrição <textarea name="descricao" rows="2" placeholder="Objetivo e observações iniciais"></textarea></label><label class="full">Localização <input name="localizacao" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Prazo previsto <input name="prazo" type="date"></label><label class="full project-copy"><input name="copyStages" type="checkbox" value="yes"> Copiar a lista de etapas da obra atual, zerando o avanço</label><div class="full modal-actions"><button class="btn alt" type="button" id="cancelProject">Cancelar</button><button class="btn" type="submit" id="saveProjectBtn">Criar obra</button></div></form></dialog><dialog id="modal"><h3 id="modalTitle"></h3><form id="itemForm"><div id="fields" class="formgrid"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn alt" type="button" id="cancel">Cancelar</button><button class="btn" type="submit">Salvar</button></div></form></dialog><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
+
+.offline-sync-button{min-height:40px;font-size:12px!important}
+.offline-sync-button[hidden]{display:none!important}
+@media(max-width:768px){.offline-sync-button{width:100%;order:5}}
+</style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><div id="gatePending" hidden><p>Seu cadastro foi recebido. Um <strong>ADM</strong> precisa autorizar seu acesso.</p><button class="btn alt" type="button" id="gateCheckAccess">Verificar autorização</button></div><div class="auth-links"><button type="button" id="gateSwitch">Criar uma conta</button><button type="button" id="gateReset">Esqueci minha senha</button><button type="button" id="gateResend">Reenviar confirmação</button></div><p class="auth-privacy">Em aparelhos confiáveis, a sessão continua ativa até você sair. Não marque essa opção em celulares ou computadores compartilhados.</p></div></section><div class="app" inert aria-hidden="true"><aside><div class="brand-modern"><span class="brand-symbol" aria-hidden="true">⚓</span><span class="brand-title"><span class="brand-prefix">Projetos</span><span>Barquinha</span></span></div><nav id="nav"></nav><div class="aside-bottom"><button class="sidebar-logout" type="button" id="sidebarLogout"><span aria-hidden="true">↪</span> Sair</button><div class="aside-caption">Projetos Barquinha · Controle de obras</div></div></aside><main><div class="topbar"><span>PROJETOS / <strong id="breadcrumbProject">OBRA 001</strong></span><span><span class="dot"></span> Ambiente de acompanhamento</span></div><header><div><div class="head-kicker">CENTRAL DE GERENCIAMENTO</div><h2 id="pageTitle"></h2><div class="muted" id="activeProjectDescription">Obra 001 · Acompanhamento</div></div><div class="header-project-actions"><button type="button" class="btn alt" id="switchProject">Trocar obra ↗</button><details class="account-menu" id="accountMenu"><summary id="accountSummary" aria-label="Abrir opções da conta">♙ Minha conta</summary><div class="account-menu-panel" id="cloudControls"></div></details><button class="btn alt offline-sync-button" type="button" id="syncPendingBtn" hidden>Sincronizar pendências</button><span class="pill" id="mode">Dados locais</span></div></header><div class="warn" id="technicalNotice"><b>Estudo preliminar:</b> fundações, base elevada, contenção, pilares e vigas exigem dimensionamento de profissional habilitado, levantamento do terreno e avaliação do solo. Este aplicativo não substitui projeto com ART.</div><span id="cloudStatus" class="account-sync-status" role="status" aria-live="polite"></span><div id="content"></div><footer><button type="button" class="mobile-footer-logout" id="footerLogout">↪ Sair da conta</button>Projetos Barquinha · Os dados das obras ficam separados e sincronizados quando houver conexão.</footer></main></div><div id="photoViewer" class="photo-viewer photo-overlay" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden><button id="closeViewer" class="viewer-close" type="button" aria-label="Fechar foto">✕</button><div class="viewer-content"><img id="viewerImage" alt="Foto da obra"><div id="viewerCaption"></div><p id="viewerError" hidden>Não foi possível carregar esta foto. Atualize a página e tente novamente.</p></div></div><dialog id="contactModal" class="contact-modal" aria-label="Cadastro de pessoa ou empresa"><div class="contact-modal-header"><div><span class="section-overline">AGENDA COMPARTILHADA</span><h3 id="contactModalTitle">Novo cadastro</h3></div><button class="contact-close" id="contactCancel" type="button" aria-label="Fechar cadastro">✕</button></div><form id="contactForm" class="contact-form"><div class="contact-form-row"><label>Tipo de cadastro<select name="tipo" id="contactType" required><option value="Pessoa">Pessoa</option><option value="Empresa">Empresa</option></select></label><label>Categoria<select name="categoria" required><option>Prestador de serviço</option><option>Fornecedor de materiais</option><option>Profissional técnico</option><option>Parceiro</option><option>Outros</option></select></label></div><label id="contactNameLabel">Nome da pessoa<input name="nome" maxlength="160" required autocomplete="name" placeholder="Nome completo"></label><label>Atividade ou especialidade<input name="especialidade" maxlength="160" placeholder="Ex.: Pedreiro, elétrica, loja de materiais"></label><div class="contact-form-row"><label>Telefone<input name="telefone" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label><label>WhatsApp<input name="whatsapp" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label></div><label>E-mail<input name="email" type="email" maxlength="150" placeholder="contato@exemplo.com"></label><label>Localização / endereço<input name="localizacao" maxlength="240" placeholder="Cidade, bairro ou endereço"></label><div id="contactCompanyFields" hidden><label>CNPJ (opcional)<input name="documento" maxlength="25" placeholder="00.000.000/0000-00"></label><label>Responsável / contato comercial<input name="responsavel" maxlength="130" placeholder="Pessoa de contato da empresa"></label></div><label>Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações úteis, serviços prestados, referências..."></textarea></label><div class="contact-modal-actions"><button type="button" class="btn alt" id="contactClose">Cancelar</button><button class="btn" type="submit" id="contactSave">Salvar cadastro</button></div></form></dialog><dialog id="boardGalleryModal" class="board-gallery-modal"><div class="board-gallery-head"><h3>Escolher foto da galeria</h3><button type="button" class="btn alt" id="boardGalleryClose">Fechar</button></div><div id="boardGalleryOptions" class="board-gallery-grid"></div></dialog><dialog id="newProjectModal" class="new-project-modal"><h3>+ Nova obra</h3><p class="muted">Preencha os dados iniciais. Cada obra terá registros independentes.</p><form id="newProjectForm" class="formgrid"><label>Nome da obra <input name="nome" required maxlength="120" placeholder="Ex.: Ampliação da casa"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option></select></label><label class="full">Descrição <textarea name="descricao" rows="2" placeholder="Objetivo e observações iniciais"></textarea></label><label class="full">Localização <input name="localizacao" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Prazo previsto <input name="prazo" type="date"></label><label class="full project-copy"><input name="copyStages" type="checkbox" value="yes"> Copiar a lista de etapas da obra atual, zerando o avanço</label><div class="full modal-actions"><button class="btn alt" type="button" id="cancelProject">Cancelar</button><button class="btn" type="submit" id="saveProjectBtn">Criar obra</button></div></form></dialog><dialog id="modal"><h3 id="modalTitle"></h3><form id="itemForm"><div id="fields" class="formgrid"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn alt" type="button" id="cancel">Cancelar</button><button class="btn" type="submit">Salvar</button></div></form></dialog><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
 const tabs=[["obras","⌂ Minhas obras"],["financeiroGeral","＄ Financeiro"],["cadastros","♙ Cadastros"],["historico","◷ Histórico"],["acessos","♙ Acessos"]];
 const projectSubtabs=[["painel","▦ Visão geral"],["etapas","▣ Etapas"],["materiais","▥ Materiais"],["projeto","✎ Diário"],["fotos","▧ Fotos"],["financeiro","＄ Financeiro"]];
 const definitions={etapas:[["nome","Etapa","text",true],["status","Situação","select",false,["Pendente","Em andamento","Concluído","Bloqueado"]],["progresso","Avanço (%)","number"],["prazo","Previsão","date"],["responsavel","Responsável","text"],["observacoes","Observações","textarea"]],materiais:[["nome","Material","text",true],["unidade","Unidade","select",false,["un","m","m²","m³","kg","saco","litro","serviço"]],["previsto","Qtd. prevista","number"],["comprado","Qtd. comprada","number"],["recebido","Qtd. recebida","number"],["consumido","Qtd. consumida","number"],["valor","Preço unitário (R$)","number"],["fornecedor","Fornecedor","text"],["observacoes","Observações","textarea"]],equipe:[["nome","Nome","text",true],["funcao","Função","select",false,["Pedreiro","Servente","Mestre de obras","Outro"]],["telefone","Telefone","tel"],["diaria","Diária (R$)","number"],["dias","Dias trabalhados","number"],["observacoes","Observações","textarea"]],financeiro:[["descricao","Descrição","text",true],["categoria","Categoria","select",false,["Material","Mão de obra","Serviço","Transporte","Outros"]],["valor","Valor (R$)","number",true],["data","Data","date"],["status","Situação","select",false,["Pago","Pendente"]],["observacoes","Observações","textarea"]],diario:[["data","Data","date",true],["etapa","Etapa","text"],["clima","Clima","select",false,["Ensolarado","Nublado","Chuva","Não informado"]],["atividades","Atividades realizadas","textarea",true],["ocorrencias","Ocorrências/pendências","textarea"]]};
@@ -501,24 +505,39 @@ const cloudStatus=(msg)=>{const el=document.getElementById("cloudStatus");if(el)
 const cloudMessage=()=>{const el=document.getElementById("mode");if(el)el.textContent=cloudReady?"☁ Nuvem ativa":"Dados locais"};
 async function upsertProject(p,userId){
   const record={id:p.id,user_id:userId,nome:p.nome,descricao:p.descricao||"",localizacao:p.localizacao||"",situacao:p.situacao||"Planejada",inicio:p.inicio||null,prazo:p.prazo||null,comprimento:p.comprimento??null,largura:p.largura??null,orcamento:p.orcamento??null,payload:p.payload,updated_at:new Date().toISOString()};
-  const {error}=await cloudClient.from("barquinha_projects").upsert(record,{onConflict:"id"});
+  const {data,error}=await cloudClient.from("barquinha_projects").upsert(record,{onConflict:"id"}).select("updated_at").single();
   if(error)throw error;
+  return data?.updated_at||record.updated_at;
 }
 function cloudEnqueue(p,userId){
-  const snapshot=JSON.parse(JSON.stringify(p));
-  cloudQueue=cloudQueue.catch(()=>{}).then(async()=>{
-    if(!cloudClient||cloudUser?.id!==userId)return;
-    try{cloudStatus("Salvando "+snapshot.nome+"…");await upsertProject(snapshot,userId);cloudStatus("Obras sincronizadas ✓");if(accessReady)await loadActivity(false)}
-    catch(e){cloudStatus("Falha ao salvar: "+e.message);throw e}
-  });
-  return cloudQueue;
+ const snapshot=JSON.parse(JSON.stringify(p)),meta=readPending()[p.id];
+ cloudQueue=cloudQueue.catch(()=>{}).then(async()=>{
+  if(!cloudClient||cloudUser?.id!==userId||!navigator.onLine)return;
+  try{
+   cloudStatus("Salvando "+snapshot.nome+"…");
+   const {data:remote,error:err}=await cloudClient.from("barquinha_projects").select("updated_at").eq("id",p.id).maybeSingle();
+   if(err)throw err;
+   if((remote?.updated_at||null)!==(meta?.baseVersion??knownCloudVersions[p.id]??null)){
+    cloudStatus("Conflito detectado. Abra Sincronizar para revisar e exporte um backup.");
+    return;
+   }
+   const version=await upsertProject(snapshot,userId);
+   knownCloudVersions[p.id]=version;
+   const pending=readPending();
+   if(pending[p.id]?.changeId===meta?.changeId){delete pending[p.id];storePending(pending)}
+   cloudStatus("Obras sincronizadas ✓");updateOfflineBadge();
+   if(accessReady)await loadActivity(false);
+  }catch(e){cloudStatus("Alterações guardadas no aparelho. Falha de sincronização: "+e.message);updateOfflineBadge()}
+ });
+ return cloudQueue;
 }
 function cloudSchedule(){
-  if(!cloudReady||!cloudUser)return;
-  const p=currentProject();if(!p)return;
-  const snapshot=JSON.parse(JSON.stringify(p)),uid=cloudUser.id;
-  clearTimeout(cloudTimers.get(p.id));
-  cloudTimers.set(p.id,setTimeout(()=>{cloudTimers.delete(p.id);cloudEnqueue(snapshot,uid).catch(()=>{})},150));
+ if(!cloudUser||!cloudReady)return;
+ const p=currentProject();if(!p)return;
+ clearTimeout(cloudTimers.get(p.id));
+ if(!navigator.onLine||offlineSession){updateOfflineBadge();return}
+ const snapshot=JSON.parse(JSON.stringify(p)),uid=cloudUser.id;
+ cloudTimers.set(p.id,setTimeout(()=>{cloudTimers.delete(p.id);cloudEnqueue(snapshot,uid).catch(()=>{})},400));
 }
 async function cloudWrite(){
   if(!cloudClient||!cloudUser)return false;
@@ -551,7 +570,7 @@ async function startSession(){
  if(logError)cloudStatus("Aviso: o registro do acesso falhou: "+logError.message);
  await cloudLoad(false);
  if(!cloudReady){showGate();gateNotice("Não foi possível carregar as obras. Verifique sua conexão.");return}
- allowInterface();cloudDisplay();await loadActivity(false);
+ allowInterface();cacheTrustedMember();cloudDisplay();await loadActivity(false);
 }
 async function gateSubmit(e){
  e.preventDefault();if(authLoading||!cloudClient)return;
@@ -627,7 +646,7 @@ async function signOutApp(){
   const {error}=await cloudClient?.auth.signOut({scope:"local"});
   if(error)cloudStatus("Sessão local encerrada: "+error.message);
  }catch(e){cloudStatus("Acesso local encerrado")}
- try{localStorage.removeItem(TRUSTED_AUTH_STORAGE_KEY)}catch(e){}
+ try{localStorage.removeItem(TRUSTED_AUTH_STORAGE_KEY);localStorage.removeItem(memberCacheKey)}catch(e){}
  if(window.supabase?.createClient)cloudClient=createCloudAuthClient(false);
  cloudStatus("Sessão encerrada");
 }
@@ -660,13 +679,17 @@ async function cloudLoad(confirmReplace){
  for(const t of cloudTimers.values())clearTimeout(t);cloudTimers.clear();
  await cloudQueue.catch(()=>{});
  const {data,error}=await cloudClient.from("barquinha_projects").select("*").order("created_at",{ascending:true});
- if(error){cloudReady=false;cloudStatus("Erro: "+error.message);return}
+ if(error){if(!navigator.onLine){offlineSession=true;cloudReady=true;updateOfflineBadge()}else{cloudReady=false;cloudStatus("Erro: "+error.message)}return}
  try{localStorage.setItem("barquinha-before-shared-"+cloudUser.id,JSON.stringify(projects))}catch(e){}
+ const localDrafts=new Map(projects.filter(p=>readPending()[p.id]).map(p=>[p.id,p]));
+ knownCloudVersions=Object.fromEntries((data||[]).map(row=>[row.id,row.updated_at]));
  projects=(data||[]).map(r=>({id:r.id,nome:r.nome,descricao:r.descricao||"",localizacao:r.localizacao||"",situacao:r.situacao||"Planejada",inicio:r.inicio||"",prazo:r.prazo||"",comprimento:r.comprimento,largura:r.largura,orcamento:r.orcamento,payload:validPayload(r.payload)?r.payload:emptyProjectData()}));
+ for(const [id,draft] of localDrafts){const i=projects.findIndex(p=>p.id===id);if(i>=0)projects[i]=draft;else projects.push(draft)}
+ offlineSession=false;
  const preferred=localStorage.getItem("barquinha-current-"+cloudUser.id);
  activeProjectId=projects.some(p=>p.id===preferred)?preferred:(projects[0]?.id||null);
  db=currentProject()?.payload||emptyProjectData();cloudReady=true;persistLocal();render();
- cloudStatus(projects.length+" obra(s) compartilhada(s) ✓");cloudMessage();
+ cloudStatus(projects.length+" obra(s) compartilhada(s) ✓");cloudMessage();cacheTrustedMember();updateOfflineBadge();
  if(accessReady){cloudDisplay();await loadActivity(false)}
 }
 async function initCloud(){
@@ -678,6 +701,7 @@ async function initCloud(){
   const trusted=deviceTrusted();
   cloudClient=createCloudAuthClient(trusted);
   if(trusted){
+   if(!navigator.onLine){if(await allowOfflineTrusted())return;gateNotice("Sem internet. É preciso usar este aparelho online ao menos uma vez e confiar nele para acessar os dados locais.");return}
    gateNotice("Verificando a sessão deste aparelho confiável…");
    const {data,error}=await cloudClient.auth.getUser();
    if(!error&&data?.user){
@@ -685,9 +709,112 @@ async function initCloud(){
     await startSession();
     return;
    }
+   if(error&&await allowOfflineTrusted())return;
    gateNotice(error?"Não foi possível restaurar a sessão. Entre novamente.":"Sua sessão terminou. Entre novamente.");
   }else gateNotice("");
  }catch(e){showGate();gateNotice("Não foi possível verificar a sessão: "+e.message)}
+}
+
+
+/* Modo offline. Rascunhos não substituem silenciosamente uma versão mais recente na nuvem. */
+const pendingPrefix="barquinha-pending-",memberCacheKey="barquinha-last-authorized-member",portfolioOwnerKey="barquinha-portfolio-owner";
+let knownCloudVersions={},offlineSession=false,syncActive=false,lastSyncWarning="";
+function readPending(){
+ if(!cloudUser)return {};
+ try{const value=JSON.parse(localStorage.getItem(pendingPrefix+cloudUser.id));return value&&typeof value==="object"?value:{}}catch(e){return {}}
+}
+function storePending(pending){
+ if(!cloudUser)return;
+ try{const key=pendingPrefix+cloudUser.id;if(Object.keys(pending).length)localStorage.setItem(key,JSON.stringify(pending));else localStorage.removeItem(key)}
+ catch(e){cloudStatus("Não foi possível guardar alterações pendentes. Faça backup dos dados.")}
+}
+function flagPending(id){
+ if(!cloudUser)return;
+ const pending=readPending(),old=pending[id];
+ pending[id]={baseVersion:old?.baseVersion??knownCloudVersions[id]??null,changeId:crypto.randomUUID(),savedAt:new Date().toISOString()};
+ storePending(pending);updateOfflineBadge();
+}
+function updateOfflineBadge(){
+ const el=$("mode"),sync=$("syncPendingBtn");
+ const amount=cloudUser?Object.keys(readPending()).length:0;
+ if(el){
+  el.textContent=offlineSession||!navigator.onLine?"◌ Offline"+(amount?" · "+amount+" pendência(s)":""):amount?"◌ "+amount+" pendência(s)":"☁ Sincronizado";
+ }
+ if(sync){sync.hidden=!(amount&&cloudUser&&navigator.onLine);sync.textContent="Sincronizar "+amount+" pendência(s)"}
+}
+function cacheTrustedMember(){
+ if(!cloudUser||memberProfile?.status!=="active")return;
+ try{
+  localStorage.setItem(memberCacheKey,JSON.stringify({userId:cloudUser.id,role:memberProfile.role,status:"active",display_name:memberProfile.display_name,email:memberProfile.email,validatedAt:new Date().toISOString()}));
+  localStorage.setItem(portfolioOwnerKey,cloudUser.id);
+ }catch(e){}
+}
+async function allowOfflineTrusted(){
+ if(!deviceTrusted()||!cloudClient)return false;
+ try{
+  const {data}=await cloudClient.auth.getSession();
+  const account=data?.session?.user,member=JSON.parse(localStorage.getItem(memberCacheKey)||"null");
+  const owner=localStorage.getItem(portfolioOwnerKey);
+  if(!account||!member||member.status!=="active"||member.userId!==account.id||owner!==account.id||!Array.isArray(projects)||!projects.length)return false;
+  cloudUser=account;memberProfile=member;offlineSession=true;cloudReady=true;
+  allowInterface();render();cloudDisplay();gateNotice("");
+  cloudStatus("Sem internet · use os dados salvos neste aparelho. Alterações serão mantidas para sincronizar.");
+  try{const cached=JSON.parse(localStorage.getItem("barquinha-history-"+account.id)||"[]");if(Array.isArray(cached))activityCache=cached}catch(e){}
+  try{const cached=JSON.parse(localStorage.getItem("barquinha-contacts-"+account.id)||"[]");if(Array.isArray(cached))contactsCache=cached}catch(e){}
+  updateOfflineBadge();return true;
+ }catch(e){return false}
+}
+async function syncPendingProjects(){
+ if(syncActive||!cloudUser||!navigator.onLine||!cloudReady)return;
+ const pending=readPending(),ids=Object.keys(pending);if(!ids.length){updateOfflineBadge();return}
+ syncActive=true;let conflicts=0,completed=0,failed=0;
+ try{
+  for(const id of ids){
+   const record=projects.find(p=>p.id===id),meta=pending[id];if(!record||!meta)continue;
+   const check=await cloudClient.from("barquinha_projects").select("updated_at").eq("id",id).maybeSingle();
+   if(check.error){failed++;continue}
+   const serverVersion=check.data?.updated_at||null;
+   if(serverVersion!==meta.baseVersion){conflicts++;continue}
+   const snapshot=JSON.parse(JSON.stringify(record));
+   try{
+    const newVersion=await upsertProject(snapshot,cloudUser.id);
+    if(readPending()[id]?.changeId===meta.changeId){
+     const latest=readPending();delete latest[id];storePending(latest);
+    }
+    knownCloudVersions[id]=newVersion||new Date().toISOString();
+    completed++;
+   }catch(e){failed++}
+  }
+ }finally{syncActive=false;offlineSession=false;updateOfflineBadge()}
+ const rest=Object.keys(readPending()).length;
+ if(conflicts){
+  lastSyncWarning=conflicts+" obra(s) com alterações conflitantes: alguém modificou a nuvem após a edição local. Nada foi sobrescrito. Faça um backup e revise antes de resolver.";
+  cloudStatus(lastSyncWarning);
+  alert(lastSyncWarning);
+ }else if(failed)cloudStatus("Algumas alterações não foram enviadas. Pendências: "+rest);
+ else if(completed)cloudStatus(completed+" obra(s) sincronizada(s) ✓");
+ if(completed&&!conflicts&&!failed)await cloudLoad(false);
+}
+async function onConnectionRestored(){
+ if(!cloudUser||!accessReady)return;
+ try{
+  const {data,error}=await cloudClient.auth.getUser();
+  if(error||!data?.user){cloudStatus("Sessão expirada. Salve um backup antes de entrar novamente.");return}
+  if(!(await checkMember())){showGate();return}
+  offlineSession=false;cloudReady=true;
+  await syncPendingProjects();
+  if(!Object.keys(readPending()).length)await cloudLoad(false);
+ }catch(e){cloudStatus("Ainda não foi possível sincronizar. Tente novamente quando houver internet.")}
+ updateOfflineBadge();
+}
+function initOfflineSupport(){
+ window.addEventListener("offline",()=>{offlineSession=true;updateOfflineBadge();cloudStatus("Sem internet. Modificações ficam guardadas neste aparelho até sincronizar.")});
+ window.addEventListener("online",()=>{updateOfflineBadge();onConnectionRestored()});
+ const sync=$("syncPendingBtn");if(sync)sync.onclick=()=>syncPendingProjects();
+ if("serviceWorker" in navigator&&location.protocol==="https:"){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}),{once:true});
+ }
+ updateOfflineBadge();
 }
 
 const key="obra-facil-v1";let db;try{db=JSON.parse(localStorage.getItem(key))||initial}catch{db=initial}
@@ -703,8 +830,8 @@ if(!projects.length)projects=[{id:crypto.randomUUID(),nome:"Obra 001",descricao:
 if(!projects.some(p=>p.id===activeProjectId))activeProjectId=projects[0].id;
 db=projects.find(p=>p.id===activeProjectId).payload;
 const currentProject=()=>projects.find(p=>p.id===activeProjectId);
-function persistLocal(){const p=currentProject();if(p)p.payload=db;try{localStorage.setItem(portfolioKey,JSON.stringify({activeProjectId,projects}));localStorage.setItem(key,JSON.stringify(db));if(cloudUser)localStorage.setItem("barquinha-current-"+cloudUser.id,activeProjectId)}catch(e){console.warn("Armazenamento local cheio",e)}}
-let tab="obras",editing=null,lastProjectSubtab="etapas";const $=id=>document.getElementById(id),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),num=v=>Number(v)||0,money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),save=()=>{persistLocal();cloudSchedule()},date=v=>v?new Date(v+"T12:00:00").toLocaleDateString("pt-BR"):"—";
+function persistLocal(){const p=currentProject();if(p)p.payload=db;try{localStorage.setItem(portfolioKey,JSON.stringify({activeProjectId,projects}));localStorage.setItem(key,JSON.stringify(db));if(cloudUser){localStorage.setItem("barquinha-current-"+cloudUser.id,activeProjectId);localStorage.setItem(portfolioOwnerKey,cloudUser.id)}}catch(e){console.warn("Armazenamento local cheio",e);cloudStatus("Armazenamento local cheio: exporte seu backup!")}}
+let tab="obras",editing=null,lastProjectSubtab="etapas";const $=id=>document.getElementById(id),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])),num=v=>Number(v)||0,money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),save=()=>{persistLocal();flagPending(currentProject()?.id);cloudSchedule()},date=v=>v?new Date(v+"T12:00:00").toLocaleDateString("pt-BR"):"—";
 
 function isProjectTab(id){return projectSubtabs.some(([key])=>key===id)}
 function projectSubnav(){
@@ -1198,5 +1325,5 @@ function photos(){return '<section class="panel"><div class="panel-heading"><div
 function bind(){if(tab==="materiais"||tab==="fotos")bindReuseFromProjects(tab);if(tab==="financeiroGeral")document.querySelectorAll("[data-open-finance]").forEach(btn=>btn.onclick=()=>{openProject(btn.dataset.openFinance);tab="financeiro";render()});if(tab==="cadastros")bindContactsPage();if(tab==="projeto"){bindProjectBoard();$("boardGalleryClose").onclick=()=>$("boardGalleryModal").close();}if(tab==="historico"&&$("refreshActivity"))$("refreshActivity").onclick=()=>loadActivity(true);if(tab==="acessos"&&$("refreshMembers"))$("refreshMembers").onclick=loadMembers;if(tab==="obras"){document.querySelectorAll("[data-open-project]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();openProject(b.dataset.openProject)});document.querySelectorAll("[data-archive-project]").forEach(b=>b.onclick=()=>changeProjectStatus(b.dataset.archiveProject));if($("newProject"))$("newProject").onclick=()=>$("newProjectModal").showModal();if($("backupMain"))$("backupMain").onclick=backupPortfolio()}document.querySelectorAll("[data-view-photo]").forEach(b=>b.onclick=()=>viewPhoto(b.dataset.viewPhoto));document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{tab=b.dataset.go;render()});if($("add"))$("add").onclick=()=>openForm(tab);if($("search"))$("search").oninput=drawTable;if(definitions[tab])drawTable();document.querySelectorAll("[data-photo-del]").forEach(b=>b.onclick=()=>{if(confirm("Excluir foto?")){db.fotos=db.fotos.filter(x=>x.id!==b.dataset.photoDel);save();render()}});if($("photoForm"))$("photoForm").onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target),file=f.get("file");if(!file?.type?.startsWith("image/"))return alert("Selecione uma imagem.");let img=new Image();const src=URL.createObjectURL(file);img.onload=()=>{let canvas=document.createElement("canvas"),ratio=Math.min(1,1200/img.width);canvas.width=img.width*ratio;canvas.height=img.height*ratio;canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);URL.revokeObjectURL(src);db.fotos.unshift({id:crypto.randomUUID(),caption:f.get("caption"),stage:f.get("stage"),src:canvas.toDataURL("image/jpeg",.64),date:new Date().toISOString().slice(0,10)});save();render()};img.src=src};if($("backup"))$("backup").onclick=e=>{if(!e.isTrusted||!accessReady||tab!=="painel"||e.currentTarget?.id!=="backup")return;let a=document.createElement("a"),u=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:"application/json"}));a.href=u;a.download="barquinha-"+(currentProject()?.nome||"obra").replace(/[^a-z0-9-]/gi,"-")+".json";a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};if($("restore"))$("restore").onchange=async e=>{try{let data=JSON.parse(await e.target.files[0].text());if(!["etapas","materiais","equipe","financeiro","diario","fotos"].every(k=>Array.isArray(data[k])))throw Error("Formato inválido");if(confirm("Substituir os dados atuais pelo backup?")){db=data;save();render()}}catch(e){alert("Arquivo inválido: "+e.message)}}}
 function closePhoto(){const d=$("photoViewer");d.hidden=true;document.body.classList.remove("viewer-open");$("viewerImage").removeAttribute("src")}
 function viewPhoto(id){const f=db.fotos.find(x=>String(x.id)===String(id));if(!f)return;const d=$("photoViewer"),img=$("viewerImage"),err=$("viewerError");err.hidden=true;img.hidden=false;img.onerror=()=>{img.hidden=true;err.hidden=false};img.onload=()=>{img.hidden=false;err.hidden=true};img.alt=f.caption||"Foto da obra";$("viewerCaption").textContent=(f.caption||"Foto da obra")+" • "+(f.stage||"Sem etapa")+" • "+date(f.date);d.hidden=false;document.body.classList.add("viewer-open");img.src=f.src||""}
-$("closeViewer").onclick=closePhoto;$("photoViewer").onclick=e=>{if(e.target===$("photoViewer"))closePhoto()};document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("photoViewer").hidden)closePhoto()});$("cancel").onclick=()=>$("modal").close();$("itemForm").onsubmit=e=>{e.preventDefault();let fd=new FormData(e.target),value={id:editing.id||crypto.randomUUID()};for(let [k,v] of fd.entries())value[k]=v;if(editing.id)db[editing.type]=db[editing.type].map(x=>x.id===editing.id?value:x);else db[editing.type].push(value);save();$("modal").close();render()};$("contactForm").onsubmit=saveContact;$("contactType").onchange=contactTypeChanged;$("contactCancel").onclick=()=> $("contactModal").close();$("contactClose").onclick=()=> $("contactModal").close();$("newProjectForm").onsubmit=createNewProject;$("cancelProject").onclick=()=>$("newProjectModal").close();persistLocal();render();initCloud();
+$("closeViewer").onclick=closePhoto;$("photoViewer").onclick=e=>{if(e.target===$("photoViewer"))closePhoto()};document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("photoViewer").hidden)closePhoto()});$("cancel").onclick=()=>$("modal").close();$("itemForm").onsubmit=e=>{e.preventDefault();let fd=new FormData(e.target),value={id:editing.id||crypto.randomUUID()};for(let [k,v] of fd.entries())value[k]=v;if(editing.id)db[editing.type]=db[editing.type].map(x=>x.id===editing.id?value:x);else db[editing.type].push(value);save();$("modal").close();render()};$("contactForm").onsubmit=saveContact;$("contactType").onchange=contactTypeChanged;$("contactCancel").onclick=()=> $("contactModal").close();$("contactClose").onclick=()=> $("contactModal").close();$("newProjectForm").onsubmit=createNewProject;$("cancelProject").onclick=()=>$("newProjectModal").close();persistLocal();render();initOfflineSupport();initCloud();
 </script></body></html>
