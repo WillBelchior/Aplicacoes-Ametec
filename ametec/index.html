@@ -321,6 +321,8 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 .client-search-input{width:100%;min-width:0;background:#071720!important;color:#eefaff!important;border:1px solid #24516a!important;border-radius:9px;padding:10px;font-size:13px}.client-search-input::placeholder{color:#8faabb}.client-search-hint{color:#88a8b8;font-size:10px}.client-search-input:focus{outline:2px solid #22a8dc;outline-offset:1px}
 .photo-avatar{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;border-radius:50%;overflow:hidden;background:#16435a;border:1px solid #396c83;color:#fff;font-size:16px}.photo-avatar img,.photo-preview img{width:100%;height:100%;object-fit:cover}.photo-button{font-size:11px!important}.photo-editor{grid-column:1/-1;display:grid;gap:12px}.photo-editor small{color:#9bb5c5}.photo-preview{width:100px;height:100px;border-radius:50%;margin:auto;overflow:hidden;background:#13364a;display:grid;place-items:center;font-size:30px}.photo-editor input[type=file]{min-width:0;width:100%}.photo-crop-area{width:256px;max-width:100%;aspect-ratio:1;margin:auto;border-radius:50%;overflow:hidden;border:2px solid #38758d;touch-action:none}.photo-crop-area canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}.photo-crop-area canvas:active{cursor:grabbing}.photo-editor input[type=range]{width:100%;accent-color:#18aee5}
 .inline-profile-photo{grid-column:1/-1;display:grid;gap:11px;padding:13px;border:1px solid #254c64;border-radius:12px;background:#081d2b;min-width:0}.inline-profile-photo>b{color:#eaf8ff;font-size:13px}.inline-profile-photo>small{font-size:11px;color:#a4becc}.inline-profile-photo .photo-crop-area{width:160px;height:160px}.inline-profile-photo input[type=range]{width:100%}.photo-remove-label{color:#c6dbe6;font-size:12px;display:flex;gap:9px;align-items:center}
+
+.photo-zoomable{cursor:zoom-in;transition:transform .18s ease,box-shadow .18s ease}.photo-zoomable:hover{transform:scale(1.06);box-shadow:0 0 0 2px #36bce775}.photo-zoomable:focus-visible{outline:2px solid #59d6ff;outline-offset:3px}.profile-lightbox{position:fixed;inset:0;z-index:250;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,14,26,.64);backdrop-filter:blur(4px);opacity:0;transition:opacity .16s ease}.profile-lightbox.visible{opacity:1}.profile-lightbox-panel{position:relative;display:grid;justify-items:center;gap:12px;max-width:min(90vw,340px);padding:20px;background:#0b2435;border:1px solid #2b5c76;border-radius:20px;box-shadow:0 18px 55px #0007;transform:scale(.96);transition:transform .16s ease}.profile-lightbox.visible .profile-lightbox-panel{transform:scale(1)}.profile-lightbox-panel img{width:min(72vw,256px);height:min(72vw,256px);object-fit:cover;border-radius:50%;border:2px solid #397997}.profile-lightbox-panel span{font-size:13px;color:#e7f5fc;text-align:center;overflow-wrap:anywhere}.profile-lightbox-close{position:absolute;right:8px;top:7px;cursor:pointer;border:0;background:transparent;color:#d5eaf5;font-size:24px;width:34px;height:34px}
 </style>
 </head>
 <body>
@@ -1131,7 +1133,22 @@ async function renderProfileAvatars(){
   const {data:res,error}=await supabase.storage.from('ametec-perfis').createSignedUrl(record.foto_path,1200);
   if(error||!res?.signedUrl||!el.isConnected)return;
   const img=document.createElement('img');img.src=res.signedUrl;img.alt='Perfil';img.loading='lazy';el.replaceChildren(img);
+  if(kind==='cliente'||kind==='pessoa'){el.classList.add('photo-zoomable');el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label','Ampliar foto de perfil');el.onclick=()=>openProfilePreview(img.src,record.nome_fantasia||record.nome||'Foto de perfil');el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click()}};}
  }));
+}
+function openProfilePreview(src,name){
+ const existing=document.querySelector('#profileLightbox');if(existing)existing.remove();
+ const overlay=document.createElement('div');overlay.id='profileLightbox';overlay.className='profile-lightbox';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Foto ampliada: '+name);
+ const panel=document.createElement('div');panel.className='profile-lightbox-panel';
+ const img=document.createElement('img');img.src=src;img.alt='Foto de '+name;
+ const caption=document.createElement('span');caption.textContent=name;
+ const close=document.createElement('button');close.type='button';close.className='profile-lightbox-close';close.setAttribute('aria-label','Fechar foto');close.textContent='×';
+ panel.append(img,caption,close);overlay.append(panel);document.body.append(overlay);
+ const prevFocus=document.activeElement;
+ const dismiss=()=>{document.removeEventListener('keydown',key);overlay.classList.remove('visible');setTimeout(()=>{overlay.remove();if(prevFocus?.isConnected)prevFocus.focus()},160)};
+ const key=e=>{if(e.key==='Escape')dismiss()};
+ close.onclick=dismiss;overlay.onclick=e=>{if(e.target===overlay)dismiss()};
+ document.addEventListener('keydown',key);requestAnimationFrame(()=>overlay.classList.add('visible'));close.focus();
 }
 function photoTools(kind,item){
  return photoAvatar(kind,item)+' <button type="button" class="btn secondary photo-button" onclick="editProfilePhoto(\''+kind+'\',\''+esc(item.id)+'\')">📷 Foto</button>';
