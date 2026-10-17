@@ -1206,6 +1206,19 @@ function projectsView(){
     return '<article class="portfolio-card '+(selected?'selected':'')+'"><div class="portfolio-card-top"><span class="portfolio-icon">⌂</span><span class="portfolio-tag">'+esc(p.situacao||"Planejada")+'</span></div><h3>'+esc(p.nome)+'</h3><p class="portfolio-description">'+esc(p.descricao||p.localizacao||"Sem descrição")+'</p><div class="portfolio-progress-label"><span>Avanço da obra</span><strong>'+progress+'%</strong></div><div class="portfolio-progress"><span style="width:'+progress+'%"></span></div><div class="portfolio-meta"><span>Etapas: '+(p.payload.etapas||[]).length+'</span><span>Materiais: '+(p.payload.materiais||[]).length+'</span><span>Fotos: '+(p.payload.fotos||[]).length+'</span><span>Pago: '+money(pagos)+'</span></div><div class="portfolio-actions"><button type="button" class="btn" data-open-project="'+esc(p.id)+'">'+(selected?'Ver painel':'Abrir obra')+'</button><button type="button" class="btn alt portfolio-edit-btn" data-edit-project="'+esc(p.id)+'">✎ Editar</button><button type="button" class="btn alt" data-archive-project="'+esc(p.id)+'">'+(p.situacao==="Arquivada"?"Reativar":"Arquivar")+'</button>'+(isPresident()?'<button type="button" class="btn danger portfolio-delete" data-delete-project="'+esc(p.id)+'">Excluir obra</button>':'')+'</div>'+(selected?'<span class="portfolio-current">● Obra selecionada</span>':'')+'</article>'
   }).join('')+'</div><div class="portfolio-bottom"><p class="muted">Cada obra tem seus próprios registros. O backup de todas as obras está disponível no botão “Baixar backup” acima e só será baixado após sua confirmação.</p></div>'
 }
+async function presidentDeleteProject(id){
+ if(!requirePresidentOnline())return;
+ const p=projects.find(x=>x.id===id);if(!p)return;
+ if(readPending()[id])return alert("Esta obra tem alterações locais pendentes. Sincronize antes de excluir.");
+ if(!confirm('Excluir a obra "'+p.nome+'" e todos os seus registros permanentemente?'))return;
+ if(prompt('Digite EXCLUIR para confirmar')!=="EXCLUIR")return;
+ const {error}=await cloudClient.from("barquinha_projects").delete().eq("id",id);
+ if(error)return alert("Não foi possível excluir: "+error.message);
+ projects=projects.filter(x=>x.id!==id);
+ if(activeProjectId===id){activeProjectId=projects[0]?.id||null;db=currentProject()?.payload||emptyProjectData()}
+ const pending=readPending();delete pending[id];storePending(pending);
+ persistLocal();tab="obras";render();await loadActivity(false);
+}
 function openProject(id){const p=projects.find(x=>x.id===id);if(!p)return;activeProjectId=id;db=p.payload;persistLocal();tab="painel";render()}
 
 /* Edição de dados gerais: identidade da obra e payload permanecem intactos. */
