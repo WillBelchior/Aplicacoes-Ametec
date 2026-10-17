@@ -969,7 +969,7 @@ function paintContacts(){
   (c.responsavel?'<p><span>Contato</span><b>'+esc(c.responsavel)+'</b></p>':'')+
   (c.documento?'<p><span>CNPJ</span><b>'+esc(c.documento)+'</b></p>':'')+
   (c.observacoes?'<p class="contact-notes">'+esc(c.observacoes)+'</p>':'')+
-  '</div><div class="contact-card-actions"><button type="button" class="btn alt" data-contact-edit="'+esc(c.id)+'">Editar</button><button type="button" class="contact-delete" data-contact-delete="'+esc(c.id)+'">Excluir</button></div></article>'
+  '</div><div class="contact-card-actions"><button type="button" class="btn alt" data-contact-edit="'+esc(c.id)+'">Editar</button>'+(isPresident()?'<button type="button" class="contact-delete" data-contact-delete="'+esc(c.id)+'">Excluir</button>':'')+'</div></article>'
  }).join("");
  area.querySelectorAll("[data-contact-edit]").forEach(b=>b.onclick=()=>openContactForm(b.dataset.contactEdit));
  area.querySelectorAll("[data-contact-delete]").forEach(b=>b.onclick=()=>deleteContact(b.dataset.contactDelete));
@@ -1022,7 +1022,7 @@ async function saveContact(e){
  finally{btn.disabled=false;btn.textContent=contactEditId?"Salvar alterações":"Cadastrar"}
 }
 async function deleteContact(id){
- const item=contactsCache.find(x=>x.id===id);if(!item)return;
+ const item=contactsCache.find(x=>x.id===id);if(!item||!requirePresidentOnline())return;
  if(!confirm('Excluir o cadastro de "'+item.nome+'"? O histórico da ação será preservado.'))return;
  const {error}=await cloudClient.from("barquinha_contacts").delete().eq("id",id);
  if(error)return alert("Falha ao excluir: "+error.message);
