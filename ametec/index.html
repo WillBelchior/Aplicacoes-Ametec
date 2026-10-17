@@ -320,6 +320,7 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 
 .client-search-input{width:100%;min-width:0;background:#071720!important;color:#eefaff!important;border:1px solid #24516a!important;border-radius:9px;padding:10px;font-size:13px}.client-search-input::placeholder{color:#8faabb}.client-search-hint{color:#88a8b8;font-size:10px}.client-search-input:focus{outline:2px solid #22a8dc;outline-offset:1px}
 .photo-avatar{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;border-radius:50%;overflow:hidden;background:#16435a;border:1px solid #396c83;color:#fff;font-size:16px}.photo-avatar img,.photo-preview img{width:100%;height:100%;object-fit:cover}.photo-button{font-size:11px!important}.photo-editor{grid-column:1/-1;display:grid;gap:12px}.photo-editor small{color:#9bb5c5}.photo-preview{width:100px;height:100px;border-radius:50%;margin:auto;overflow:hidden;background:#13364a;display:grid;place-items:center;font-size:30px}.photo-editor input[type=file]{min-width:0;width:100%}.photo-crop-area{width:256px;max-width:100%;aspect-ratio:1;margin:auto;border-radius:50%;overflow:hidden;border:2px solid #38758d;touch-action:none}.photo-crop-area canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}.photo-crop-area canvas:active{cursor:grabbing}.photo-editor input[type=range]{width:100%;accent-color:#18aee5}
+.inline-profile-photo{grid-column:1/-1;display:grid;gap:11px;padding:13px;border:1px solid #254c64;border-radius:12px;background:#081d2b;min-width:0}.inline-profile-photo>b{color:#eaf8ff;font-size:13px}.inline-profile-photo>small{font-size:11px;color:#a4becc}.inline-profile-photo .photo-crop-area{width:160px;height:160px}.inline-profile-photo input[type=range]{width:100%}.photo-remove-label{color:#c6dbe6;font-size:12px;display:flex;gap:9px;align-items:center}
 </style>
 </head>
 <body>
@@ -1248,7 +1249,7 @@ function clientes(){
           <div class="actions">
             <button class="btn secondary" data-client="${x.id}">Abrir ficha</button>
             <button class="btn secondary" onclick="openClientServices('${x.id}')">Serviços</button>
-            ${photoTools("cliente",x)}<button class="btn primary" data-edit-client="${x.id}">Editar</button>
+            <button class="btn primary" data-edit-client="${x.id}">Editar</button>
           </div>
         </div>
       </article>`
@@ -1261,11 +1262,11 @@ function clientes(){
   };
   draw();
   document.querySelector('#search').oninput=e=>draw(e.target.value);
-  document.querySelector('#add').onclick=()=>openForm('Novo cliente',[['nome_fantasia','Empresa','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{const {error}=await supabase.from('ametec_clientes').insert(v);if(error)throw error})
+  document.querySelector('#add').onclick=()=>openForm('Novo cliente',[['nome_fantasia','Empresa','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{const {data:row,error}=await supabase.from('ametec_clientes').insert(v).select('id').single();if(error)throw error;return row.id},{},{kind:'cliente'})
 }
 function editClient(id){
   const x=data.clientes.find(c=>c.id===id);if(!x)return;
-  openForm('Editar cliente',[['nome_fantasia','Empresa','text'],['contato','Contato geral','text'],['telefone','Telefone geral','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{const {error}=await supabase.from('ametec_clientes').update(v).eq('id',id);if(error)throw error},x)
+  openForm('Editar cliente',[['nome_fantasia','Empresa','text'],['contato','Contato geral','text'],['telefone','Telefone geral','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{const {error}=await supabase.from('ametec_clientes').update(v).eq('id',id);if(error)throw error;return id},x,{kind:'cliente',id})
 }
 function openClientDetail(id){
   const x=data.clientes.find(c=>c.id===id);if(!x)return;
@@ -1273,7 +1274,7 @@ function openClientDetail(id){
   const services=data.servicos.filter(s=>s.cliente_id===id);
   const equips=data.equipamentos.filter(e=>e.cliente_id===id);
   document.querySelector('#app').innerHTML=`
-    <section class="hero"><div class="hero-grid"><div><div class="eyebrow">CLIENTE 360°</div><h2>${photoAvatar("cliente",x)} ${esc(x.nome_fantasia)}</h2><p>${esc(x.endereco||'Endereço não informado')}</p></div><div class="hero-actions"><button class="btn ghost" id="backClients">← Clientes</button>${photoTools("cliente",x)}<button class="btn primary" id="editClient">Editar cliente</button></div></div></section>
+    <section class="hero"><div class="hero-grid"><div><div class="eyebrow">CLIENTE 360°</div><h2>${photoAvatar("cliente",x)} ${esc(x.nome_fantasia)}</h2><p>${esc(x.endereco||'Endereço não informado')}</p></div><div class="hero-actions"><button class="btn ghost" id="backClients">← Clientes</button><button class="btn primary" id="editClient">Editar cliente</button></div></div></section>
     <div class="client-summary">
       ${card('Contatos',people.length)}
       ${card('Serviços',services.length)}
@@ -1291,7 +1292,7 @@ function openClientDetail(id){
               <div><span>E-mail</span><b>${esc(p.email||'—')}</b></div>
             </div>
             ${p.observacoes?`<small style="color:#91aabc">${esc(p.observacoes)}</small>`:''}
-            <div class="actions">${photoTools("pessoa",p)}<button class="btn secondary" data-edit-contact="${p.id}">Editar</button><button class="btn secondary" data-delete-contact="${p.id}">Remover</button></div>
+            <div class="actions"><button class="btn secondary" data-edit-contact="${p.id}">Editar</button><button class="btn secondary" data-delete-contact="${p.id}">Remover</button></div>
           </article>`).join(''):'<div class="empty">Nenhuma pessoa relacionada cadastrada.</div>'}
         </div>
       </section>
@@ -1334,9 +1335,9 @@ function contactForm(clienteId,contactId=null){
     v.cliente_id=clienteId;v.principal=v.principal==='true';
     if(v.principal)await supabase.from('ametec_cliente_contatos').update({principal:false}).eq('cliente_id',clienteId);
     const q=x?supabase.from('ametec_cliente_contatos').update(v).eq('id',contactId):supabase.from('ametec_cliente_contatos').insert(v);
-    const {error}=await q;if(error)throw error;
-    setTimeout(()=>openClientDetail(clienteId),50)
-  },x)
+    const {data:row,error}=await q.select('id').single();if(error)throw error;
+    setTimeout(()=>openClientDetail(clienteId),50);return row.id;
+  },x||{},{kind:'pessoa',id:contactId})
 }
 window.openClientServices=id=>{
   const c=data.clientes.find(x=>x.id===id);if(!c)return;
@@ -2593,9 +2594,9 @@ function materiais(){
   renderTab();
 }
 function colaboradores(){
-  document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">TIME TÉCNICO</div><h2>Colaboradores</h2><p>Equipe operacional, funções e disponibilidade.</p></div><button class="btn primary" id="add">+ Colaborador</button></div></section><section class="panel"><div class="cards">${data.colaboradores.map(x=>`<article class="entity"><div class="entity-head"><div>${photoAvatar("colaborador",x)} <b>${esc(x.nome)}</b><small>${esc(x.funcao||'Sem função')} • ${esc(x.telefone||'Sem telefone')}</small></div>${status(x.ativo?'Ativo':'Inativo')}</div><div class="entity-body"><div class="actions">${photoTools("colaborador",x)}</div><div class="entity-grid"><div><span>Pagamento</span><b>${esc(x.tipo_pagamento||'—')}</b></div><div><span>Valor base</span><b>${money(x.valor_base)}</b></div><div><span>Situação</span><b>${x.ativo?'Disponível':'Inativo'}</b></div></div></div></article>`).join('')||'<div class="empty">Nenhum colaborador cadastrado.</div>'}</div></section>`;
+  document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">TIME TÉCNICO</div><h2>Colaboradores</h2><p>Equipe operacional, funções e disponibilidade.</p></div><button class="btn primary" id="add">+ Colaborador</button></div></section><section class="panel"><div class="cards">${data.colaboradores.map(x=>`<article class="entity"><div class="entity-head"><div>${photoAvatar("colaborador",x)} <b>${esc(x.nome)}</b><small>${esc(x.funcao||'Sem função')} • ${esc(x.telefone||'Sem telefone')}</small></div>${status(x.ativo?'Ativo':'Inativo')}</div><div class="entity-body"><div class="actions"></div><div class="entity-grid"><div><span>Pagamento</span><b>${esc(x.tipo_pagamento||'—')}</b></div><div><span>Valor base</span><b>${money(x.valor_base)}</b></div><div><span>Situação</span><b>${x.ativo?'Disponível':'Inativo'}</b></div></div></div></article>`).join('')||'<div class="empty">Nenhum colaborador cadastrado.</div>'}</div></section>`;
   renderProfileAvatars();
-  document.querySelector('#add').onclick=()=>openForm('Novo colaborador',[['nome','Nome','text'],['funcao','Função','text'],['telefone','Telefone','text'],['tipo_pagamento','Pagamento','select',['diária','hora','mensal','valor fechado']],['valor_base','Valor base','number'],['ativo','Ativo?','select',[{value:'true',label:'Sim'},{value:'false',label:'Não'}]]],async v=>{v.valor_base=+v.valor_base||0;v.ativo=v.ativo==='true';const {error}=await supabase.from('ametec_colaboradores').insert(v);if(error)throw error})
+  document.querySelector('#add').onclick=()=>openForm('Novo colaborador',[['nome','Nome','text'],['funcao','Função','text'],['telefone','Telefone','text'],['tipo_pagamento','Pagamento','select',['diária','hora','mensal','valor fechado']],['valor_base','Valor base','number'],['ativo','Ativo?','select',[{value:'true',label:'Sim'},{value:'false',label:'Não'}]]],async v=>{v.valor_base=+v.valor_base||0;v.ativo=v.ativo==='true';const {data:row,error}=await supabase.from('ametec_colaboradores').insert(v).select('id').single();if(error)throw error;return row.id},{},{kind:'colaborador'})
 }
 function financeiro(){
   let tab=localStorage.getItem('ametecFinanceTab')||'gestao';
@@ -2919,10 +2920,47 @@ function relatorios(){
 }
 function bindCommon(){document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{page=b.dataset.go;render()});document.querySelectorAll('[data-new="servico"]').forEach(b=>b.onclick=newService)}
 function placeholder(k,l){const m={nome_fantasia:'Ex.: Panificadora Central',contato:'Ex.: João',telefone:'Ex.: (85) 99999-9999',endereco:'Ex.: Fortaleza - CE',titulo:'Ex.: Manutenção no quadro principal',responsavel:'Ex.: Técnico responsável',descricao:'Descreva o diagnóstico, serviço ou observação',fabricante:'Ex.: WEG',modelo:'Ex.: CFW300',setor:'Ex.: Produção',fornecedor:'Ex.: Distribuidor elétrico',email:'Ex.: contato@empresa.com',setor:'Ex.: Manutenção',proxima_acao:'Ex.: Confirmar aprovação do orçamento',forma_pagamento:'Ex.: PIX'};return m[k]||('Digite '+String(l).toLowerCase())}
-function openForm(title,fields,onSave,initial={}){
+function openForm(title,fields,onSave,initial={},photoConfig=null){
   document.querySelector('#modalTitle').textContent=title;const f=document.querySelector('#modalForm');
   f.innerHTML=fields.map(([k,l,t,o])=>{const val=initial?.[k]??'';if(t==='select')return '<label class="field"><span>'+l+'</span><select name="'+k+'">'+o.map(x=>{const vv=typeof x==='string'?x:x.value,ll=typeof x==='string'?x:x.label;return '<option value="'+esc(vv)+'" '+(String(vv)===String(val)?'selected':'')+'>'+esc(ll)+'</option>'}).join('')+'</select></label>';if(t==='textarea')return '<label class="field full"><span>'+l+'</span><textarea name="'+k+'" rows="3" placeholder="'+esc(placeholder(k,l))+'">'+esc(val)+'</textarea></label>';return '<label class="field"><span>'+l+'</span><input name="'+k+'" type="'+t+'" value="'+esc(val)+'" step="'+(t==='number'?'0.01':'any')+'" placeholder="'+esc(placeholder(k,l))+'"></label>'}).join('')+'<button class="btn primary" style="grid-column:1/-1">Salvar</button>';
-  f.onsubmit=async e=>{e.preventDefault();try{await onSave(Object.fromEntries(new FormData(f)));closeModal();await load();toast('Salvo com sucesso!')}catch(err){toast(err.message||String(err),true)}};
+  let photoEditor=null;
+  if(photoConfig){
+    const saveButton=f.querySelector('button[type="submit"],button.btn.primary:last-child');
+    const wrap=document.createElement('div');
+    wrap.className='inline-profile-photo';
+    wrap.innerHTML='<b>📷 Foto de perfil (opcional)</b><small>Uma foto por cadastro. Cole com Ctrl + V ou selecione a imagem, ajuste com o dedo ou mouse e use o zoom.</small><div class="photo-crop-area"><canvas width="256" height="256" id="photoCanvas"></canvas></div><label class="field"><span>Selecionar foto</span><input type="file" id="profileFile" accept="image/*"></label><label class="field"><span>Zoom</span><input type="range" id="photoZoom" min="1" max="3" step=".05" value="1"></label><small id="photoEditorMsg">A foto será otimizada em WebP (256 × 256, até 100 KB).</small>'+(photoConfig.id&&initial?.foto_path?'<label class="photo-remove-label"><input type="checkbox" id="removeProfilePhoto"> Remover foto atual</label>':'');
+    f.insertBefore(wrap,saveButton);
+    photoEditor=createPhotoEditor(f);
+  }
+  f.onsubmit=async e=>{
+    e.preventDefault();
+    const button=f.querySelector('button.btn.primary:last-child');if(button)button.disabled=true;
+    try{
+      const recordId=await onSave(Object.fromEntries(new FormData(f)));
+      if(photoConfig&&photoEditor){
+        const id=photoConfig.id||recordId;
+        if(!id)throw Error('Cadastro salvo, mas não foi possível identificar o registro para a foto.');
+        const kind=photoConfig.kind,table=photoTypes[kind][1],old=initial?.foto_path;
+        const remove=f.querySelector('#removeProfilePhoto')?.checked;
+        if(photoEditor.hasImage()){
+          const blob=await photoEditor.export();
+          const path=session.user.id+'/'+kind+'/'+id+'/'+Date.now()+'.webp';
+          const upload=await supabase.storage.from('ametec-perfis').upload(path,blob,{contentType:'image/webp'});
+          if(upload.error)throw Error('Cadastro salvo, mas a foto falhou: '+upload.error.message);
+          const update=await supabase.from(table).update({foto_path:path}).eq('id',id);
+          if(update.error){await supabase.storage.from('ametec-perfis').remove([path]);throw Error('Cadastro salvo, mas a foto falhou: '+update.error.message)}
+          if(old)await supabase.storage.from('ametec-perfis').remove([old]);
+        }else if(remove&&old){
+          const update=await supabase.from(table).update({foto_path:null}).eq('id',id);
+          if(update.error)throw update.error;
+          await supabase.storage.from('ametec-perfis').remove([old]);
+        }
+      }
+      if(photoEditor)photoEditor.cleanup();
+      closeModal();await load();toast('Salvo com sucesso!');
+    }catch(err){toast(err.message||String(err),true)}
+    finally{if(button)button.disabled=false}
+  };
   document.querySelector('#modal').classList.add('open')
 }
 window.closeModal=()=>document.querySelector('#modal').classList.remove('open');
