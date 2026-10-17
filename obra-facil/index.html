@@ -282,64 +282,104 @@ async function cloudWrite(){
   const p=currentProject();if(!p)return false;
   try{cloudStatus("Salvando obra…");await cloudEnqueue(p,cloudUser.id);return true}catch(e){cloudStatus("Falha: "+e.message);return false}
 }
-function cloudDisplay(){
-  const el=document.getElementById("cloudControls");if(!el)return;
-  if(!cloudUser){
-    el.innerHTML='<form id="cloudLogin" class="cloud-login"><input id="cloudEmail" type="email" autocomplete="email" required placeholder="Seu e-mail"/><input id="cloudPassword" type="password" autocomplete="current-password" required minlength="6" placeholder="Sua senha"/><button class="btn" type="submit">Entrar</button><button class="btn alt" type="button" id="cloudSignUp">Criar conta</button></form><p class="cloud-helper">Você pode navegar localmente, mas entre para guardar cada obra na nuvem.</p>';
-    $("cloudLogin").onsubmit=e=>{e.preventDefault();cloudAuth(false)};
-    $("cloudSignUp").onclick=()=>cloudAuth(true);cloudMessage();return;
-  }
-  el.innerHTML='<div class="cloud-actions"><small>'+esc(cloudUser.email||"Usuário conectado")+'</small><button class="btn alt" id="cloudImport">Enviar esta obra</button><button class="btn alt" id="cloudReload">Recarregar obras da nuvem</button><button class="btn alt" id="cloudLogout">Sair</button></div><p class="cloud-helper">As alterações das obras conectadas são salvas na nuvem. “Enviar esta obra” substitui apenas os dados da obra atual; exporte um backup antes. Fotos grandes podem ultrapassar os limites do banco.</p>';
-  $("cloudImport").onclick=async()=>{
-    if(!confirm("Enviar esta obra à nuvem? Se existir outra versão com o mesmo identificador, ela será substituída."))return;
-    if(await cloudWrite()){cloudReady=true;cloudMessage();cloudStatus("Obra enviada ✓")}
-  };
-  $("cloudReload").onclick=()=>cloudLoad(true);
-  $("cloudLogout").onclick=async()=>{
-    cloudReady=false;cloudUser=null;for(const t of cloudTimers.values())clearTimeout(t);cloudTimers.clear();
-    await cloudClient.auth.signOut();cloudStatus("Sessão encerrada • dados neste aparelho preservados");cloudDisplay();
-  };cloudMessage();
+
+let memberProfile=null,accessReady=false,authRegister=false,activityCache=[],membersCache=[],auditPolling=null,authLoading=false;
+function gateNotice(msg){$("gateNotice").textContent=msg||""}
+function showGate(mode="login"){document.body.classList.add("auth-locked");$("authGate").hidden=false;const pending=mode==="pending";$("gateForm").hidden=pending;$("gatePending").hidden=!pending;$("gateSwitch").hidden=pending;$("gateReset").hidden=pending;$("gateTitle").textContent=pending?"Aguardando autorização":authRegister?"Solicitar acesso":"Entrar no aplicativo";$("gateDescription").textContent=pending?"Outro participante pode aprovar seu acesso à equipe.":"Identifique-se para acompanhar as obras e registrar suas atividades."}
+function allowInterface(){accessReady=true;$("authGate").hidden=true;document.body.classList.remove("auth-locked");if(!auditPolling)auditPolling=setInterval(()=>{if(cloudReady&&cloudUser){loadActivity(false);if(tab==="acessos")loadMembers()}},45000)}
+function setRegisterMode(v){authRegister=!!v;$("gateNameField").hidden=!authRegister;$("gateName").required=authRegister;$("gateSubmit").textContent=authRegister?"Criar conta":"Entrar";$("gateSwitch").textContent=authRegister?"Já tenho uma conta":"Criar uma conta";$("gateTitle").textContent=authRegister?"Solicitar acesso":"Entrar no aplicativo";gateNotice("")}
+async function checkMember(){
+ if(!cloudClient||!cloudUser)return false;
+ const {data,error}=await cloudClient.from("barquinha_members").select("user_id,email,display_name,status").eq("user_id",cloudUser.id).maybeSingle();
+ if(error){showGate();gateNotice(error.message);return false}
+ if(!data){
+   const name=cloudUser.user_metadata?.full_name||cloudUser.email?.split("@")[0]||"Participante";
+   const request=await cloudClient.rpc("barquinha_request_access",{p_name:name});
+   if(request.error){showGate();gateNotice(request.error.message);return false}
+   return checkMember();
+ }
+ memberProfile=data;
+ if(data.status!=="active"){showGate("pending");gateNotice("Solicitação pendente: "+data.email);return false}
+ return true;
 }
-async function cloudAuth(register){
-  if(!cloudClient)return;
-  const email=$("cloudEmail")?.value.trim(),password=$("cloudPassword")?.value;
-  if(!email||!password)return;cloudStatus(register?"Criando conta…":"Entrando…");
-  const {data,error}=register?await cloudClient.auth.signUp({email,password}):await cloudClient.auth.signInWithPassword({email,password});
-  if(error){cloudStatus(error.message);return}
-  if(register&&!data.session){cloudStatus("Confira seu e-mail e confirme a conta antes de entrar.");return}
-  cloudUser=data.user;await cloudLoad(false);
+async function startSession(){
+ if(!(await checkMember()))return;
+ const {error:logError}=await cloudClient.rpc("barquinha_log_login");
+ if(logError)cloudStatus("Aviso: o registro do acesso falhou: "+logError.message);
+ await cloudLoad(false);
+ if(!cloudReady){showGate();gateNotice("Não foi possível carregar as obras. Verifique sua conexão.");return}
+ allowInterface();cloudDisplay();await loadActivity(false);
+}
+async function gateSubmit(e){
+ e.preventDefault();if(authLoading||!cloudClient)return;
+ const email=$("gateEmail").value.trim(),password=$("gatePassword").value,name=$("gateName").value.trim();
+ if(authRegister&&name.length<2)return gateNotice("Informe um nome com pelo menos duas letras.");
+ authLoading=true;$("gateSubmit").disabled=true;gateNotice("Aguarde…");
+ try{
+  const res=authRegister?await cloudClient.auth.signUp({email,password,options:{data:{full_name:name}}}):await cloudClient.auth.signInWithPassword({email,password});
+  if(res.error)throw res.error;
+  if(!res.data.session){setRegisterMode(false);gateNotice("Confirme seu e-mail e depois entre para solicitar autorização.");return}
+  cloudUser=res.data.user;await startSession();
+ }catch(e){gateNotice("Não foi possível entrar: "+e.message)}
+ finally{authLoading=false;$("gateSubmit").disabled=false}
+}
+function setupGate(){
+ $("gateForm").onsubmit=gateSubmit;
+ $("gateSwitch").onclick=()=>setRegisterMode(!authRegister);
+ $("gateReset").onclick=async()=>{
+  const email=$("gateEmail").value.trim();if(!email)return gateNotice("Digite o e-mail primeiro.");
+  const {error}=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+  gateNotice(error?error.message:"Se houver uma conta, um e-mail de recuperação será enviado.");
+ };
+ $("gateCheckAccess").onclick=async()=>{
+  if(await checkMember())await startSession();
+  else gateNotice("Sua solicitação ainda aguarda autorização.");
+ };
+}
+function cloudDisplay(){
+ const el=$("cloudControls");if(!el)return;
+ if(!cloudUser||!accessReady){el.innerHTML='<p class="cloud-helper">Faça login para acessar os projetos.</p>';cloudMessage();return}
+ el.innerHTML='<div class="cloud-actions"><small>● '+esc(memberProfile?.display_name||cloudUser.email||"Participante")+'</small><button type="button" class="btn alt" id="profileNameBtn">Meu nome</button><button type="button" class="btn alt" id="cloudReload">Atualizar obras</button><button type="button" class="btn alt" id="cloudLogout">Sair</button></div><p class="cloud-helper">Todos os participantes autorizados podem gerenciar as obras. As alterações são registradas no Histórico.</p>';
+ $("profileNameBtn").onclick=async()=>{
+  const name=prompt("Como deseja aparecer no histórico?",memberProfile?.display_name||"");
+  if(name===null)return;
+  const {error}=await cloudClient.rpc("barquinha_update_profile",{p_name:name.trim()});
+  if(error)return alert(error.message);
+  memberProfile.display_name=name.trim();cloudDisplay();loadActivity(false);
+ };
+ $("cloudReload").onclick=()=>cloudLoad(true);
+ $("cloudLogout").onclick=async()=>{
+  cloudReady=false;accessReady=false;cloudUser=null;memberProfile=null;
+  for(const t of cloudTimers.values())clearTimeout(t);cloudTimers.clear();
+  if(auditPolling){clearInterval(auditPolling);auditPolling=null}
+  await cloudClient.auth.signOut();setRegisterMode(false);showGate();cloudStatus("Sessão encerrada");
+ };cloudMessage();
 }
 async function cloudLoad(confirmReplace){
-  if(!cloudUser||!cloudClient)return;
-  if(confirmReplace&&!confirm("Recarregar as obras do Supabase? Alterações locais que ainda não foram sincronizadas podem ser substituídas. Exporte um backup antes."))return;
-  cloudStatus("Carregando suas obras…");
-  for(const t of cloudTimers.values())clearTimeout(t);cloudTimers.clear();
-  await cloudQueue.catch(()=>{});
-  const {data,error}=await cloudClient.from("barquinha_projects").select("*").eq("user_id",cloudUser.id).order("created_at",{ascending:true});
-  if(error){cloudReady=false;cloudStatus("Erro ao carregar: "+error.message);cloudDisplay();return}
-  if(!data?.length){
-    cloudReady=false;cloudStatus("Conta conectada • envie sua primeira obra para a nuvem");
-    cloudDisplay();return;
-  }
-  try{localStorage.setItem("barquinha-before-cloud-"+cloudUser.id,JSON.stringify(projects))}catch(e){}
-  projects=data.map(r=>({
-    id:r.id,nome:r.nome,descricao:r.descricao||"",localizacao:r.localizacao||"",situacao:r.situacao||"Planejada",
-    inicio:r.inicio||"",prazo:r.prazo||"",comprimento:r.comprimento,largura:r.largura,orcamento:r.orcamento,
-    payload:validPayload(r.payload)?r.payload:emptyProjectData()
-  }));
-  const preferred=localStorage.getItem("barquinha-current-"+cloudUser.id);
-  activeProjectId=projects.some(p=>p.id===preferred)?preferred:projects[0].id;
-  db=currentProject().payload;
-  cloudReady=true;persistLocal();render();cloudStatus(projects.length+" obra(s) sincronizada(s) ✓");cloudDisplay();
+ if(!cloudUser||!cloudClient||memberProfile?.status!=="active")return;
+ if(confirmReplace&&!confirm("Atualizar obras compartilhadas? Alterações não sincronizadas neste aparelho podem ser substituídas."))return;
+ cloudStatus("Carregando obras da equipe…");
+ for(const t of cloudTimers.values())clearTimeout(t);cloudTimers.clear();
+ await cloudQueue.catch(()=>{});
+ const {data,error}=await cloudClient.from("barquinha_projects").select("*").order("created_at",{ascending:true});
+ if(error){cloudReady=false;cloudStatus("Erro: "+error.message);return}
+ try{localStorage.setItem("barquinha-before-shared-"+cloudUser.id,JSON.stringify(projects))}catch(e){}
+ projects=(data||[]).map(r=>({id:r.id,nome:r.nome,descricao:r.descricao||"",localizacao:r.localizacao||"",situacao:r.situacao||"Planejada",inicio:r.inicio||"",prazo:r.prazo||"",comprimento:r.comprimento,largura:r.largura,orcamento:r.orcamento,payload:validPayload(r.payload)?r.payload:emptyProjectData()}));
+ const preferred=localStorage.getItem("barquinha-current-"+cloudUser.id);
+ activeProjectId=projects.some(p=>p.id===preferred)?preferred:(projects[0]?.id||null);
+ db=currentProject()?.payload||emptyProjectData();cloudReady=true;persistLocal();render();
+ cloudStatus(projects.length+" obra(s) compartilhada(s) ✓");cloudMessage();
+ if(accessReady){cloudDisplay();await loadActivity(false)}
 }
 async function initCloud(){
-  if(!window.supabase?.createClient){cloudStatus("Nuvem indisponível • dados locais funcionando");return}
-  try{
-    cloudClient=window.supabase.createClient(CLOUD_URL,CLOUD_KEY);
-    const {data,error}=await cloudClient.auth.getUser();
-    if(error||!data?.user){cloudStatus("Entre para sincronizar suas obras");cloudDisplay();return}
-    cloudUser=data.user;await cloudLoad(false);
-  }catch(e){cloudStatus("Erro de conexão • tente atualizar a página")}
+ setupGate();showGate();
+ if(!window.supabase?.createClient){gateNotice("Falha ao conectar. Atualize a página.");return}
+ try{
+  cloudClient=window.supabase.createClient(CLOUD_URL,CLOUD_KEY);
+  const {data,error}=await cloudClient.auth.getUser();
+  if(error||!data?.user)return;
+  cloudUser=data.user;await startSession();
+ }catch(e){showGate();gateNotice("Falha ao carregar conta: "+e.message)}
 }
 
 const key="obra-facil-v1";let db;try{db=JSON.parse(localStorage.getItem(key))||initial}catch{db=initial}
