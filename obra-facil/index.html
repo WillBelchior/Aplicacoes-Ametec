@@ -1212,8 +1212,9 @@ async function presidentDeleteProject(id){
  if(readPending()[id])return alert("Esta obra tem alterações locais pendentes. Sincronize antes de excluir.");
  if(!confirm('Excluir a obra "'+p.nome+'" e todos os seus registros permanentemente?'))return;
  if(prompt('Digite EXCLUIR para confirmar')!=="EXCLUIR")return;
- const {error}=await cloudClient.from("barquinha_projects").delete().eq("id",id);
+ const {data,error}=await cloudClient.from("barquinha_projects").delete().eq("id",id).select("id");
  if(error)return alert("Não foi possível excluir: "+error.message);
+ if(!data?.length)return alert("A exclusão não foi autorizada pelo servidor.");
  projects=projects.filter(x=>x.id!==id);
  if(activeProjectId===id){activeProjectId=projects[0]?.id||null;db=currentProject()?.payload||emptyProjectData()}
  const pending=readPending();delete pending[id];storePending(pending);
