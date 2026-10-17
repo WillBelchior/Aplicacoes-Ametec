@@ -1024,8 +1024,9 @@ async function saveContact(e){
 async function deleteContact(id){
  const item=contactsCache.find(x=>x.id===id);if(!item||!requirePresidentOnline())return;
  if(!confirm('Excluir o cadastro de "'+item.nome+'"? O histórico da ação será preservado.'))return;
- const {error}=await cloudClient.from("barquinha_contacts").delete().eq("id",id);
+ const {data,error}=await cloudClient.from("barquinha_contacts").delete().eq("id",id).select("id");
  if(error)return alert("Falha ao excluir: "+error.message);
+ if(!data?.length)return alert("A exclusão não foi autorizada pelo servidor.");
  await loadContacts(true);await loadActivity(false);
 }
 function bindContactsPage(){
