@@ -3819,5 +3819,96 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .statement-toolbar{display:grid!important;grid-template-columns:minmax(0,1fr) 150px 180px;gap:8px!important}
 @media(max-width:760px){.finance-period-bar{align-items:stretch;flex-direction:column}.finance-period-bar label{min-width:0}.finance-flow-head,.finance-flow-row{grid-template-columns:1fr 1fr}.finance-flow-head b:nth-child(3),.finance-flow-head b:nth-child(4){display:none}.finance-flow-row b,.finance-flow-row strong{text-align:right}.statement-toolbar{grid-template-columns:1fr!important}.finance-row-actions{grid-column:1/-1;justify-content:flex-start}}
 </style>
+
+<style id="ametec-mobile-tablet-ux-20261016">
+/* Ajustes de ergonomia: não modificam dados nem a estrutura dos cartões. */
+@media (max-width:1024px){
+ .side{width:min(300px,86vw)!important;transform:translateX(-105%);transition:transform .22s ease;z-index:65;overflow-y:auto;overscroll-behavior:contain;padding-bottom:env(safe-area-inset-bottom)}
+ .side.open{transform:translateX(0)}
+ .main{margin-left:0!important;max-width:100vw!important;width:100%;min-width:0}
+ .menu{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;cursor:pointer;color:inherit}
+ .top{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+ .content{padding:16px;min-width:0}
+ .two{grid-template-columns:1fr}
+ .hero-grid{flex-wrap:wrap}
+ .hero-actions{max-width:100%}
+ .pending-board{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;width:100%!important;overflow:visible!important}
+ .pending-col{min-width:0;max-width:100%}
+ .modal{max-height:min(90dvh,900px);overscroll-behavior:contain}
+ .form,.optional-block{min-width:0}
+ .field,.field input,.field select,.field textarea{min-width:0;max-width:100%}
+ .actions button,.hero-actions .btn{min-height:44px}
+ .toolbar{flex-wrap:wrap}
+ .toolbar input,.toolbar select{min-height:44px}
+ .archive-client-hero{grid-template-columns:1fr}
+ .finance-manager-grid{grid-template-columns:1fr}
+}
+@media (min-width:701px) and (max-width:1024px){
+ .top{height:68px}
+ .content{padding:20px}
+ .metrics,.quick{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .panel{padding:16px}
+ .form{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .client-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:700px){
+ .main{padding-bottom:calc(76px + env(safe-area-inset-bottom))!important}
+ .content{padding:12px max(12px,env(safe-area-inset-right)) 12px max(12px,env(safe-area-inset-left));gap:13px}
+ .top{min-height:62px;height:auto;padding-block:8px}
+ .top h1{font-size:clamp(13px,3.8vw,17px)}
+ .top>div,.top h1{min-width:0}
+ .hero{padding:16px}
+ .hero-grid{display:flex;flex-direction:column;align-items:stretch;gap:12px}
+ .hero-actions{justify-content:flex-start}
+ .hero-actions .btn{flex:0 1 auto}
+ .hero p{font-size:12px;line-height:1.5}
+ .panel{padding:12px;max-width:100%}
+ .panel-head{flex-wrap:wrap;align-items:flex-start}
+ .panel-head>.btn{min-height:42px}
+ .metrics,.quick,.client-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .metric b{overflow-wrap:anywhere}
+ .pending-board{grid-template-columns:minmax(0,1fr)!important;gap:12px}
+ .pending-col{padding:10px}
+ .pending-col h4{font-size:12px;align-items:center}
+ .pending-card select{min-height:44px;font-size:14px}
+ .pending-actions .btn{min-height:44px;font-size:12px}
+ .pending-line{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+ .pending-head b,.pending-head small{overflow-wrap:anywhere}
+ .entity-head{align-items:center;min-width:0}
+ .entity-head>div{min-width:0}
+ .entity-head b,.entity-head small{overflow-wrap:anywhere}
+ .entity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .contact-top{flex-wrap:wrap}
+ .contact-meta{grid-template-columns:minmax(0,1fr)}
+ .actions{gap:8px}
+ .actions .btn{min-height:44px;min-width:0;flex:1 1 125px}
+ .form,.optional-block{grid-template-columns:minmax(0,1fr)!important}
+ .form>.field,.form>.field.full{grid-column:1/-1}
+ .modal-bg{padding:0!important;align-items:end}
+ .modal{width:100%;max-width:100%;max-height:calc(100dvh - 12px);border-radius:18px 18px 0 0;padding:16px 14px calc(20px + env(safe-area-inset-bottom));scroll-padding-bottom:90px}
+ .modal-head{position:sticky;top:-16px;z-index:3;padding:12px 0;background:inherit}
+ .field input,.field select,.field textarea,.toolbar input,.toolbar select,.client-search-input{font-size:16px!important;min-height:44px}
+ .photo-crop-area{max-width:min(65vw,256px)}
+ .bottom{height:calc(64px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);align-items:stretch}
+ .bottom button{min-height:54px;min-width:0;flex:1;touch-action:manipulation}
+ .finance-period-bar{flex-direction:column;align-items:stretch}
+ .finance-period-bar label{min-width:0}
+ .finance-flow-row{overflow-wrap:anywhere}
+ .archive-client-folders{grid-template-columns:1fr}
+}
+@media (max-width:370px){
+ .hero-actions .btn{flex:1 1 100%}
+ .metrics,.quick,.client-summary{gap:7px}
+ .pending-fin b{overflow-wrap:anywhere}
+ .finance-summary{grid-template-columns:1fr}
+}
+@media (hover:none) and (pointer:coarse){
+ button,.btn,select{touch-action:manipulation}
+ .photo-zoomable:hover{transform:none;box-shadow:none}
+}
+@media (prefers-reduced-motion:reduce){
+ .side,.profile-lightbox,.profile-lightbox-panel,.photo-zoomable{transition:none!important}
+}
+</style>
 </body>
 </html>
