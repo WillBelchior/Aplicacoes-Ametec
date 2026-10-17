@@ -319,7 +319,8 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 .finance-due-panel{margin-bottom:14px}.finance-due-list{display:grid;gap:0}.finance-due-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 2px;border-bottom:1px solid #244255}.finance-due-row:last-child{border-bottom:0}.finance-due-info{display:grid;gap:4px;min-width:0}.finance-due-info>b{color:#ebf7ff;font-size:12px;overflow-wrap:anywhere}.finance-due-info>small,.finance-due-note{color:#9bb5c5;font-size:10px}.finance-due-type{width:max-content;font-size:9px;font-weight:700;border-radius:6px;padding:4px 7px}.finance-due-type.pagar{background:#3b2516;color:#ffd49d}.finance-due-type.receber{background:#133d33;color:#8df3bd}.finance-due-actions{display:grid;justify-items:end;gap:5px;flex-shrink:0}.finance-due-actions>b{font-size:12px;color:#edf8ff}.finance-due-actions>small{font-size:10px}.finance-due-late{color:#ff998f}.finance-due-soon{color:#ffd28b}.finance-due-normal{color:#a2bdcd}.finance-calendar-link{font-size:10px;color:#74d7ff;text-decoration:none;border:1px solid #2b5d77;border-radius:7px;padding:6px 8px}.finance-calendar-link:hover{background:#15384b}.finance-due-note{display:block;margin-top:12px;line-height:1.5}.finance-due-empty{padding:17px;color:#9bb5c5;font-size:12px}@media(max-width:460px){.finance-due-row{align-items:flex-start}.finance-due-actions{min-width:100px;text-align:right}}
 
 .client-search-input{width:100%;min-width:0;background:#071720!important;color:#eefaff!important;border:1px solid #24516a!important;border-radius:9px;padding:10px;font-size:13px}.client-search-input::placeholder{color:#8faabb}.client-search-hint{color:#88a8b8;font-size:10px}.client-search-input:focus{outline:2px solid #22a8dc;outline-offset:1px}
-.photo-avatar{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;border-radius:50%;overflow:hidden;background:#16435a;border:1px solid #396c83;color:#fff;font-size:16px}.photo-avatar img,.photo-preview img{width:100%;height:100%;object-fit:cover}.photo-button{font-size:11px!important}.photo-editor{grid-column:1/-1;display:grid;gap:12px}.photo-editor small{color:#9bb5c5}.photo-preview{width:100px;height:100px;border-radius:50%;margin:auto;overflow:hidden;background:#13364a;display:grid;place-items:center;font-size:30px}.photo-editor input[type=file]{min-width:0;width:100%}</style>
+.photo-avatar{display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;border-radius:50%;overflow:hidden;background:#16435a;border:1px solid #396c83;color:#fff;font-size:16px}.photo-avatar img,.photo-preview img{width:100%;height:100%;object-fit:cover}.photo-button{font-size:11px!important}.photo-editor{grid-column:1/-1;display:grid;gap:12px}.photo-editor small{color:#9bb5c5}.photo-preview{width:100px;height:100px;border-radius:50%;margin:auto;overflow:hidden;background:#13364a;display:grid;place-items:center;font-size:30px}.photo-editor input[type=file]{min-width:0;width:100%}.photo-crop-area{width:256px;max-width:100%;aspect-ratio:1;margin:auto;border-radius:50%;overflow:hidden;border:2px solid #38758d;touch-action:none}.photo-crop-area canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}.photo-crop-area canvas:active{cursor:grabbing}.photo-editor input[type=range]{width:100%;accent-color:#18aee5}
+</style>
 </head>
 <body>
 <div class="shell">
@@ -1134,53 +1135,94 @@ async function renderProfileAvatars(){
 function photoTools(kind,item){
  return photoAvatar(kind,item)+' <button type="button" class="btn secondary photo-button" onclick="editProfilePhoto(\''+kind+'\',\''+esc(item.id)+'\')">📷 Foto</button>';
 }
-async function makeWebp(file){
- if(!file.type.startsWith('image/'))throw Error('Selecione uma imagem.');
- if(file.size>12000000)throw Error('Arquivo original acima de 12 MB.');
- const bitmap=await createImageBitmap(file),canvas=document.createElement('canvas');
- canvas.width=256;canvas.height=256;
- const size=Math.min(bitmap.width,bitmap.height);
- canvas.getContext('2d').drawImage(bitmap,(bitmap.width-size)/2,(bitmap.height-size)/2,size,size,0,0,256,256);
- bitmap.close();
- const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.68));
- if(!blob||blob.size>102400)throw Error('Não foi possível comprimir a imagem para até 100 KB.');
- return blob;
+
+function createPhotoEditor(form){
+ const input=form.querySelector('#profileFile'),canvas=form.querySelector('#photoCanvas'),ctx=canvas.getContext('2d');
+ const zoom=form.querySelector('#photoZoom'),msg=form.querySelector('#photoEditorMsg');
+ let bitmap=null,scale=1,offsetX=0,offsetY=0,drag=null,disposed=false;
+ const draw=()=>{
+  ctx.clearRect(0,0,256,256);
+  ctx.fillStyle='#102b3d';ctx.fillRect(0,0,256,256);
+  if(!bitmap)return;
+  const base=256/Math.min(bitmap.width,bitmap.height),w=bitmap.width*base*scale,h=bitmap.height*base*scale;
+  offsetX=Math.max(256-w,Math.min(0,offsetX));offsetY=Math.max(256-h,Math.min(0,offsetY));
+  ctx.drawImage(bitmap,offsetX,offsetY,w,h);
+ };
+ const load=async file=>{
+  if(!file)return;
+  if(!file.type.startsWith('image/'))throw Error('Escolha uma imagem.');
+  if(file.size>12000000)throw Error('Imagem acima de 12 MB.');
+  const next=await createImageBitmap(file);
+  if(disposed){next.close();return}
+  if(bitmap)bitmap.close();bitmap=next;scale=1;zoom.value='1';
+  const base=256/Math.min(bitmap.width,bitmap.height);
+  offsetX=(256-bitmap.width*base)/2;offsetY=(256-bitmap.height*base)/2;
+  msg.textContent='Arraste para centralizar o enquadramento. Use o zoom se desejar.';draw();
+ };
+ input.onchange=()=>load(input.files[0]).catch(e=>toast(e.message,true));
+ const paste=ev=>{
+  if(disposed||!form.isConnected||!form.closest('#modal.open'))return;
+  const file=[...(ev.clipboardData?.items||[])].find(x=>x.type.startsWith('image/'))?.getAsFile();
+  if(!file)return;
+  ev.preventDefault();load(file).catch(e=>toast(e.message,true));
+ };
+ document.addEventListener('paste',paste);
+ zoom.oninput=()=>{
+  const next=Number(zoom.value),factor=next/scale;
+  offsetX=128+(offsetX-128)*factor;offsetY=128+(offsetY-128)*factor;
+  scale=next;draw();
+ };
+ canvas.onpointerdown=ev=>{if(!bitmap)return;drag={x:ev.clientX,y:ev.clientY,ox:offsetX,oy:offsetY};canvas.setPointerCapture(ev.pointerId)};
+ canvas.onpointermove=ev=>{if(!drag)return;const r=canvas.getBoundingClientRect();offsetX=drag.ox+(ev.clientX-drag.x)*256/r.width;offsetY=drag.oy+(ev.clientY-drag.y)*256/r.height;draw()};
+ canvas.onpointerup=canvas.onpointercancel=()=>{drag=null};
+ return {
+  hasImage:()=>!!bitmap,
+  async export(){
+   if(!bitmap)throw Error('Selecione ou cole uma foto primeiro.');
+   draw();
+   for(const quality of [.74,.65,.55,.45]){
+    const blob=await new Promise(ok=>canvas.toBlob(ok,'image/webp',quality));
+    if(blob&&blob.type==='image/webp'&&blob.size<=102400)return blob;
+   }
+   throw Error('Não foi possível comprimir a foto para 100 KB.');
+  },
+  cleanup(){disposed=true;document.removeEventListener('paste',paste);if(bitmap)bitmap.close()}
+ };
 }
 window.editProfilePhoto=(kind,id)=>{
  const type=photoTypes[kind];if(!type)return;
  const item=data[type[0]].find(x=>String(x.id)===String(id));if(!item)return;
  const modal=document.querySelector('#modal'),form=document.querySelector('#modalForm');
  document.querySelector('#modalTitle').textContent='Foto de perfil';
- form.innerHTML='<div class="photo-editor"><div class="photo-preview" id="photoPreview">📷</div><label class="field full"><span>Selecionar imagem</span><input type="file" accept="image/*" id="profileFile" required></label><small>WebP • 256 × 256 pixels • máximo 100 KB após compressão</small><button class="btn primary" id="photoSubmit">Salvar foto</button>'+(item.foto_path?'<button class="btn secondary" type="button" id="photoRemove">Remover foto</button>':'')+'</div>';
- const input=form.querySelector('#profileFile'),preview=form.querySelector('#photoPreview');
- let url=null;input.onchange=()=>{if(url)URL.revokeObjectURL(url);url=input.files[0]?URL.createObjectURL(input.files[0]):null;preview.replaceChildren();if(url){const img=document.createElement('img');img.src=url;preview.append(img)}else preview.textContent='📷'};
- const cleanup=()=>{if(url)URL.revokeObjectURL(url)};
+ form.innerHTML='<div class="photo-editor"><div class="photo-crop-area"><canvas width="256" height="256" id="photoCanvas" aria-label="Enquadramento da foto"></canvas></div><small id="photoEditorMsg">Cole uma foto com Ctrl + V ou selecione um arquivo.</small><label class="field full"><span>Selecionar imagem ou usar câmera</span><input type="file" accept="image/*" id="profileFile"></label><label class="field full"><span>Zoom</span><input type="range" id="photoZoom" min="1" max="3" step=".05" value="1"></label><small>O recorte é centralizado automaticamente. Arraste para ajustar • WebP 256 × 256 • até 100 KB.</small><button class="btn primary" type="submit" id="photoSubmit">Salvar foto</button>'+(item.foto_path?'<button class="btn secondary" type="button" id="photoRemove">Remover foto</button>':'')+'</div>';
+ const editor=createPhotoEditor(form);
+ const oldClose=window.closeModal;
+ window.closeModal=()=>{editor.cleanup();window.closeModal=oldClose;oldClose()};
  form.onsubmit=async ev=>{
   ev.preventDefault();const button=form.querySelector('#photoSubmit');button.disabled=true;
-  let path=null;
+  let path=null,uploaded=false;
   try{
-   const blob=await makeWebp(input.files[0]);
+   const blob=await editor.export();
    path=session.user.id+'/'+kind+'/'+id+'/'+Date.now()+'.webp';
-   const uploaded=await supabase.storage.from('ametec-perfis').upload(path,blob,{contentType:'image/webp'});
-   if(uploaded.error)throw uploaded.error;
+   const upload=await supabase.storage.from('ametec-perfis').upload(path,blob,{contentType:'image/webp'});
+   if(upload.error)throw upload.error;uploaded=true;
    const updated=await supabase.from(type[1]).update({foto_path:path}).eq('id',id);
    if(updated.error)throw updated.error;
    if(item.foto_path)await supabase.storage.from('ametec-perfis').remove([item.foto_path]);
-   cleanup();closeModal();await load();toast('Foto salva!');
-  }catch(error){if(path)await supabase.storage.from('ametec-perfis').remove([path]);toast(error.message||String(error),true)}
+   closeModal();await load();toast('Foto salva!');
+  }catch(error){if(uploaded)await supabase.storage.from('ametec-perfis').remove([path]);toast(error.message||String(error),true)}
   finally{button.disabled=false}
  };
  const remove=form.querySelector('#photoRemove');
  if(remove)remove.onclick=async()=>{
-  const old=item.foto_path;
   if(!confirm('Remover a foto?'))return;
+  const old=item.foto_path;
   const updated=await supabase.from(type[1]).update({foto_path:null}).eq('id',id);
   if(updated.error)return toast(updated.error.message,true);
-  await supabase.storage.from('ametec-perfis').remove([old]);cleanup();closeModal();await load();toast('Foto removida!');
+  await supabase.storage.from('ametec-perfis').remove([old]);closeModal();await load();toast('Foto removida!');
  };
  modal.classList.add('open');
 };
-
 function clientes(){
   document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">RELACIONAMENTO</div><h2>Clientes AMETEC</h2><p>Empresas, contatos, responsáveis e histórico técnico em uma única visão.</p></div><button class="btn primary" id="add">+ Cliente</button></div></section><section class="panel"><div class="toolbar"><input id="search" placeholder="🔎 Buscar cliente, contato, cidade ou responsável"></div><div id="list" class="cards"></div></section>`;
   const draw=q=>{
