@@ -2541,7 +2541,7 @@ function financeiro(){
     ['descricao','Descrição','text'],
     ['fornecedor','Fornecedor / favorecido','text'],
     ['forma_pagamento','Forma de pagamento','select',['','PIX','Dinheiro','Cartão','Transferência','Boleto','Outro']],
-    ['servico_id','Vincular a serviço','select',[{value:'',label:'Nenhum'},...data.servicos.map(x=>({value:x.id,label:x.titulo}))]],
+    ['servico_id','Vincular a serviço','select',[{value:'',label:'Nenhum'},...data.servicos.filter(x=>!x.arquivado&&['Orçamento aprovado','Em andamento','Pausada'].includes(x.atendimento_status)||initial.servico_id&&String(x.id)===String(initial.servico_id)).map(x=>({value:x.id,label:x.titulo+(initial.servico_id&&String(x.id)===String(initial.servico_id)&&(x.arquivado||!['Orçamento aprovado','Em andamento','Pausada'].includes(x.atendimento_status))?' (vínculo anterior)':'')}))]],
     ['recorrente','Recorrente?','select',[{value:'false',label:'Não'},{value:'true',label:'Sim'}]],
     ['observacoes','Observações','textarea']
   ],async v=>{
