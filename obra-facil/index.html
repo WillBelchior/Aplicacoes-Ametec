@@ -504,6 +504,23 @@ body.auth-locked{overflow:hidden}body.auth-locked .app{display:none!important;vi
  .edit-project-modal .modal-actions button{flex:1}
 }
 @media(max-width:370px){.edit-project-modal .formgrid{grid-template-columns:1fr}.edit-project-modal .formgrid>*{grid-column:1/-1}}
+
+/* Presidente: permissões exclusivas e eleição administrativa */
+.access-president{background:#e6e4fa;color:#4d348a}
+.access-item-buttons{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.access-item-buttons button{min-height:42px}
+.election-current{background:#f0f4f9;border:1px solid #dae6ef;border-radius:11px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.election-current span{font-size:13px;color:#657e91}
+.election-current strong{font-size:15px;color:#19435c}
+.election-panel h4{margin:16px 0 10px;color:#284d66}
+.election-metrics{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin:13px 0;padding:10px 12px;border-bottom:1px solid #e2e9f1}
+.election-metrics strong{color:#275777}
+.election-candidates{display:grid;gap:9px;margin:12px 0 18px}
+.election-candidate{display:flex;align-items:center;justify-content:space-between;gap:11px;border:1px solid #dce7ef;border-radius:12px;padding:13px}
+.election-candidate strong,.election-candidate small{display:block}
+.election-candidate small{margin-top:3px;color:#6c8595}
+.election-candidate button{min-height:43px;min-width:95px}
+@media(max-width:680px){.access-item-buttons{width:100%;justify-content:stretch}.access-item-buttons button{flex:1;width:100%}.election-current{align-items:flex-start;flex-direction:column}}
 </style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><div id="gatePending" hidden><p>Seu cadastro foi recebido. Um <strong>ADM</strong> precisa autorizar seu acesso.</p><button class="btn alt" type="button" id="gateCheckAccess">Verificar autorização</button></div><div class="auth-links"><button type="button" id="gateSwitch">Criar uma conta</button><button type="button" id="gateReset">Esqueci minha senha</button><button type="button" id="gateResend">Reenviar confirmação</button></div><p class="auth-privacy">Em aparelhos confiáveis, a sessão continua ativa até você sair. Não marque essa opção em celulares ou computadores compartilhados.</p></div></section><div class="app" inert aria-hidden="true"><aside><div class="brand-modern"><span class="brand-symbol" aria-hidden="true">⚓</span><span class="brand-title"><span class="brand-prefix">Projetos</span><span>Barquinha</span></span></div><nav id="nav"></nav><div class="aside-bottom"><button class="sidebar-logout" type="button" id="sidebarLogout"><span aria-hidden="true">↪</span> Sair</button><div class="aside-caption">Projetos Barquinha · Controle de obras</div></div></aside><main><div class="topbar"><span>PROJETOS / <strong id="breadcrumbProject">OBRA 001</strong></span><span><span class="dot"></span> Ambiente de acompanhamento</span></div><header><div><div class="head-kicker">CENTRAL DE GERENCIAMENTO</div><h2 id="pageTitle"></h2><div class="muted" id="activeProjectDescription">Obra 001 · Acompanhamento</div></div><div class="header-project-actions"><button type="button" class="btn alt" id="switchProject">Trocar obra ↗</button><details class="account-menu" id="accountMenu"><summary id="accountSummary" aria-label="Abrir opções da conta">♙ Minha conta</summary><div class="account-menu-panel" id="cloudControls"></div></details><button class="btn alt offline-sync-button" type="button" id="syncPendingBtn" hidden>Sincronizar pendências</button><span class="pill" id="mode">Dados locais</span></div></header><div class="warn" id="technicalNotice"><b>Estudo preliminar:</b> fundações, base elevada, contenção, pilares e vigas exigem dimensionamento de profissional habilitado, levantamento do terreno e avaliação do solo. Este aplicativo não substitui projeto com ART.</div><span id="cloudStatus" class="account-sync-status" role="status" aria-live="polite"></span><div id="content"></div><footer><button type="button" class="mobile-footer-logout" id="footerLogout">↪ Sair da conta</button>Projetos Barquinha · Os dados das obras ficam separados e sincronizados quando houver conexão.</footer></main></div><div id="photoViewer" class="photo-viewer photo-overlay" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden><button id="closeViewer" class="viewer-close" type="button" aria-label="Fechar foto">✕</button><div class="viewer-content"><img id="viewerImage" alt="Foto da obra"><div id="viewerCaption"></div><p id="viewerError" hidden>Não foi possível carregar esta foto. Atualize a página e tente novamente.</p></div></div><dialog id="contactModal" class="contact-modal" aria-label="Cadastro de pessoa ou empresa"><div class="contact-modal-header"><div><span class="section-overline">AGENDA COMPARTILHADA</span><h3 id="contactModalTitle">Novo cadastro</h3></div><button class="contact-close" id="contactCancel" type="button" aria-label="Fechar cadastro">✕</button></div><form id="contactForm" class="contact-form"><div class="contact-form-row"><label>Tipo de cadastro<select name="tipo" id="contactType" required><option value="Pessoa">Pessoa</option><option value="Empresa">Empresa</option></select></label><label>Categoria<select name="categoria" required><option>Prestador de serviço</option><option>Fornecedor de materiais</option><option>Profissional técnico</option><option>Parceiro</option><option>Outros</option></select></label></div><label id="contactNameLabel">Nome da pessoa<input name="nome" maxlength="160" required autocomplete="name" placeholder="Nome completo"></label><label>Atividade ou especialidade<input name="especialidade" maxlength="160" placeholder="Ex.: Pedreiro, elétrica, loja de materiais"></label><div class="contact-form-row"><label>Telefone<input name="telefone" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label><label>WhatsApp<input name="whatsapp" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label></div><label>E-mail<input name="email" type="email" maxlength="150" placeholder="contato@exemplo.com"></label><label>Localização / endereço<input name="localizacao" maxlength="240" placeholder="Cidade, bairro ou endereço"></label><div id="contactCompanyFields" hidden><label>CNPJ (opcional)<input name="documento" maxlength="25" placeholder="00.000.000/0000-00"></label><label>Responsável / contato comercial<input name="responsavel" maxlength="130" placeholder="Pessoa de contato da empresa"></label></div><label>Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações úteis, serviços prestados, referências..."></textarea></label><div class="contact-modal-actions"><button type="button" class="btn alt" id="contactClose">Cancelar</button><button class="btn" type="submit" id="contactSave">Salvar cadastro</button></div></form></dialog><dialog id="boardGalleryModal" class="board-gallery-modal"><div class="board-gallery-head"><h3>Escolher foto da galeria</h3><button type="button" class="btn alt" id="boardGalleryClose">Fechar</button></div><div id="boardGalleryOptions" class="board-gallery-grid"></div></dialog><dialog id="editProjectModal" class="new-project-modal edit-project-modal" aria-labelledby="editProjectTitle"><div class="edit-project-heading"><div><span class="section-overline">DADOS DA OBRA</span><h3 id="editProjectTitle">Editar informações</h3><p class="muted">Atualize os detalhes sem alterar etapas, materiais, fotos ou lançamentos já cadastrados.</p></div><button type="button" id="closeEditProject" class="edit-project-close" aria-label="Fechar edição">✕</button></div><form id="editProjectForm" class="formgrid"><label class="full">Nome da obra <input name="nome" required maxlength="120" autocomplete="off" placeholder="Nome do projeto"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option><option>Concluída</option><option>Arquivada</option></select></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label class="full">Descrição e detalhes <textarea name="descricao" rows="3" maxlength="2000" placeholder="Objetivo, características ou observações"></textarea></label><label class="full">Localização <input name="localizacao" maxlength="240" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Data de início <input name="inicio" type="date"></label><label>Prazo previsto <input name="prazo" type="date"></label><p class="full edit-project-note"><strong>Seus registros serão mantidos.</strong> Esta edição altera apenas as informações gerais da obra. As modificações sincronizadas aparecem no Histórico.</p><div class="full modal-actions"><button type="button" class="btn alt" id="cancelEditProject">Cancelar</button><button type="submit" class="btn" id="saveEditProject">Salvar alterações</button></div></form></dialog><dialog id="newProjectModal" class="new-project-modal"><h3>+ Nova obra</h3><p class="muted">Preencha os dados iniciais. Cada obra terá registros independentes.</p><form id="newProjectForm" class="formgrid"><label>Nome da obra <input name="nome" required maxlength="120" placeholder="Ex.: Ampliação da casa"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option></select></label><label class="full">Descrição <textarea name="descricao" rows="2" placeholder="Objetivo e observações iniciais"></textarea></label><label class="full">Localização <input name="localizacao" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Prazo previsto <input name="prazo" type="date"></label><label class="full project-copy"><input name="copyStages" type="checkbox" value="yes"> Copiar a lista de etapas da obra atual, zerando o avanço</label><div class="full modal-actions"><button class="btn alt" type="button" id="cancelProject">Cancelar</button><button class="btn" type="submit" id="saveProjectBtn">Criar obra</button></div></form></dialog><dialog id="modal"><h3 id="modalTitle"></h3><form id="itemForm"><div id="fields" class="formgrid"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn alt" type="button" id="cancel">Cancelar</button><button class="btn" type="submit">Salvar</button></div></form></dialog><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
 const tabs=[["obras","⌂ Minhas obras"],["financeiroGeral","＄ Financeiro"],["cadastros","♙ Cadastros"],["historico","◷ Histórico"],["acessos","♙ Acessos"]];
 const projectSubtabs=[["painel","▦ Visão geral"],["etapas","▣ Etapas"],["materiais","▥ Materiais"],["projeto","✎ Diário"],["fotos","▧ Fotos"],["financeiro","＄ Financeiro"]];
@@ -590,7 +607,7 @@ async function checkMember(){
    return checkMember();
  }
  memberProfile=data;
- if(data.status!=="active"){showGate("pending");gateNotice("Aguardando aprovação de um ADM: "+data.email);return false}
+ if(data.status==="revoked"){showGate();gateNotice("Este usuário foi excluído do aplicativo pelo Presidente. Entre em contato com um responsável.");return false}if(data.status!=="active"){showGate("pending");gateNotice("Aguardando aprovação de um ADM: "+data.email);return false}
  return true;
 }
 async function startSession(){
@@ -688,7 +705,7 @@ function cloudDisplay(){
   el.innerHTML='<p class="cloud-helper">Entre para acessar suas obras.</p>';
   cloudMessage();return;
  }
- const displayName=memberProfile?.display_name||cloudUser.email||"Participante";const memberRole=memberProfile?.role==="adm"?"ADM":"Cadastrado";
+ const displayName=memberProfile?.display_name||cloudUser.email||"Participante";const memberRole=memberRoleName(memberProfile?.role);
  if(summary)summary.textContent="♙ "+displayName+" · "+memberRole;
  el.innerHTML='<div class="account-identity"><strong>'+esc(displayName)+' · '+memberRole+'</strong><small>'+esc(cloudUser.email||"")+'</small></div><div class="account-controls"><button type="button" class="btn alt" id="profileNameBtn">Meu nome</button><button type="button" class="btn alt" id="cloudReload">Atualizar obras</button><button type="button" class="btn" id="cloudLogout">Sair da conta</button></div>';
  $("profileNameBtn").onclick=async()=>{
@@ -1020,7 +1037,7 @@ function bindContactsPage(){
  paintContacts();
 }
 
-const activityTitles={login:"Entrou no aplicativo",criou_obra:"Criou uma obra",alterou_obra:"Alterou a obra",excluiu_obra:"Excluiu uma obra",adicionou:"Adicionou registro",alterou:"Modificou registro",excluiu:"Excluiu registro",aprovou_membro:"ADM liberou um cadastrado",promoveu_adm:"ADM concedeu acesso de administrador",alterou_perfil:"Atualizou nome",cadastrou_contato:"Cadastrou contato",alterou_contato:"Atualizou cadastro",excluiu_contato:"Excluiu contato"};
+const activityTitles={login:"Entrou no aplicativo",criou_obra:"Criou uma obra",alterou_obra:"Alterou a obra",excluiu_obra:"Excluiu uma obra",adicionou:"Adicionou registro",alterou:"Modificou registro",excluiu:"Excluiu registro",aprovou_membro:"ADM liberou um cadastrado",promoveu_adm:"ADM concedeu acesso de administrador",abriu_eleicao:"Abriu eleição para Presidente",votou_presidente:"ADM registrou voto",eleito_presidente:"Presidente eleito",cancelou_eleicao:"Cancelou eleição",alterou_papel:"Alterou nível de acesso",removeu_usuario:"Presidente excluiu usuário",alterou_perfil:"Atualizou nome",cadastrou_contato:"Cadastrou contato",alterou_contato:"Atualizou cadastro",excluiu_contato:"Excluiu contato"};
 const sectionTitles={etapas:"Etapas",materiais:"Materiais",equipe:"Equipe da obra",financeiro:"Financeiro",diario:"Diário",fotos:"Fotos",obra:"Obra",acesso:"Acesso",equipe_acesso:"Equipe",cadastros:"Pessoas e empresas"};
 function activityHtml(a){
  const title=activityTitles[a.kind]||"Atualizou registro",person=a.actor_name||a.actor_email||"Sistema";
@@ -1050,50 +1067,107 @@ async function loadActivity(showErrors){
  activityCache=data||[];try{localStorage.setItem("barquinha-history-"+cloudUser.id,JSON.stringify(activityCache))}catch(e){}paintRecentActivity();paintActivityPage();
 }
 
+
+function isPresident(){return memberProfile?.role==="presidente"&&memberProfile?.status==="active"}
+function isTeamAdmin(){return ["adm","presidente"].includes(memberProfile?.role)&&memberProfile?.status==="active"}
+function requirePresidentOnline(){
+ if(!isPresident()){alert("Somente o Presidente pode excluir obras, registros e usuários.");return false}
+ if(!navigator.onLine||offlineSession){alert("Exclusões exigem conexão para verificar a permissão do Presidente e registrar a operação.");return false}
+ return true;
+}
+function memberRoleName(role){return role==="presidente"?"Presidente":role==="adm"?"ADM":"Cadastrado"}
 function accessPage(){
- const isAdmin=memberProfile?.role==="adm";
- const heading=isAdmin
- ?"Gerencie as solicitações dos cadastrados e escolha quais participantes poderão ser promovidos a ADM. Somente ADMs podem autorizar ou promover."
- :"Você está no perfil Cadastrado. Pode acompanhar e atualizar as obras, mas só um ADM pode aprovar cadastros ou conceder acesso de administrador.";
- return '<section class="panel"><div class="history-actions"><div><span class="section-overline">CONTROLE DE ACESSO</span><h3>Participantes e permissões</h3><p class="muted">'+heading+'</p></div><button type="button" class="btn alt" id="refreshMembers">Atualizar participantes</button></div><div class="access-legend"><span class="access-role access-admin">ADM</span><span>Autoriza cadastrados e pode conceder novos ADMs.</span><span class="access-role access-registered">Cadastrado</span><span>Gerencia obras, sem administrar contas.</span></div><div id="accessList"><p class="muted">Carregando participantes…</p></div></section>';
+ const role=memberRoleName(memberProfile?.role),isAdmin=isTeamAdmin();
+ const textRole=isPresident()?"Você é o Presidente. Pode gerenciar a equipe, autorizar novos participantes e excluir obras, registros e acessos de usuários.":isAdmin?"Você é ADM. Pode aprovar cadastrados, promover ADMs e votar para Presidente. Exclusões são exclusivas do Presidente.":"Você é Cadastrado. Pode acompanhar e modificar projetos, mas não pode excluir nem administrar contas.";
+ return '<section class="panel"><div class="history-actions"><div><span class="section-overline">PERMISSÕES DE ACESSO</span><h3>Participantes e permissões</h3><p class="muted">'+textRole+'</p></div><button type="button" class="btn alt" id="refreshMembers">Atualizar participantes</button></div><div class="access-legend access-legend-three"><span class="access-role access-president">Presidente</span><span>Pode excluir obras, registros e usuários; também administra a equipe.</span><span class="access-role access-admin">ADM</span><span>Gerencia participantes e vota nas eleições.</span><span class="access-role access-registered">Cadastrado</span><span>Consulta, cadastra e edita registros sem poder excluí-los.</span></div><div id="accessList"><p class="muted">Carregando participantes…</p></div></section>'+
+ '<section class="panel election-panel"><div class="panel-heading"><div><span class="section-overline">VOTAÇÃO DOS ADMS</span><h3>Eleição para Presidente</h3><p class="muted">Cada ADM habilitado vota uma única vez. O candidato com maioria absoluta dos votos dos ADMs habilitados assume automaticamente. O resultado fica no histórico.</p></div></div><div id="electionStatus"><p class="muted">Consultando eleição…</p></div></section>';
+}
+async function loadElection(){
+ if(!cloudReady||!cloudUser||!accessReady||!navigator.onLine||offlineSession)return;
+ const target=$("electionStatus");if(!target)return;
+ const {data,error}=await cloudClient.rpc("barquinha_election_status");
+ if(error){target.innerHTML='<p class="muted">Não foi possível consultar eleição: '+esc(error.message)+'</p>';return}
+ const election=data||{status:"none"},president=election.president;
+ const isOpen=election.status==="open",canStart=isTeamAdmin()&&!isOpen;
+ const canVote=isOpen&&election.eligible_to_vote&&!election.voted&&memberProfile?.role==="adm";
+ const candidates=election.candidates||[];
+ let html='<div class="election-current"><span>Presidente atual</span><strong>'+esc(president?.display_name||"Ainda não eleito")+'</strong></div>';
+ if(election.status==="none")html+='<p class="muted">Nenhuma eleição realizada. Os ADMs podem abrir a primeira votação.</p>';
+ if(isOpen){
+  html+='<div class="election-metrics"><span>'+election.cast+' de '+election.eligible+' voto(s) registrados</span><strong>Maioria necessária: '+election.needed+' voto(s)</strong></div>';
+  html+=canVote?'<h4>Escolha um ADM candidato</h4><div class="election-candidates">'+candidates.map(m=>
+   '<article class="election-candidate"><div><strong>'+esc(m.name||"ADM")+'</strong><small>ADM habilitado</small></div><button type="button" class="btn" data-vote-president="'+esc(m.user_id)+'">Votar</button></article>').join("")+'</div>':'<p class="muted">'+(election.voted?"Seu voto já foi registrado. Aguarde os demais ADMs.":"A votação está aberta exclusivamente aos ADMs habilitados.")+'</p>';
+  if(isPresident())html+='<button type="button" class="btn alt" id="cancelElection">Cancelar eleição</button>';
+ }else if(election.status==="completed"){
+  const winner=candidates.find(m=>m.user_id===election.winner_id);
+  html+='<p class="muted">Última eleição concluída. Eleito: <strong>'+esc(winner?.name||president?.display_name||"Presidente")+'</strong> · '+election.cast+' voto(s) registrados.</p>';
+ }else if(election.status==="cancelled")html+='<p class="muted">A última eleição foi cancelada.</p>';
+ if(canStart)html+='<button type="button" class="btn" id="startElection">'+(election.status==="none"?"Abrir primeira eleição":"Abrir nova eleição")+'</button>';
+ target.innerHTML=html;
+ target.querySelectorAll("[data-vote-president]").forEach(button=>button.onclick=async()=>{
+  const m=candidates.find(v=>v.user_id===button.dataset.votePresident);
+  if(!m||!confirm('Confirmar seu único voto para "'+(m.name||"ADM")+'"? Não será possível alterar depois.'))return;
+  button.disabled=true;const {error}=await cloudClient.rpc("barquinha_cast_vote",{p_candidate:m.user_id});
+  if(error){alert(error.message);button.disabled=false;return}
+  await checkMember();cloudDisplay();await loadMembers();await loadActivity(false);
+ });
+ const begin=$("startElection");if(begin)begin.onclick=async()=>{
+  if(!confirm("Abrir eleição para Presidente? Todos os ADMs atuais terão direito a um voto."))return;
+  begin.disabled=true;const {error}=await cloudClient.rpc("barquinha_begin_election");
+  if(error){alert(error.message);begin.disabled=false;return}
+  await loadElection();await loadActivity(false);
+ };
+ const cancel=$("cancelElection");if(cancel)cancel.onclick=async()=>{
+  if(!confirm("Cancelar esta eleição? Os votos já registrados serão preservados no histórico, mas a eleição não terá vencedor."))return;
+  const {error}=await cloudClient.rpc("barquinha_cancel_election");
+  if(error)return alert(error.message);
+  await loadElection();await loadActivity(false);
+ };
 }
 async function loadMembers(){
- if(!cloudReady||!cloudUser)return;
+ if(!cloudReady||!cloudUser||!accessReady)return;
+ if(!navigator.onLine||offlineSession){const a=$("accessList");if(a)a.innerHTML='<p class="muted">O gerenciamento de acessos e a eleição exigem conexão com a internet.</p>';return}
  const {data,error}=await cloudClient.from("barquinha_members")
  .select("user_id,email,display_name,status,role,joined_at").order("joined_at",{ascending:true});
  const area=$("accessList");
- if(error){if(area)area.innerHTML='<p class="muted">Erro: '+esc(error.message)+'</p>';return}
- membersCache=data||[];if(!area)return;
- const isAdmin=memberProfile?.role==="adm";
- const pending=membersCache.filter(m=>m.status==="pending");
- const active=membersCache.filter(m=>m.status==="active");
+ if(error){if(area)area.innerHTML='<p class="muted">Erro ao carregar participantes: '+esc(error.message)+'</p>';return}
+ membersCache=data||[];
+ if(!area)return;
+ const admin=isTeamAdmin(),president=isPresident(),pending=membersCache.filter(m=>m.status==="pending"),active=membersCache.filter(m=>m.status==="active");
+ const roleBadge=m=>'<span class="access-role '+(m.role==="presidente"?"access-president":m.role==="adm"?"access-admin":"access-registered")+'">'+memberRoleName(m.role)+'</span>';
  const card=m=>{
-  const isPending=m.status==="pending";
-  const role=m.role==="adm"?"ADM":"Cadastrado";
-  const controls=isAdmin?(isPending
-   ?'<button type="button" class="btn" data-approve="'+esc(m.user_id)+'">Liberar cadastrado</button>'
-   :m.role!=="adm"?'<button type="button" class="btn alt" data-promote="'+esc(m.user_id)+'">Tornar ADM</button>':""):"";
-  return '<article class="team-card"><div><strong>'+esc(m.display_name||m.email)+'</strong><small>'+esc(m.email||"")+'</small><div class="access-tags"><span class="access-role '+(m.role==="adm"?"access-admin":"access-registered")+'">'+role+'</span>'+(isPending?'<span class="access-pending">Aguardando ADM</span>':'<span class="access-active">Ativo</span>')+'</div></div>'+controls+'</article>';
+  const pendingUser=m.status==="pending";
+  const promote=admin&&!pendingUser&&m.role==="cadastrado"?'<button type="button" class="btn alt" data-promote="'+esc(m.user_id)+'">Tornar ADM</button>':"";
+  const approve=admin&&pendingUser?'<button type="button" class="btn" data-approve="'+esc(m.user_id)+'">Liberar cadastrado</button>':"";
+  const removal=president&&m.user_id!==cloudUser.id?'<button type="button" class="btn danger" data-remove-member="'+esc(m.user_id)+'">Excluir usuário</button>':"";
+  return '<article class="team-card"><div><strong>'+esc(m.display_name||m.email)+'</strong><small>'+esc(m.email||"")+'</small><div class="access-tags">'+roleBadge(m)+(pendingUser?'<span class="access-pending">Aguardando ADM</span>':'<span class="access-active">Ativo</span>')+'</div></div><div class="access-item-buttons">'+approve+promote+removal+'</div></article>';
  };
- area.innerHTML=(isAdmin?(pending.length?'<h4>Solicitações aguardando ADM ('+pending.length+')</h4>'+pending.map(card).join(""):'<p class="muted">Nenhuma solicitação pendente.</p>'):"")+
- '<h4>Participantes autorizados ('+active.length+')</h4>'+active.map(card).join("");
- if(!isAdmin)return;
+ area.innerHTML=(admin?(pending.length?'<h4>Solicitações pendentes ('+pending.length+')</h4>'+pending.map(card).join(""):'<p class="muted">Nenhuma solicitação pendente.</p>'):"")+
+ '<h4>Participantes ativos ('+active.length+')</h4>'+active.map(card).join("");
  area.querySelectorAll("[data-approve]").forEach(b=>b.onclick=async()=>{
   const m=pending.find(x=>x.user_id===b.dataset.approve);
-  if(!m||!confirm('Liberar "'+(m.display_name||m.email)+'" no nível CADASTRADO? Esta ação não concede permissões de ADM.'))return;
-  b.disabled=true;
-  const {error}=await cloudClient.rpc("barquinha_approve_member",{p_user_id:m.user_id});
-  if(error){alert("Não foi possível autorizar: "+error.message);b.disabled=false;return}
+  if(!m||!confirm('Liberar "'+(m.display_name||m.email)+'" como Cadastrado?'))return;
+  b.disabled=true;const {error}=await cloudClient.rpc("barquinha_approve_member",{p_user_id:m.user_id});
+  if(error){alert(error.message);b.disabled=false;return}
   await loadMembers();await loadActivity(false);
  });
  area.querySelectorAll("[data-promote]").forEach(b=>b.onclick=async()=>{
   const m=active.find(x=>x.user_id===b.dataset.promote);
-  if(!m||m.role==="adm"||!confirm('Conceder acesso ADM a "'+(m.display_name||m.email)+'"? Esta pessoa também poderá aprovar cadastrados e adicionar outros ADMs.'))return;
-  b.disabled=true;
-  const {error}=await cloudClient.rpc("barquinha_promote_to_admin",{p_user_id:m.user_id});
-  if(error){alert("Não foi possível promover: "+error.message);b.disabled=false;return}
+  if(!m||!confirm('Promover "'+(m.display_name||m.email)+'" para ADM? Somente ADMs votam na eleição.'))return;
+  b.disabled=true;const {error}=await cloudClient.rpc("barquinha_promote_to_admin",{p_user_id:m.user_id});
+  if(error){alert(error.message);b.disabled=false;return}
   await loadMembers();await loadActivity(false);
  });
+ area.querySelectorAll("[data-remove-member]").forEach(b=>b.onclick=async()=>{
+  const m=membersCache.find(x=>x.user_id===b.dataset.removeMember);
+  if(!m||!requirePresidentOnline())return;
+  if(!confirm('Excluir o acesso de "'+(m.display_name||m.email)+'" ('+memberRoleName(m.role)+')? A pessoa perderá o acesso, mas as obras e o histórico permanecerão.'))return;
+  if(prompt('Digite EXCLUIR para confirmar a retirada de '+m.email)!=="EXCLUIR")return;
+  b.disabled=true;const {error}=await cloudClient.rpc("barquinha_remove_member",{p_user_id:m.user_id});
+  if(error){alert("Falha ao excluir usuário: "+error.message);b.disabled=false;return}
+  await loadMembers();await loadActivity(false);await loadElection();
+ });
+ await loadElection();
 }
 
 function projectProgress(payload){const es=payload?.etapas||[];return es.length?Math.round(es.reduce((n,e)=>n+Math.max(0,Math.min(100,num(e.progresso))),0)/es.length):0}
