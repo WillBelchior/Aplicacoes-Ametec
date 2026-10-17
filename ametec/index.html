@@ -317,6 +317,8 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 
 /* Alertas de vencimento: cores e organização compatíveis com o tema financeiro */
 .finance-due-panel{margin-bottom:14px}.finance-due-list{display:grid;gap:0}.finance-due-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 2px;border-bottom:1px solid #244255}.finance-due-row:last-child{border-bottom:0}.finance-due-info{display:grid;gap:4px;min-width:0}.finance-due-info>b{color:#ebf7ff;font-size:12px;overflow-wrap:anywhere}.finance-due-info>small,.finance-due-note{color:#9bb5c5;font-size:10px}.finance-due-type{width:max-content;font-size:9px;font-weight:700;border-radius:6px;padding:4px 7px}.finance-due-type.pagar{background:#3b2516;color:#ffd49d}.finance-due-type.receber{background:#133d33;color:#8df3bd}.finance-due-actions{display:grid;justify-items:end;gap:5px;flex-shrink:0}.finance-due-actions>b{font-size:12px;color:#edf8ff}.finance-due-actions>small{font-size:10px}.finance-due-late{color:#ff998f}.finance-due-soon{color:#ffd28b}.finance-due-normal{color:#a2bdcd}.finance-calendar-link{font-size:10px;color:#74d7ff;text-decoration:none;border:1px solid #2b5d77;border-radius:7px;padding:6px 8px}.finance-calendar-link:hover{background:#15384b}.finance-due-note{display:block;margin-top:12px;line-height:1.5}.finance-due-empty{padding:17px;color:#9bb5c5;font-size:12px}@media(max-width:460px){.finance-due-row{align-items:flex-start}.finance-due-actions{min-width:100px;text-align:right}}
+
+.client-search-input{width:100%;min-width:0;background:#071720!important;color:#eefaff!important;border:1px solid #24516a!important;border-radius:9px;padding:10px;font-size:13px}.client-search-input::placeholder{color:#8faabb}.client-search-hint{color:#88a8b8;font-size:10px}.client-search-input:focus{outline:2px solid #22a8dc;outline-offset:1px}
 </style>
 </head>
 <body>
@@ -1973,6 +1975,23 @@ async function saveServiceComposition(form,serviceId){
 function equipmentLabel(e){
   return [e.nome,[e.fabricante,e.modelo].filter(Boolean).join(' '),e.setor].filter(Boolean).join(' • ');
 }
+function mountClientSearch(form){
+ const search=form.querySelector('.client-search-input'),select=form.querySelector('[name="cliente_id"]'),hint=form.querySelector('.client-search-hint');
+ if(!search||!select)return;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
+ const clients=[...data.clientes].sort((a,b)=>String(a.nome_fantasia||'').localeCompare(String(b.nome_fantasia||''),'pt-BR'));
+ const draw=()=>{
+  const q=norm(search.value),old=select.value;
+  const matches=clients.filter(c=>norm(c.nome_fantasia).includes(q)||norm(c.razao_social).includes(q));
+  select.innerHTML=matches.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome_fantasia||c.razao_social||'Cliente')+'</option>').join('');
+  if(matches.some(c=>String(c.id)===String(old)))select.value=old;
+  else if(matches.length)select.value=String(matches[0].id);
+  select.disabled=!matches.length;
+  if(hint)hint.textContent=matches.length?matches.length+' cliente(s) encontrado(s)':'Nenhum cliente encontrado';
+  if(String(select.value)!==String(old))select.dispatchEvent(new Event('change',{bubbles:true}));
+ };
+ search.addEventListener('input',draw);draw();
+}
 function mountEquipmentPicker(form,currentEquipmentId=null){
   const clientSelect=form.querySelector('[name="cliente_id"]');
   const hidden=form.querySelector('[name="equipamento_id"]');
@@ -2025,7 +2044,7 @@ function editService(id){
   form.innerHTML=`
     <div class="service-form-intro">Altere os dados principais e mantenha apenas os blocos adicionais que fizerem sentido para este serviço.</div>
 
-    <label class="field"><span>Cliente</span><select name="cliente_id" required>${opts(data.clientes.map(c=>({value:c.id,label:c.nome_fantasia})),x.cliente_id)}</select></label>
+    <label class="field"><span>Cliente</span><input type="search" class="client-search-input" placeholder="🔎 Buscar cliente pelo nome" aria-label="Buscar cliente" autocomplete="off"><select name="cliente_id" required>${opts(data.clientes.map(c=>({value:c.id,label:c.nome_fantasia})),x.cliente_id)}</select><small class="client-search-hint">Digite para filtrar os clientes.</small></label>
     <input type="hidden" name="equipamento_id" value="${esc(x.equipamento_id||'')}">
     <div id="serviceEquipmentPicker" class="service-equipment-box"></div>
     <label class="field"><span>Título</span><input name="titulo" type="text" required value="${esc(x.titulo||'')}"></label>
@@ -2063,6 +2082,7 @@ function editService(id){
     </section>
     <button class="btn primary" style="grid-column:1/-1">Salvar alterações</button>`;
 
+  mountClientSearch(form);
   mountEquipmentPicker(form,x.equipamento_id||null);
   setupServiceComposition(form,id);
 
@@ -2141,7 +2161,7 @@ function newService(){
       Comece com as informações essenciais. Datas, valores e demais detalhes podem ser adicionados somente quando forem necessários.
     </div>
 
-    <label class="field"><span>Cliente</span><select name="cliente_id" required>${opts(data.clientes.map(x=>({value:x.id,label:x.nome_fantasia})))}</select></label>
+    <label class="field"><span>Cliente</span><input type="search" class="client-search-input" placeholder="🔎 Buscar cliente pelo nome" aria-label="Buscar cliente" autocomplete="off"><select name="cliente_id" required>${opts(data.clientes.map(x=>({value:x.id,label:x.nome_fantasia})))}</select><small class="client-search-hint">Digite para filtrar os clientes.</small></label>
     <input type="hidden" name="equipamento_id" value="">
     <div id="serviceEquipmentPicker" class="service-equipment-box"></div>
     <label class="field"><span>Título</span><input name="titulo" type="text" required placeholder="Ex.: Manutenção no quadro principal"></label>
@@ -2182,6 +2202,7 @@ function newService(){
     </section>
     <button class="btn primary" style="grid-column:1/-1">Salvar serviço</button>`;
 
+  mountClientSearch(form);
   mountEquipmentPicker(form,null);
   setupServiceComposition(form,null);
 
