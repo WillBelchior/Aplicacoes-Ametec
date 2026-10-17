@@ -323,6 +323,8 @@ body:before{background-image:linear-gradient(rgba(0,188,255,.045) 1px,transparen
 .inline-profile-photo{grid-column:1/-1;display:grid;gap:11px;padding:13px;border:1px solid #254c64;border-radius:12px;background:#081d2b;min-width:0}.inline-profile-photo>b{color:#eaf8ff;font-size:13px}.inline-profile-photo>small{font-size:11px;color:#a4becc}.inline-profile-photo .photo-crop-area{width:160px;height:160px}.inline-profile-photo input[type=range]{width:100%}.photo-remove-label{color:#c6dbe6;font-size:12px;display:flex;gap:9px;align-items:center}
 
 .photo-zoomable{cursor:zoom-in;transition:transform .18s ease,box-shadow .18s ease}.photo-zoomable:hover{transform:scale(1.06);box-shadow:0 0 0 2px #36bce775}.photo-zoomable:focus-visible{outline:2px solid #59d6ff;outline-offset:3px}.profile-lightbox{position:fixed;inset:0;z-index:250;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,14,26,.64);backdrop-filter:blur(4px);opacity:0;transition:opacity .16s ease}.profile-lightbox.visible{opacity:1}.profile-lightbox-panel{position:relative;display:grid;justify-items:center;gap:12px;max-width:min(90vw,340px);padding:20px;background:#0b2435;border:1px solid #2b5c76;border-radius:20px;box-shadow:0 18px 55px #0007;transform:scale(.96);transition:transform .16s ease}.profile-lightbox.visible .profile-lightbox-panel{transform:scale(1)}.profile-lightbox-panel img{width:min(72vw,256px);height:min(72vw,256px);object-fit:cover;border-radius:50%;border:2px solid #397997}.profile-lightbox-panel span{font-size:13px;color:#e7f5fc;text-align:center;overflow-wrap:anywhere}.profile-lightbox-close{position:absolute;right:8px;top:7px;cursor:pointer;border:0;background:transparent;color:#d5eaf5;font-size:24px;width:34px;height:34px}
+
+.pending-head{position:relative}.pending-client-photo{position:absolute;right:9px;top:8px;display:block;width:30px;height:30px;z-index:1}.pending-client-photo .photo-avatar{width:30px;height:30px;min-width:30px;font-size:11px;border:1px solid #d7e4ec;box-shadow:0 1px 5px #05213718}.pending-head:has(.pending-client-photo)>b,.pending-head:has(.pending-client-photo)>small{padding-right:34px}
 </style>
 </head>
 <body>
@@ -588,6 +590,7 @@ function pendingCard(x){
   const payClass=p.state==='Pago'||p.state==='Sem cobrança'?'done':p.state==='Vencido'?'late':p.state==='Parcial'?'run':'';
   return `<article class="pending-card" data-service-card="${x.id}">
     <div class="pending-head">
+      ${c?.foto_path?`<span class="pending-client-photo">${photoAvatar("cliente",c)}</span>`:""}
       <b>${esc(x.titulo)}</b>
       <small>🏭 ${esc(c?.nome_fantasia||'Sem cliente')} • ${esc(x.tipo||'Serviço')}</small>
     </div>
@@ -941,6 +944,7 @@ function pendencias(){
     }else{
       document.querySelector('#pendingBoard').innerHTML=`<div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
       bindPending();
+      renderProfileAvatars();
     }
   };
   const refreshStageCounts=()=>{
