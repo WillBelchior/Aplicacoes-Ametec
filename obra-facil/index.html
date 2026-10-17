@@ -265,7 +265,7 @@ function cloudEnqueue(p,userId){
   const snapshot=JSON.parse(JSON.stringify(p));
   cloudQueue=cloudQueue.catch(()=>{}).then(async()=>{
     if(!cloudClient||cloudUser?.id!==userId)return;
-    try{cloudStatus("Salvando "+snapshot.nome+"…");await upsertProject(snapshot,userId);cloudStatus("Obras sincronizadas ✓")}
+    try{cloudStatus("Salvando "+snapshot.nome+"…");await upsertProject(snapshot,userId);cloudStatus("Obras sincronizadas ✓");if(accessReady)await loadActivity(false)}
     catch(e){cloudStatus("Falha ao salvar: "+e.message);throw e}
   });
   return cloudQueue;
@@ -275,7 +275,7 @@ function cloudSchedule(){
   const p=currentProject();if(!p)return;
   const snapshot=JSON.parse(JSON.stringify(p)),uid=cloudUser.id;
   clearTimeout(cloudTimers.get(p.id));
-  cloudTimers.set(p.id,setTimeout(()=>{cloudTimers.delete(p.id);cloudEnqueue(snapshot,uid).catch(()=>{})},900));
+  cloudTimers.set(p.id,setTimeout(()=>{cloudTimers.delete(p.id);cloudEnqueue(snapshot,uid).catch(()=>{})},150));
 }
 async function cloudWrite(){
   if(!cloudClient||!cloudUser)return false;
@@ -465,8 +465,8 @@ async function changeProjectStatus(id){
   if(!confirm((next==="Arquivada"?"Arquivar":"Reativar")+' a obra "'+p.nome+'"? Nenhum dado será excluído.'))return;
   p.situacao=next;persistLocal();render();
   if(cloudReady&&cloudUser){
-    const {error}=await cloudClient.from("barquinha_projects").update({situacao:next,updated_at:new Date().toISOString()}).eq("id",id).eq("user_id",cloudUser.id);
-    if(error){p.situacao=previous;persistLocal();render();alert("Não foi possível atualizar na nuvem: "+error.message)}
+    const {error}=await cloudClient.from("barquinha_projects").update({situacao:next,updated_at:new Date().toISOString()}).eq("id",id);
+    if(error){p.situacao=previous;persistLocal();render();alert("Não foi possível atualizar na nuvem: "+error.message)}else await loadActivity(false)
   }
 }
 async function createNewProject(e){
