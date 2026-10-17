@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Projetos Barquinha | Acompanhamento da obra</title><style>
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Projetos Barquinha | Acompanhamento da obra</title><meta name="theme-color" content="#132f48"><link rel="manifest" href="./manifest.webmanifest"><style>
 :root{font-family:Inter,system-ui,-apple-system,sans-serif;color:#142436;background:#f4f6f8}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer}.app{display:grid;grid-template-columns:238px 1fr;min-height:100vh}aside{background:#112842;color:#eef4fc;padding:26px 16px;display:flex;flex-direction:column;gap:9px}aside h1{font-size:22px;margin:0 9px 8px}aside small{color:#a8bed3;margin:0 9px 30px}aside button{background:transparent;color:#c5d4e6;border:0;text-align:left;padding:13px 15px;border-radius:10px}aside button.active,aside button:hover{background:#244768;color:#fff}main{padding:25px 34px;max-width:1450px;width:100%;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap}h2{margin:0 0 8px;font-size:27px}p.muted,.muted{color:#687c8e}.pill{background:#e1eaf2;color:#1d5375;border-radius:100px;padding:8px 12px;font-size:12px;font-weight:700}.warn{background:#fff6e0;color:#886019;padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}.card,.panel{background:#fff;border:1px solid #e0e8ee;border-radius:15px;padding:20px;box-shadow:0 2px 12px #152b4010}.card span{color:#667c90;font-size:13px}.card strong{display:block;font-size:26px;margin:7px 0}.panel{margin:17px 0}.panel h3{margin:0 0 15px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}.btn{background:#1b567a;color:#fff;border:0;padding:11px 16px;border-radius:10px;font-weight:650}.btn.alt{background:#e9f1f7;color:#1b567a}.btn.danger{background:#fce9e9;color:#a52e2e}.toolbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px}.toolbar input{max-width:350px}input,select,textarea{border:1px solid #cdd9e3;padding:11px;border-radius:9px;width:100%;background:white}label{display:grid;gap:6px;font-size:13px;font-weight:600;margin-bottom:10px}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid #e9eef3;text-align:left;padding:12px 9px;vertical-align:middle}th{color:#64788c;font-size:12px;text-transform:uppercase}td.actions{white-space:nowrap}td.actions button{margin:2px}dialog{border:0;box-shadow:0 20px 100px #09273a55;border-radius:17px;padding:24px;width:min(560px,95vw);max-height:90vh;overflow:auto}dialog::backdrop{background:#071c2b77}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.full{grid-column:1/-1}.status{padding:5px 9px;background:#e8f3fa;border-radius:999px;font-size:12px}.bar{background:#e6edf3;height:9px;border-radius:12px;overflow:hidden}.bar b{display:block;background:#3188b4;height:100%}.photo{width:100%;height:150px;object-fit:cover;border-radius:10px}.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.photoitem{border:1px solid #e2e7ed;padding:8px;border-radius:10px}footer{color:#8190a2;font-size:12px;margin-top:35px}@media(max-width:900px){.app{display:block}aside{display:block;padding:13px;position:sticky;top:0;z-index:10}aside h1{font-size:16px;display:inline}aside small{display:none}nav{display:flex;overflow-x:auto;gap:5px;margin-top:9px}aside button{white-space:nowrap;padding:9px 12px}main{padding:20px 14px}.grid{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}.photos{grid-template-columns:repeat(2,1fr)}.scroll{overflow-x:auto}}@media(max-width:480px){.grid,.photos{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}}
 
 /* Obra Fácil — redesign executivo v2 */
@@ -522,9 +522,9 @@ function cloudEnqueue(p,userId){
     return;
    }
    const version=await upsertProject(snapshot,userId);
-   knownCloudVersions[p.id]=version;
+   knownCloudVersions[p.id]=version;try{localStorage.setItem("barquinha-cloud-versions-"+userId,JSON.stringify(knownCloudVersions))}catch(e){}
    const pending=readPending();
-   if(pending[p.id]?.changeId===meta?.changeId){delete pending[p.id];storePending(pending)}
+   if(pending[p.id]?.changeId===meta?.changeId){delete pending[p.id];storePending(pending)}else if(pending[p.id]){pending[p.id].baseVersion=version;storePending(pending)}
    cloudStatus("Obras sincronizadas ✓");updateOfflineBadge();
    if(accessReady)await loadActivity(false);
   }catch(e){cloudStatus("Alterações guardadas no aparelho. Falha de sincronização: "+e.message);updateOfflineBadge()}
@@ -570,7 +570,7 @@ async function startSession(){
  if(logError)cloudStatus("Aviso: o registro do acesso falhou: "+logError.message);
  await cloudLoad(false);
  if(!cloudReady){showGate();gateNotice("Não foi possível carregar as obras. Verifique sua conexão.");return}
- allowInterface();cacheTrustedMember();cloudDisplay();await loadActivity(false);
+ allowInterface();cacheTrustedMember();cloudDisplay();await loadActivity(false);if(Object.keys(readPending()).length&&navigator.onLine)syncPendingProjects();
 }
 async function gateSubmit(e){
  e.preventDefault();if(authLoading||!cloudClient)return;
@@ -679,10 +679,10 @@ async function cloudLoad(confirmReplace){
  for(const t of cloudTimers.values())clearTimeout(t);cloudTimers.clear();
  await cloudQueue.catch(()=>{});
  const {data,error}=await cloudClient.from("barquinha_projects").select("*").order("created_at",{ascending:true});
- if(error){if(!navigator.onLine){offlineSession=true;cloudReady=true;updateOfflineBadge()}else{cloudReady=false;cloudStatus("Erro: "+error.message)}return}
+ if(error){if(await allowOfflineTrusted())return;cloudReady=false;cloudStatus("Erro: "+error.message);return}
  try{localStorage.setItem("barquinha-before-shared-"+cloudUser.id,JSON.stringify(projects))}catch(e){}
  const localDrafts=new Map(projects.filter(p=>readPending()[p.id]).map(p=>[p.id,p]));
- knownCloudVersions=Object.fromEntries((data||[]).map(row=>[row.id,row.updated_at]));
+ knownCloudVersions=Object.fromEntries((data||[]).map(row=>[row.id,row.updated_at]));try{localStorage.setItem("barquinha-cloud-versions-"+cloudUser.id,JSON.stringify(knownCloudVersions))}catch(e){}
  projects=(data||[]).map(r=>({id:r.id,nome:r.nome,descricao:r.descricao||"",localizacao:r.localizacao||"",situacao:r.situacao||"Planejada",inicio:r.inicio||"",prazo:r.prazo||"",comprimento:r.comprimento,largura:r.largura,orcamento:r.orcamento,payload:validPayload(r.payload)?r.payload:emptyProjectData()}));
  for(const [id,draft] of localDrafts){const i=projects.findIndex(p=>p.id===id);if(i>=0)projects[i]=draft;else projects.push(draft)}
  offlineSession=false;
@@ -756,7 +756,7 @@ async function allowOfflineTrusted(){
   const account=data?.session?.user,member=JSON.parse(localStorage.getItem(memberCacheKey)||"null");
   const owner=localStorage.getItem(portfolioOwnerKey);
   if(!account||!member||member.status!=="active"||member.userId!==account.id||owner!==account.id||!Array.isArray(projects)||!projects.length)return false;
-  cloudUser=account;memberProfile=member;offlineSession=true;cloudReady=true;
+  cloudUser=account;memberProfile=member;offlineSession=true;cloudReady=true;try{knownCloudVersions=JSON.parse(localStorage.getItem("barquinha-cloud-versions-"+account.id)||"{}")}catch(e){}
   allowInterface();render();cloudDisplay();gateNotice("");
   cloudStatus("Sem internet · use os dados salvos neste aparelho. Alterações serão mantidas para sincronizar.");
   try{const cached=JSON.parse(localStorage.getItem("barquinha-history-"+account.id)||"[]");if(Array.isArray(cached))activityCache=cached}catch(e){}
@@ -781,7 +781,7 @@ async function syncPendingProjects(){
     if(readPending()[id]?.changeId===meta.changeId){
      const latest=readPending();delete latest[id];storePending(latest);
     }
-    knownCloudVersions[id]=newVersion||new Date().toISOString();
+    knownCloudVersions[id]=newVersion||new Date().toISOString();try{localStorage.setItem("barquinha-cloud-versions-"+cloudUser.id,JSON.stringify(knownCloudVersions))}catch(e){}
     completed++;
    }catch(e){failed++}
   }
@@ -930,12 +930,13 @@ function paintContacts(){
 }
 async function loadContacts(showErrors){
  if(!cloudReady||!cloudClient||!accessReady)return;
+ if(!navigator.onLine||offlineSession){paintContacts();return}
  if(contactsBusy)return;
  contactsBusy=true;
  const {data,error}=await cloudClient.from("barquinha_contacts").select("id,tipo,nome,categoria,especialidade,telefone,whatsapp,email,localizacao,documento,responsavel,observacoes,created_at,updated_at").order("nome",{ascending:true});
  contactsBusy=false;
  if(error){const area=$("contactsResult");if(area)area.innerHTML='<p class="muted">Falha ao carregar cadastros. Toque em Atualizar para tentar novamente.</p>';if(showErrors)alert(error.message);return}
- contactsCache=data||[];contactsLoaded=true;paintContacts();
+ contactsCache=data||[];contactsLoaded=true;try{localStorage.setItem("barquinha-contacts-"+cloudUser.id,JSON.stringify(contactsCache))}catch(e){}paintContacts();
 }
 function contactTypeChanged(){
  const enterprise=$("contactType").value==="Empresa";
@@ -957,7 +958,7 @@ function openContactForm(id=null){
 }
 async function saveContact(e){
  e.preventDefault();
- if(!cloudReady||!cloudUser)return alert("Entre no aplicativo para salvar o cadastro.");
+ if(!cloudReady||!cloudUser)return alert("Entre no aplicativo para salvar o cadastro.");if(!navigator.onLine||offlineSession)return alert("Cadastros globais precisam de internet para salvar. Você ainda pode consultar os contatos já carregados.");
  const form=e.target,fd=new FormData(form),type=String(fd.get("tipo")),name=String(fd.get("nome")||"").trim();
  if(!name||name.length<2)return alert("Informe um nome com pelo menos duas letras.");
  const contact={tipo:type,nome:name,categoria:String(fd.get("categoria")||"Outros"),especialidade:String(fd.get("especialidade")||"").trim(),
@@ -1014,9 +1015,10 @@ function paintActivityPage(){
 }
 async function loadActivity(showErrors){
  if(!cloudReady||!cloudUser)return;
+ if(!navigator.onLine||offlineSession){paintRecentActivity();paintActivityPage();return}
  const {data,error}=await cloudClient.from("barquinha_activity").select("id,actor_name,actor_email,project_id,project_name,kind,section,record_title,details,created_at").order("created_at",{ascending:false}).limit(100);
  if(error){if(showErrors)alert("Erro ao carregar histórico: "+error.message);return}
- activityCache=data||[];paintRecentActivity();paintActivityPage();
+ activityCache=data||[];try{localStorage.setItem("barquinha-history-"+cloudUser.id,JSON.stringify(activityCache))}catch(e){}paintRecentActivity();paintActivityPage();
 }
 
 function accessPage(){
@@ -1102,14 +1104,12 @@ function projectsView(){
 }
 function openProject(id){const p=projects.find(x=>x.id===id);if(!p)return;activeProjectId=id;db=p.payload;persistLocal();tab="painel";render()}
 async function changeProjectStatus(id){
-  const p=projects.find(x=>x.id===id);if(!p)return;
-  const previous=p.situacao,next=previous==="Arquivada"?"Planejada":"Arquivada";
-  if(!confirm((next==="Arquivada"?"Arquivar":"Reativar")+' a obra "'+p.nome+'"? Nenhum dado será excluído.'))return;
-  p.situacao=next;persistLocal();render();
-  if(cloudReady&&cloudUser){
-    const {error}=await cloudClient.from("barquinha_projects").update({situacao:next,updated_at:new Date().toISOString()}).eq("id",id);
-    if(error){p.situacao=previous;persistLocal();render();alert("Não foi possível atualizar na nuvem: "+error.message)}else await loadActivity(false)
-  }
+ const p=projects.find(x=>x.id===id);if(!p)return;
+ const next=p.situacao==="Arquivada"?"Planejada":"Arquivada";
+ if(!confirm((next==="Arquivada"?"Arquivar":"Reativar")+' a obra "'+p.nome+'"? Nenhum dado será excluído.'))return;
+ p.situacao=next;persistLocal();flagPending(id);render();
+ if(cloudReady&&cloudUser&&navigator.onLine&&!offlineSession)await cloudEnqueue(p,cloudUser.id);
+ else cloudStatus("Situação atualizada localmente · pendente de sincronização.");
 }
 async function createNewProject(e){
   e.preventDefault();const form=e.target,fd=new FormData(form),name=String(fd.get("nome")||"").trim();
@@ -1120,9 +1120,16 @@ async function createNewProject(e){
   const p={id:crypto.randomUUID(),nome:name,descricao:String(fd.get("descricao")||"").trim(),localizacao:String(fd.get("localizacao")||"").trim(),situacao:String(fd.get("situacao")||"Planejada"),comprimento:parseOptional(fd.get("comprimento")),largura:parseOptional(fd.get("largura")),orcamento:parseOptional(fd.get("orcamento")),inicio:"",prazo:String(fd.get("prazo")||""),payload};
   $("saveProjectBtn").disabled=true;$("saveProjectBtn").textContent="Criando…";
   try{
-    if(!cloudReady||!cloudUser)throw Error("Faça login para cadastrar uma obra.");await upsertProject(p,cloudUser.id);
+    if(!cloudReady||!cloudUser)throw Error("Faça login para cadastrar uma obra.");
+    let version=null,sent=false;
+    if(navigator.onLine&&!offlineSession){
+      try{version=await upsertProject(p,cloudUser.id);sent=true}catch(e){cloudStatus("Sem conexão com a nuvem: obra guardada como pendente.")}
+    }
     projects.push(p);$("newProjectModal").close();openProject(p.id);
-    cloudStatus(cloudReady?"Nova obra salva na nuvem ✓":"Nova obra salva neste aparelho");
+    if(sent){
+      knownCloudVersions[p.id]=version;try{localStorage.setItem("barquinha-cloud-versions-"+cloudUser.id,JSON.stringify(knownCloudVersions))}catch(e){}
+    }else flagPending(p.id);
+    cloudStatus(sent?"Nova obra salva na nuvem ✓":"Nova obra salva neste aparelho · sincronização pendente");
   }catch(error){alert("Não foi possível criar a obra: "+error.message)}
   finally{$("saveProjectBtn").disabled=false;$("saveProjectBtn").textContent="Criar obra"}
 }
