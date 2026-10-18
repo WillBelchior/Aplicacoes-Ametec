@@ -1126,7 +1126,7 @@ function pendencias(){
   document.querySelector('#newPending').onclick=newService;
 }
 
-const photoTypes={cliente:['clientes','ametec_clientes'],pessoa:['clienteContatos','ametec_cliente_contatos'],colaborador:['colaboradores','ametec_colaboradores']};
+const photoTypes={cliente:['clientes','ametec_clientes'],pessoa:['clienteContatos','ametec_cliente_contatos'],colaborador:['colaboradores','ametec_colaboradores'],equipamento:['equipamentos','ametec_equipamentos']};
 function photoAvatar(kind,item){
  return '<span class="photo-avatar" data-photo-kind="'+kind+'" data-photo-id="'+esc(item.id)+'">'+esc(String(item.nome_fantasia||item.nome||'?').charAt(0).toUpperCase())+'</span>';
 }
@@ -1137,7 +1137,7 @@ async function renderProfileAvatars(){
   const {data:res,error}=await supabase.storage.from('ametec-perfis').createSignedUrl(record.foto_path,1200);
   if(error||!res?.signedUrl||!el.isConnected)return;
   const img=document.createElement('img');img.src=res.signedUrl;img.alt='Perfil';img.loading='lazy';el.replaceChildren(img);
-  if(kind==='cliente'||kind==='pessoa'){el.classList.add('photo-zoomable');el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label','Ampliar foto de perfil');el.onclick=()=>openProfilePreview(img.src,record.nome_fantasia||record.nome||'Foto de perfil');el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click()}};}
+  if(kind==='cliente'||kind==='pessoa'||kind==='equipamento'){el.classList.add('photo-zoomable');el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label','Ampliar foto de perfil');el.onclick=()=>openProfilePreview(img.src,record.nome_fantasia||record.nome||'Foto de perfil');el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click()}};}
  }));
 }
 function openProfilePreview(src,name){
@@ -2486,6 +2486,20 @@ function agenda(){
     if(s.data_conclusao)agendaEvents.push({...base,date:s.data_conclusao,time:'',type:'completion',label:'Serviço concluído',icon:'🏁'});
   });
 
+  data.equipamentos.forEach(eq=>{
+    if(!eq.proxima_manutencao)return;
+    const client=data.clientes.find(c=>c.id===eq.cliente_id);
+    let due=eq.proxima_manutencao;
+    const recur=eq.recorrencia_manutencao||'Nenhuma';
+    const seen=new Set();
+    for(let i=0;i<72&&due&&due<=String(Number(today.slice(0,4))+3)+'-12-31';i++){
+      if(seen.has(due))break;seen.add(due);
+      if(due>=String(Number(today.slice(0,4))-1)+'-01-01')agendaEvents.push({date:due,time:'',service:{titulo:eq.nome,prioridade:'Média'},client,type:'equipment-maintenance',label:'Manutenção de equipamento',icon:'🔧'});
+      if(recur==='Nenhuma')break;
+      due=maintenanceDatePlus(due,recur);
+    }
+  });
+
   const eventState=e=>{
     if(e.type==='completion')return 'done';
     if(e.date<today)return 'past';
@@ -2546,9 +2560,76 @@ function agenda(){
   document.querySelector('#add').onclick=newService;
   renderCalendar();
 }
+const equipmentStates=['Operacional','Em manutenção','Parado','Desativado'];
+const maintenanceIntervals=['Nenhuma','Semanal','Mensal','Trimestral','Semestral','Anual'];
+function maintenanceDatePlus(date,period,n=1){
+ const d=new Date(date+'T12:00:00');
+ if(period==='Semanal')d.setDate(d.getDate()+7*n);
+ else if(period==='Mensal'||period==='Trimestral'||period==='Semestral'||period==='Anual'){
+  const months=period==='Mensal'?1:period==='Trimestral'?3:period==='Semestral'?6:12;
+  const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+months*n);
+  const max=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,max));
+ }
+ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function equipmentCalendarUrl(eq){
+ if(!eq.proxima_manutencao)return '';
+ const c=data.clientes.find(x=>x.id===eq.cliente_id);
+ const day=eq.proxima_manutencao.replace(/-/g,'');
+ const next=maintenanceDatePlus(eq.proxima_manutencao,'Semanal',0);
+ const end=new Date(eq.proxima_manutencao+'T12:00:00');end.setDate(end.getDate()+1);
+ const endDay=end.getFullYear()+String(end.getMonth()+1).padStart(2,'0')+String(end.getDate()).padStart(2,'0');
+ const recur={Semanal:'WEEKLY',Mensal:'MONTHLY',Trimestral:'MONTHLY;INTERVAL=3',Semestral:'MONTHLY;INTERVAL=6',Anual:'YEARLY'}[eq.recorrencia_manutencao];
+ const params=new URLSearchParams({action:'TEMPLATE',text:'🔧 Manutenção preventiva • '+eq.nome,dates:day+'/'+endDay,details:'Cliente: '+(c?.nome_fantasia||'—')+'\\nEquipamento: '+eq.nome+'\\nModelo: '+(eq.modelo||'—')+'\\nPeriodicidade: '+(eq.recorrencia_manutencao||'Nenhuma')});
+ if(recur)params.set('recur','RRULE:FREQ='+recur);
+ return 'https://calendar.google.com/calendar/render?'+params.toString();
+}
+function equipmentForm(eq=null){
+ if(!data.clientes.length)return toast('Cadastre um cliente primeiro.',true);
+ const fields=[
+  ['cliente_id','Cliente','select',data.clientes.map(c=>({value:c.id,label:c.nome_fantasia}))],
+  ['nome','Equipamento','text'],['fabricante','Fabricante','text'],['modelo','Modelo','text'],
+  ['numero_serie','Número de série','text'],['setor','Setor','text'],
+  ['status','Status','select',equipmentStates],
+  ['proxima_manutencao','Próxima manutenção','date'],
+  ['recorrencia_manutencao','Recorrência da manutenção','select',maintenanceIntervals],
+  ['observacoes','Observações','textarea']
+ ];
+ openForm(eq?'Editar equipamento':'Novo equipamento',fields,async v=>{
+   v.proxima_manutencao=v.proxima_manutencao||null;
+   v.recorrencia_manutencao=v.proxima_manutencao?(v.recorrencia_manutencao||'Nenhuma'):'Nenhuma';
+   if(eq){const {error}=await supabase.from('ametec_equipamentos').update(v).eq('id',eq.id);if(error)throw error;return eq.id}
+   const {data:row,error}=await supabase.from('ametec_equipamentos').insert(v).select('id').single();if(error)throw error;return row.id;
+ },eq||{status:'Operacional',recorrencia_manutencao:'Nenhuma'},{kind:'equipamento',id:eq?.id});
+}
+async function equipmentStatusChange(id,statusValue){
+ if(!equipmentStates.includes(statusValue))return;
+ const {error}=await supabase.from('ametec_equipamentos').update({status:statusValue}).eq('id',id);
+ if(error)return toast(error.message,true);
+ await load();toast('Classificação atualizada.');
+}
 function equipamentos(){
-  document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">ATIVOS TÉCNICOS</div><h2>Equipamentos dos clientes</h2><p>Histórico de máquinas, quadros e sistemas atendidos.</p></div><button class="btn primary" id="add">+ Equipamento</button></div></section><section class="panel"><div class="cards">${data.equipamentos.map(x=>{const c=data.clientes.find(a=>a.id===x.cliente_id);return `<article class="entity"><div class="entity-head"><div><b>⚙️ ${esc(x.nome)}</b><small>${esc(c?.nome_fantasia||'Sem cliente')} • ${esc(x.fabricante||'')} ${esc(x.modelo||'')}</small></div>${status(x.status)}</div><div class="entity-body"><div class="entity-grid"><div><span>Setor</span><b>${esc(x.setor||'—')}</b></div><div><span>Série</span><b>${esc(x.numero_serie||'—')}</b></div><div><span>Status</span><b>${esc(x.status)}</b></div></div></div></article>`}).join('')||'<div class="empty">Nenhum equipamento cadastrado.</div>'}</div></section>`;
-  document.querySelector('#add').onclick=()=>{if(!data.clientes.length)return toast('Cadastre um cliente primeiro.',true);openForm('Novo equipamento',[['cliente_id','Cliente','select',data.clientes.map(x=>({value:x.id,label:x.nome_fantasia}))],['nome','Equipamento','text'],['fabricante','Fabricante','text'],['modelo','Modelo','text'],['numero_serie','Número de série','text'],['setor','Setor','text'],['status','Status','select',['Operacional','Em manutenção','Parado','Desativado']],['observacoes','Observações','textarea']],async v=>{const {error}=await supabase.from('ametec_equipamentos').insert(v);if(error)throw error})}
+ document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">ATIVOS TÉCNICOS</div><h2>Equipamentos dos clientes</h2><p>Histórico de máquinas, quadros e sistemas atendidos.</p></div><button class="btn primary" id="add">+ Equipamento</button></div></section><section class="panel"><div class="cards">${data.equipamentos.map(x=>{
+ const c=data.clientes.find(a=>a.id===x.cliente_id);
+ return `<article class="entity equipment-card">
+  <div class="entity-head equipment-head">
+   <div class="equipment-identity">${photoAvatar('equipamento',x)}<div><b>⚙️ ${esc(x.nome)}</b><small>${esc(c?.nome_fantasia||'Sem cliente')} • ${esc(x.fabricante||'')} ${esc(x.modelo||'')}</small></div></div>
+   <div class="equipment-head-controls"><label class="equipment-due"><span>Próxima manutenção</span><input aria-label="Próxima manutenção de ${esc(x.nome)}" type="date" value="${esc(x.proxima_manutencao||'')}" data-eq-due="${x.id}"></label><label class="equipment-status-label"><span>Estado</span><select aria-label="Estado do equipamento ${esc(x.nome)}" data-eq-status="${x.id}">${equipmentStates.map(v=>`<option value="${v}" ${v===x.status?'selected':''}>${v}</option>`).join('')}</select></label></div>
+  </div>
+  <div class="entity-body"><div class="entity-grid"><div><span>Setor</span><b>${esc(x.setor||'—')}</b></div><div><span>Série</span><b>${esc(x.numero_serie||'—')}</b></div><div><span>Status</span><b>${esc(x.status||'—')}</b></div></div>
+  <div class="equipment-actions"><small>${x.proxima_manutencao?'🔔 Manutenção: '+date(x.proxima_manutencao):'Sem manutenção agendada'} ${x.recorrencia_manutencao&&x.recorrencia_manutencao!=='Nenhuma'?'• '+esc(x.recorrencia_manutencao):''}</small><button type="button" class="btn secondary" data-eq-edit="${x.id}">Editar informações e foto</button>${x.proxima_manutencao?'<a class="btn secondary" target="_blank" rel="noopener noreferrer" href="'+esc(equipmentCalendarUrl(x))+'">↗ Google Agenda</a>':''}</div>
+  </div>
+ </article>`}).join('')||'<div class="empty">Nenhum equipamento cadastrado.</div>'}</div></section>`;
+ document.querySelector('#add').onclick=()=>equipmentForm();
+ document.querySelectorAll('[data-eq-edit]').forEach(b=>b.onclick=()=>equipmentForm(data.equipamentos.find(x=>String(x.id)===b.dataset.eqEdit)));
+ document.querySelectorAll('[data-eq-status]').forEach(el=>el.onchange=()=>equipmentStatusChange(el.dataset.eqStatus,el.value));
+ document.querySelectorAll('[data-eq-due]').forEach(el=>el.onchange=async()=>{
+  const id=el.dataset.eqDue,value=el.value||null;
+  const {error}=await supabase.from('ametec_equipamentos').update({proxima_manutencao:value,...(!value?{recorrencia_manutencao:'Nenhuma'}:{})}).eq('id',id);
+  if(error)return toast(error.message,true);
+  await load();toast('Próxima manutenção atualizada.');
+ });
+ renderProfileAvatars();
 }
 function materiais(){
   let tab=localStorage.getItem('ametecMaterialTab')||'estoque';
@@ -3940,6 +4021,10 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 @media (prefers-reduced-motion:reduce){
  .side,.profile-lightbox,.profile-lightbox-panel,.photo-zoomable{transition:none!important}
 }
+</style>
+<style id="ametec-equipment-features">
+.equipment-head{align-items:center;gap:12px}.equipment-identity{display:flex;align-items:center;gap:10px;min-width:0;flex:1}.equipment-identity>div{min-width:0}.equipment-identity b,.equipment-identity small{overflow-wrap:anywhere}.equipment-head-controls{display:flex;flex-wrap:wrap;gap:9px;align-items:center;justify-content:flex-end}.equipment-due,.equipment-status-label{display:grid;gap:4px;min-width:135px}.equipment-due span,.equipment-status-label span{font-size:9px;color:#96b0bf;text-transform:uppercase}.equipment-due input,.equipment-status-label select{min-height:39px;max-width:100%;border:1px solid #275167;border-radius:9px;background:#092332;color:#ebfaff;padding:7px;font:inherit;font-size:12px;color-scheme:dark}.equipment-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.equipment-actions small{color:#91aabb;font-size:11px;margin-right:auto}.equipment-actions a.btn{text-decoration:none;display:inline-flex;align-items:center}.equipment-identity .photo-avatar{width:45px;height:45px;min-width:45px}
+@media(max-width:700px){.equipment-head{flex-direction:column;align-items:stretch}.equipment-head-controls{justify-content:stretch}.equipment-head-controls>label{flex:1 1 140px}.equipment-actions .btn{flex:1 1 130px;text-align:center;justify-content:center}.equipment-due input,.equipment-status-label select{min-height:44px;font-size:14px}}
 </style>
 </body>
 </html>
