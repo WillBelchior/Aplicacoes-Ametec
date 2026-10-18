@@ -1224,6 +1224,8 @@ function render(){
  if(tab==="acessos")loadMembers();
  if(tab==="cadastros"||tab==="materiais")loadContacts(false);
  if(tab==="painel")paintRecentActivity();
+ if(tab==="obras"){const button=$("refreshStorageUsage");if(button)button.onclick=()=>refreshStorageUsage(true);refreshStorageUsage(false)}
+ hydratePhotoImages();
  updateOfflineBadge();
 }
 const stats=()=>({progress:db.etapas.length?Math.round(db.etapas.reduce((a,x)=>a+num(x.progresso),0)/db.etapas.length):0,pagos:db.financeiro.filter(x=>x.status==="Pago").reduce((a,x)=>a+num(x.valor),0),pendentes:db.financeiro.filter(x=>x.status==="Pendente").reduce((a,x)=>a+num(x.valor),0),materiais:db.materiais.length});
@@ -1708,9 +1710,41 @@ function projectFinanceView(){
  return '<section class="panel finance-project-intro"><span class="section-overline">EXCLUSIVO DESTA OBRA</span><h3>Financeiro · '+esc(currentProject()?.nome||"Obra")+'</h3><p class="muted">As alterações feitas aqui afetam somente a obra aberta. O resumo global aparece na aba Financeiro do menu principal.</p><div class="finance-metrics">'+financeMetric("Pagos",t.paid)+financeMetric("Pendentes",t.pending)+financeMetric("Total registrado",t.total)+'</div></section>'+listing("financeiro");
 }
 
+
+/* Cota lógica do aplicativo: 50% da franquia de 1 GB de Storage no plano Free. */
+const PHOTO_BUCKET="barquinha-photos",PHOTO_APP_LIMIT=500000000;
+let storageUsage=null,storageUsageAt=0,photoUploadBusy=false;
+const photoSignedCache=new Map(),photoSignedLoading=new Map();
+const PHOTO_FALLBACK="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360"><rect width="600" height="360" fill="#edf3f7"/><text x="300" y="180" text-anchor="middle" font-family="Arial" font-size="22" fill="#68859a">Carregando foto…</text></svg>');
+function storageSize(bytes){return (Number(bytes||0)/1000000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" MB"}
+function storageUsageCard(){
+ const u=storageUsage,used=Number(u?.storage_used_bytes||0),available=Math.max(0,PHOTO_APP_LIMIT-used);
+ const percent=Math.min(100,Math.round(used/PHOTO_APP_LIMIT*100));
+ const photoCount=projects.reduce((sum,p)=>sum+(p.payload?.fotos||[]).length,0);
+ return '<section class="panel portfolio-storage"><div class="storage-heading"><div><span class="section-overline">SEGURANÇA DO ARMAZENAMENTO</span><h3>Armazenamento do Projetos Barquinha</h3><p>Limite interno: 500 MB para fotografias, correspondente a 50% da franquia de 1 GB de Storage.</p></div><button type="button" class="btn alt" id="refreshStorageUsage">↻ Atualizar uso</button></div>'+
+ '<div class="storage-totals"><div><small>Arquivos armazenados</small><strong>'+(u?storageSize(used):"Carregando…")+'</strong></div><div><small>Limite destinado ao app</small><strong>500 MB</strong></div><div><small>Disponível para fotos</small><strong>'+(u?storageSize(available):"A verificar")+'</strong></div><div><small>Fotos cadastradas</small><strong>'+photoCount+'</strong></div></div>'+
+ '<div class="storage-track '+(percent>=90?"critical":percent>=70?"warning":"")+'" role="progressbar" aria-valuenow="'+percent+'" aria-valuemin="0" aria-valuemax="100" aria-label="Uso do espaço reservado"><span style="width:'+percent+'%"></span></div>'+
+ '<div class="storage-caption"><span>'+percent+'% utilizados'+(u?" · "+Number(u.storage_photo_count||0)+" arquivo(s) na nuvem":"")+'</span><span>'+storageSize(available)+' ainda disponíveis do limite</span></div>'+
+ (u?'<p class="storage-db-detail">Banco de dados (cota separada de 500 MB): '+storageSize(u.database_used_bytes)+' ocupados · '+Number(u.legacy_photo_count||0)+' foto(s) no formato antigo ('+storageSize(u.storage_legacy_photo_bytes)+').</p>':'<p class="storage-db-detail" id="storageMessage">Consulte o uso atualizado quando houver internet.</p>')+
+ (percent>=90?'<p class="storage-alarm">Atenção: limite próximo do máximo. Faça backup antes de adicionar mais imagens.</p>':'')+
+ '<p class="storage-disclaimer">A reserva é uma regra de limite do aplicativo, não uma separação física de espaço no Supabase.</p></section>';
+}
+async function refreshStorageUsage(force=false){
+ if(!cloudClient||!cloudUser||!accessReady||!navigator.onLine||offlineSession)return storageUsage;
+ if(!force&&storageUsage&&Date.now()-storageUsageAt<45000)return storageUsage;
+ const {data,error}=await cloudClient.rpc("barquinha_storage_usage");
+ if(error){const label=$("storageMessage");if(label)label.textContent="Falha na medição: "+error.message;return storageUsage}
+ storageUsage=data;storageUsageAt=Date.now();
+ if(tab==="obras"&&$("portfolioStorageHolder")){
+  $("portfolioStorageHolder").innerHTML=storageUsageCard();
+  const btn=$("refreshStorageUsage");if(btn)btn.onclick=()=>refreshStorageUsage(true);
+ }
+ return storageUsage;
+}
+
 function projectsView(){
   return '<section class="motto-panel motto-home" aria-label="Mensagem de inspiração"><span class="motto-anchor" aria-hidden="true">⚓</span><div><span class="section-overline">NOSSA INSPIRAÇÃO</span><h3>De hora em hora, Deus melhora.</h3></div></section>'+
-  '<section class="panel portfolio-intro"><div><span class="section-overline">GESTÃO DE PROJETOS</span><h3>Minhas obras</h3><p class="muted">Abra uma obra para acessar seus próprios registros. Obras arquivadas continuam disponíveis no histórico.</p></div><div class="portfolio-header-buttons"><button type="button" class="btn alt" id="backupMain" aria-label="Baixar backup de todas as obras">↓ Baixar backup</button><button type="button" class="btn" id="newProject">+ Nova obra</button></div></section>'+
+  '<div id="portfolioStorageHolder">'+storageUsageCard()+'</div>'+ '<section class="panel portfolio-intro"><div><span class="section-overline">GESTÃO DE PROJETOS</span><h3>Minhas obras</h3><p class="muted">Abra uma obra para acessar seus próprios registros. Obras arquivadas continuam disponíveis no histórico.</p></div><div class="portfolio-header-buttons"><button type="button" class="btn alt" id="backupMain" aria-label="Baixar backup de todas as obras">↓ Baixar backup</button><button type="button" class="btn" id="newProject">+ Nova obra</button></div></section>'+
   '<div class="portfolio-grid">'+projects.map(p=>{
     const progress=projectProgress(p.payload),pagos=(p.payload.financeiro||[]).filter(v=>v.status==="Pago").reduce((n,v)=>n+num(v.valor),0),selected=p.id===activeProjectId;
     return '<article class="portfolio-card '+(selected?'selected':'')+'"><div class="portfolio-card-top"><span class="portfolio-icon">⌂</span><span class="portfolio-tag">'+esc(p.situacao||"Planejada")+'</span></div><h3>'+esc(p.nome)+'</h3><p class="portfolio-description">'+esc(p.descricao||p.localizacao||"Sem descrição")+'</p><div class="portfolio-progress-label"><span>Avanço da obra</span><strong>'+progress+'%</strong></div><div class="portfolio-progress"><span style="width:'+progress+'%"></span></div><div class="portfolio-meta"><span>Etapas: '+(p.payload.etapas||[]).length+'</span><span>Materiais: '+(p.payload.materiais||[]).length+'</span><span>Fotos: '+(p.payload.fotos||[]).length+'</span><span>Pago: '+money(pagos)+'</span></div><div class="portfolio-actions"><button type="button" class="btn" data-open-project="'+esc(p.id)+'">'+(selected?'Ver painel':'Abrir obra')+'</button><button type="button" class="btn alt portfolio-edit-btn" data-edit-project="'+esc(p.id)+'">✎ Editar</button><button type="button" class="btn alt" data-archive-project="'+esc(p.id)+'">'+(p.situacao==="Arquivada"?"Reativar":"Arquivar")+'</button>'+(isPresident()?'<button type="button" class="btn danger portfolio-delete" data-delete-project="'+esc(p.id)+'">Excluir obra</button>':'')+'</div>'+(selected?'<span class="portfolio-current">● Obra selecionada</span>':'')+'</article>'
