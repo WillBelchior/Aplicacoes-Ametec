@@ -859,6 +859,7 @@ async function signOutApp(){
  for(const t of cloudTimers.values())clearTimeout(t);cloudTimers.clear();
  if(auditPolling){clearInterval(auditPolling);auditPolling=null}
  const account=$("accountMenu");if(account)account.open=false;
+ photoSignedCache.clear();photoSignedLoading.clear();storageUsage=null;storageUsageAt=0;
  showGate();setRegisterMode(false);$("gateTrustDevice").checked=false;
  try{
   const {error}=await cloudClient?.auth.signOut({scope:"local"});
