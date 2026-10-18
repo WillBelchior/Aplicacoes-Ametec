@@ -634,6 +634,14 @@ body.auth-locked{overflow:hidden}body.auth-locked .app{display:none!important;vi
 #fields label[hidden],#materialServiceNote[hidden]{display:none!important}
 .material-service-note{margin:0;padding:10px 12px;border-radius:10px;background:#edf5f9;border:1px solid #d9e8ef;color:#365b72;font-size:12px;line-height:1.6}
 .material-service-note strong{font-weight:750}
+
+/* Campo Fornecedor: agenda de pessoas/empresas, cadastro opcional e nome livre */
+.material-supplier-directory{display:grid;gap:9px;padding:13px;border-radius:12px;border:1px solid #d7e6ee;background:#f3f8fb}
+.material-supplier-directory label{display:grid;gap:7px;font-size:13px;color:#43657b;font-weight:700}
+.material-supplier-directory select{width:100%;max-width:100%;min-width:0;min-height:45px;border:1px solid #cedee8;border-radius:9px;color:#214a64;background:#fff;padding:10px;font-size:14px}
+.material-supplier-hint{font-size:12px;color:#678196;line-height:1.55;margin:0}
+.material-supplier-register{justify-self:start;min-height:42px;max-width:100%;white-space:normal;text-align:center}
+@media(max-width:520px){.material-supplier-directory{padding:11px}.material-supplier-register{width:100%}}
 </style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><div id="gatePending" hidden><p>Seu cadastro foi recebido. Um <strong>ADM</strong> precisa autorizar seu acesso.</p><button class="btn alt" type="button" id="gateCheckAccess">Verificar autorização</button></div><div class="auth-links"><button type="button" id="gateSwitch">Criar uma conta</button><button type="button" id="gateReset">Esqueci minha senha</button><button type="button" id="gateResend">Reenviar confirmação</button></div><p class="auth-privacy">Em aparelhos confiáveis, a sessão continua ativa até você sair. Não marque essa opção em celulares ou computadores compartilhados.</p></div></section><div class="app" inert aria-hidden="true"><aside><div class="brand-modern"><span class="brand-symbol" aria-hidden="true">⚓</span><span class="brand-title"><span class="brand-prefix">Projetos</span><span>Barquinha</span></span></div><nav id="nav"></nav><div class="aside-bottom"><button class="sidebar-logout" type="button" id="sidebarLogout"><span aria-hidden="true">↪</span> Sair</button><div class="aside-caption">Projetos Barquinha · Controle de obras</div></div></aside><main><div class="topbar"><span>PROJETOS / <strong id="breadcrumbProject">OBRA 001</strong></span><span><span class="dot"></span> Ambiente de acompanhamento</span></div><header><div><div class="head-kicker">CENTRAL DE GERENCIAMENTO</div><h2 id="pageTitle"></h2><div class="muted" id="activeProjectDescription">Obra 001 · Acompanhamento</div></div><div class="header-project-actions"><details class="account-menu" id="accountMenu"><summary id="accountSummary" aria-label="Abrir opções da conta">♙ Minha conta</summary><div class="account-menu-panel" id="cloudControls"></div></details><button class="btn alt offline-sync-button" type="button" id="syncPendingBtn" aria-label="Sincronizar manualmente os dados com a nuvem">↻ Sincronizar</button><button type="button" class="pill pending-indicator" id="mode" aria-controls="pendingPanel" aria-expanded="false" title="Ver pendências e detalhes da sincronização">Dados locais</button></div></header><div id="manualSyncFeedback" class="sync-feedback" role="status" aria-live="polite" hidden></div><section class="pending-panel" id="pendingPanel" hidden aria-label="Central de pendências"><div class="pending-panel-heading"><div><span class="section-overline">SINCRONIZAÇÃO</span><h3>Central de pendências</h3><p>Veja quais obras têm alterações ainda salvas neste aparelho. Nunca apague uma pendência sem conferir o backup.</p></div><button type="button" id="pendingClose" class="btn alt">Fechar</button></div><div id="pendingRecords"></div><div class="pending-panel-actions"><button type="button" class="btn alt" id="pendingBackup">↓ Baixar backup de segurança</button><button type="button" class="btn" id="pendingRetry">↻ Tentar sincronizar</button></div></section><div class="warn" id="technicalNotice"><b>Estudo preliminar:</b> fundações, base elevada, contenção, pilares e vigas exigem dimensionamento de profissional habilitado, levantamento do terreno e avaliação do solo. Este aplicativo não substitui projeto com ART.</div><span id="cloudStatus" class="account-sync-status" role="status" aria-live="polite"></span><div id="content"></div><footer><button type="button" class="mobile-footer-logout" id="footerLogout">↪ Sair da conta</button>Projetos Barquinha · Os dados das obras ficam separados e sincronizados quando houver conexão.</footer></main></div><div id="photoViewer" class="photo-viewer photo-overlay" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden><button id="closeViewer" class="viewer-close" type="button" aria-label="Fechar foto">✕</button><div class="viewer-content"><img id="viewerImage" alt="Foto da obra"><div id="viewerCaption"></div><p id="viewerError" hidden>Não foi possível carregar esta foto. Atualize a página e tente novamente.</p></div></div><dialog id="stockCheckModal" class="stock-check-modal" aria-labelledby="stockCheckTitle"><div class="stock-modal-head"><div><span class="section-overline">CONTAGEM FÍSICA</span><h3 id="stockCheckTitle">Conferir material em estoque</h3><p id="stockCheckContext" class="muted"></p></div><button type="button" class="stock-close" id="stockCheckClose" aria-label="Fechar">✕</button></div><form id="stockCheckForm" class="stock-form"><label>Quantidade realmente disponível<input name="quantidade" type="number" min="0" step="any" required placeholder="Informe a contagem física"></label><label>Local de armazenamento<input name="local" maxlength="160" placeholder="Ex.: Depósito da igreja, prateleira A"></label><p class="stock-form-help">A contagem física é independente da sobra estimada. Quando a quantidade prevista ou consumida mudar, o estoque será marcado para nova conferência.</p><div class="stock-modal-actions"><button type="button" class="btn alt" id="stockCheckCancel">Cancelar</button><button type="submit" class="btn">Salvar conferência</button></div></form></dialog><dialog id="contactModal" class="contact-modal" aria-label="Cadastro de pessoa ou empresa"><div class="contact-modal-header"><div><span class="section-overline">AGENDA COMPARTILHADA</span><h3 id="contactModalTitle">Novo cadastro</h3></div><button class="contact-close" id="contactCancel" type="button" aria-label="Fechar cadastro">✕</button></div><form id="contactForm" class="contact-form"><div class="contact-form-row"><label>Tipo de cadastro<select name="tipo" id="contactType" required><option value="Pessoa">Pessoa</option><option value="Empresa">Empresa</option></select></label><label>Categoria<select name="categoria" required><option>Prestador de serviço</option><option>Fornecedor de materiais</option><option>Profissional técnico</option><option>Parceiro</option><option>Outros</option></select></label></div><label id="contactNameLabel">Nome da pessoa<input name="nome" maxlength="160" required autocomplete="name" placeholder="Nome completo"></label><label>Atividade ou especialidade<input name="especialidade" maxlength="160" placeholder="Ex.: Pedreiro, elétrica, loja de materiais"></label><div class="contact-form-row"><label>Telefone<input name="telefone" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label><label>WhatsApp<input name="whatsapp" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label></div><label>E-mail<input name="email" type="email" maxlength="150" placeholder="contato@exemplo.com"></label><label>Localização / endereço<input name="localizacao" maxlength="240" placeholder="Cidade, bairro ou endereço"></label><div id="contactCompanyFields" hidden><label>CNPJ (opcional)<input name="documento" maxlength="25" placeholder="00.000.000/0000-00"></label><label>Responsável / contato comercial<input name="responsavel" maxlength="130" placeholder="Pessoa de contato da empresa"></label></div><label>Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações úteis, serviços prestados, referências..."></textarea></label><div class="contact-modal-actions"><button type="button" class="btn alt" id="contactClose">Cancelar</button><button class="btn" type="submit" id="contactSave">Salvar cadastro</button></div></form></dialog><dialog id="boardGalleryModal" class="board-gallery-modal"><div class="board-gallery-head"><h3>Escolher foto da galeria</h3><button type="button" class="btn alt" id="boardGalleryClose">Fechar</button></div><div id="boardGalleryOptions" class="board-gallery-grid"></div></dialog><dialog id="editProjectModal" class="new-project-modal edit-project-modal" aria-labelledby="editProjectTitle"><div class="edit-project-heading"><div><span class="section-overline">DADOS DA OBRA</span><h3 id="editProjectTitle">Editar informações</h3><p class="muted">Atualize os detalhes sem alterar etapas, materiais, fotos ou lançamentos já cadastrados.</p></div><button type="button" id="closeEditProject" class="edit-project-close" aria-label="Fechar edição">✕</button></div><form id="editProjectForm" class="formgrid"><label class="full">Nome da obra <input name="nome" required maxlength="120" autocomplete="off" placeholder="Nome do projeto"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option><option>Concluída</option><option>Arquivada</option></select></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label class="full">Descrição e detalhes <textarea name="descricao" rows="3" maxlength="2000" placeholder="Objetivo, características ou observações"></textarea></label><label class="full">Localização <input name="localizacao" maxlength="240" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Data de início <input name="inicio" type="date"></label><label>Prazo previsto <input name="prazo" type="date"></label><p class="full edit-project-note"><strong>Seus registros serão mantidos.</strong> Esta edição altera apenas as informações gerais da obra. As modificações sincronizadas aparecem no Histórico.</p><div class="full modal-actions"><button type="button" class="btn alt" id="cancelEditProject">Cancelar</button><button type="submit" class="btn" id="saveEditProject">Salvar alterações</button></div></form></dialog><dialog id="newProjectModal" class="new-project-modal"><h3>+ Nova obra</h3><p class="muted">Preencha os dados iniciais. Cada obra terá registros independentes.</p><form id="newProjectForm" class="formgrid"><label>Nome da obra <input name="nome" required maxlength="120" placeholder="Ex.: Ampliação da casa"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option></select></label><label class="full">Descrição <textarea name="descricao" rows="2" placeholder="Objetivo e observações iniciais"></textarea></label><label class="full">Localização <input name="localizacao" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Prazo previsto <input name="prazo" type="date"></label><label class="full project-copy"><input name="copyStages" type="checkbox" value="yes"> Copiar a lista de etapas da obra atual, zerando o avanço</label><div class="full modal-actions"><button class="btn alt" type="button" id="cancelProject">Cancelar</button><button class="btn" type="submit" id="saveProjectBtn">Criar obra</button></div></form></dialog><dialog id="modal"><h3 id="modalTitle"></h3><form id="itemForm"><div id="fields" class="formgrid"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn alt" type="button" id="cancel">Cancelar</button><button class="btn" type="submit">Salvar</button></div></form></dialog><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
 const tabs=[["obras","⌂ Minhas obras"],["financeiroGeral","＄ Financeiro"],["estoque","▣ Estoque"],["cadastros","♙ Cadastros"],["historico","◷ Histórico"],["acessos","♙ Acessos"]];
 const projectSubtabs=[["painel","▦ Visão geral"],["etapas","▣ Etapas"],["materiais","▥ Materiais"],["projeto","✎ Diário"],["fotos","▧ Fotos"],["financeiro","＄ Financeiro"]];
@@ -1243,7 +1251,7 @@ async function loadContacts(showErrors){
  const {data,error}=await cloudClient.from("barquinha_contacts").select("id,tipo,nome,categoria,especialidade,telefone,whatsapp,email,localizacao,documento,responsavel,observacoes,created_at,updated_at").order("nome",{ascending:true});
  contactsBusy=false;
  if(error){const area=$("contactsResult");if(area)area.innerHTML='<p class="muted">Falha ao carregar cadastros. Toque em Atualizar para tentar novamente.</p>';if(showErrors)alert(error.message);return}
- contactsCache=data||[];contactsLoaded=true;try{localStorage.setItem("barquinha-contacts-"+cloudUser.id,JSON.stringify(contactsCache))}catch(e){}paintContacts();
+ contactsCache=data||[];contactsLoaded=true;try{localStorage.setItem("barquinha-contacts-"+cloudUser.id,JSON.stringify(contactsCache))}catch(e){}paintContacts();refreshMaterialSupplierOptions();
 }
 function contactTypeChanged(){
  const enterprise=$("contactType").value==="Empresa";
@@ -1252,6 +1260,7 @@ function contactTypeChanged(){
  $("contactForm").elements.nome.placeholder=enterprise?"Razão social ou nome fantasia":"Nome completo";
 }
 function openContactForm(id=null){
+ materialSupplierRegistering=false;
  contactEditId=id;const item=id?contactsCache.find(x=>x.id===id):null;
  const form=$("contactForm");form.reset();
  for(const [key,value] of Object.entries(item||{})){
@@ -1278,7 +1287,17 @@ async function saveContact(e){
   if(contactEditId)response=await cloudClient.from("barquinha_contacts").update({...contact,updated_at:new Date().toISOString()}).eq("id",contactEditId).select("id").single();
   else response=await cloudClient.from("barquinha_contacts").insert(contact).select("id").single();
   if(response.error)throw response.error;
-  $("contactModal").close();contactEditId=null;await loadContacts(true);await loadActivity(false);
+  const supplierCreated=materialSupplierRegistering&&!contactEditId&&response.data?.id
+   ?{...contact,id:response.data.id}:null;
+  $("contactModal").close();contactEditId=null;await loadContacts(true);
+  if(supplierCreated&&$("modal").open&&editing?.type==="materiais"){
+   if(!contactsCache.some(c=>c.id===supplierCreated.id))contactsCache.push(supplierCreated);
+   refreshMaterialSupplierOptions();
+   const picker=$("materialSupplierSelect");
+   if(picker){picker.value=supplierCreated.id;selectMaterialSupplier(supplierCreated.id)}
+  }
+  materialSupplierRegistering=false;
+  await loadActivity(false);
  }catch(error){alert("Não foi possível salvar o cadastro: "+error.message)}
  finally{btn.disabled=false;btn.textContent=contactEditId?"Salvar alterações":"Cadastrar"}
 }
@@ -1943,10 +1962,100 @@ let desktop=items.length?'<div class="scroll desktop-table"><table class="'+(typ
 let mobile=items.length?'<div class="mobile-records">'+items.map(x=>'<article class="mobile-record"><h4>'+esc(x.nome||x.descricao||x.atividades||date(x.data))+'</h4><dl>'+cols.filter(k=>!["nome","descricao","atividades"].includes(k)).map(k=>'<div><dt>'+esc(headers[k])+'</dt><dd>'+fmt(x,k)+'</dd></div>').join('')+'</dl><div class="record-actions"><button class="btn alt" data-edit="'+x.id+'">Editar</button>'+(isPresident()?'<button class="btn danger" data-del="'+x.id+'">Excluir</button>':'')+'</div></article>').join('')+'</div>':'';
 $("tableContent").innerHTML=(items.length?desktop+mobile:'<div class="empty-state">Nenhum registro encontrado.</div>')+(type==="materiais"?materialPaymentSummary(items):"");
 document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openForm(type,b.dataset.edit));document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{if(!requirePresidentOnline())return;if(confirm("Excluir este registro?")){db[type]=db[type].filter(x=>x.id!==b.dataset.del);save();render()}})}
+
+/* Fornecedores e prestadores: use Cadastros, ou informe apenas um nome no material.
+   O nome é preservado no registro mesmo se o contato compartilhado for atualizado depois. */
+let materialSupplierRegistering=false;
+function supplierDirectoryOrder(){
+ const isService=isServiceMaterial({unidade:$("itemForm")?.elements.namedItem("unidade")?.value});
+ const priority=isService?"Prestador de serviço":"Fornecedor de materiais";
+ return {priority,primary:contactsCache.filter(c=>c.categoria===priority).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR")),
+  other:contactsCache.filter(c=>c.categoria!==priority).sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"))};
+}
+function refreshMaterialSupplierOptions(){
+ const picker=$("materialSupplierSelect"),form=$("itemForm");
+ if(!picker||!form||editing?.type!=="materiais")return;
+ const field=form.elements.namedItem("fornecedorContatoId");
+ const existingId=field?.value||"";
+ const groups=supplierDirectoryOrder();
+ const option=c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+' · '+esc(c.tipo)+' · '+esc(c.categoria)+'</option>';
+ picker.innerHTML='<option value="">Informar nome sem cadastrar / selecionar</option>'+
+  (groups.primary.length?'<optgroup label="Contatos relacionados">'+groups.primary.map(option).join("")+'</optgroup>':'')+
+  (groups.other.length?'<optgroup label="Demais pessoas e empresas">'+groups.other.map(option).join("")+'</optgroup>':'');
+ picker.value=contactsCache.some(c=>c.id===existingId)?existingId:"";
+ if(picker.value!==existingId&&field)field.value="";
+ updateMaterialSupplierHint();
+}
+function updateMaterialSupplierHint(){
+ const form=$("itemForm"),info=$("materialSupplierHint"),register=$("materialSupplierRegister");
+ if(!form||!info||!register)return;
+ const name=String(form.elements.namedItem("fornecedor")?.value||"").trim();
+ const id=String(form.elements.namedItem("fornecedorContatoId")?.value||"");
+ const contact=contactsCache.find(c=>c.id===id);
+ if(contact){
+  info.textContent="Contato vinculado à agenda: "+contact.nome+". O nome continuará salvo no material.";
+  register.hidden=true;
+ }else{
+  const match=contactsCache.find(c=>c.nome.trim().toLocaleLowerCase("pt-BR")===name.toLocaleLowerCase("pt-BR"));
+  info.textContent=name?(match?"Esse nome já existe em Cadastros. Você pode selecioná-lo acima ou manter apenas o texto.":"Nome livre: será salvo somente nesta obra, sem criar um contato na agenda."):
+   "Escolha alguém cadastrado ou digite o nome diretamente, sem obrigatoriedade de cadastro.";
+  register.hidden=false;
+  register.textContent=name?"Cadastrar "+name+" na agenda":"+ Cadastrar novo fornecedor/prestador";
+ }
+}
+function selectMaterialSupplier(contactId){
+ const form=$("itemForm");if(!form)return;
+ const input=form.elements.namedItem("fornecedor"),hidden=form.elements.namedItem("fornecedorContatoId");
+ const contact=contactsCache.find(c=>c.id===contactId);
+ if(hidden)hidden.value=contact?.id||"";
+ if(contact&&input)input.value=contact.nome;
+ if(!contact)input?.focus();
+ updateMaterialSupplierHint();
+}
+function openMaterialSupplierRegistration(){
+ if(!navigator.onLine||offlineSession||!cloudReady||!cloudUser){
+  alert("Para cadastrar um contato na agenda compartilhada é preciso conexão. Você ainda pode digitar um nome livre e salvar o material.");return;
+ }
+ const form=$("itemForm");
+ const currentName=String(form?.elements.namedItem("fornecedor")?.value||"").trim();
+ const isService=isServiceMaterial({unidade:form?.elements.namedItem("unidade")?.value});
+ openContactForm(null);
+ materialSupplierRegistering=true;
+ $("contactType").value=isService?"Pessoa":"Empresa";
+ $("contactForm").elements.namedItem("categoria").value=isService?"Prestador de serviço":"Fornecedor de materiais";
+ if(currentName)$("contactForm").elements.namedItem("nome").value=currentName;
+ contactTypeChanged();
+ $("contactModalTitle").textContent=isService?"Cadastrar prestador de serviço":"Cadastrar fornecedor";
+}
+function setupMaterialSupplierPicker(record){
+ const form=$("itemForm"),input=form?.elements.namedItem("fornecedor");
+ if(!input)return;
+ input.placeholder="Nome do fornecedor ou prestador (opcional)";
+ input.autocomplete="off";
+ const selected=String(record?.fornecedorContatoId||"");
+ input.closest("label").insertAdjacentHTML("beforebegin",
+ '<section class="full material-supplier-directory"><label for="materialSupplierSelect">Selecionar de Pessoas e empresas<select id="materialSupplierSelect" aria-label="Escolher contato cadastrado"><option value="">Carregando contatos…</option></select></label>'+
+ '<p id="materialSupplierHint" class="material-supplier-hint"></p><button type="button" id="materialSupplierRegister" class="btn alt material-supplier-register">+ Cadastrar fornecedor/prestador</button></section>'+
+ '<input type="hidden" name="fornecedorContatoId" id="materialSupplierId" value="'+esc(selected)+'">');
+ $("materialSupplierSelect").addEventListener("change",e=>selectMaterialSupplier(e.target.value));
+ input.addEventListener("input",()=>{
+  const hidden=form.elements.namedItem("fornecedorContatoId");
+  if(hidden)hidden.value="";
+  $("materialSupplierSelect").value="";
+  updateMaterialSupplierHint();
+ });
+ $("materialSupplierRegister").onclick=openMaterialSupplierRegistration;
+ refreshMaterialSupplierOptions();
+ if(!contactsLoaded&&!contactsBusy&&navigator.onLine&&!offlineSession)loadContacts(false);
+}
+
 function openForm(type,id){editing={type,id};const x=id?db[type].find(z=>z.id===id):{};$("modalTitle").textContent=(id?"Editar ":"Cadastrar ")+type;$("fields").innerHTML=definitions[type].map(([key,label,kind,required,opts])=>'<label class="'+(kind==="textarea"?"full":"")+'">'+esc(label)+(kind==="select"?'<select name="'+key+'">'+opts.map(o=>'<option value="'+esc(o)+'" '+(x[key]===o?'selected':'')+'>'+esc(o)+'</option>').join('')+'</select>':kind==="textarea"?'<textarea name="'+key+'" rows="3">'+esc(x[key]||"")+'</textarea>':'<input name="'+key+'" type="'+kind+'" '+(kind==="number"? (["valor","valorPago"].includes(key)?'step="0.01" min="0"':'step="any" min="0"'):'')+' value="'+esc(x[key]??"")+'" '+(required?'required':'')+'/>')+'</label>').join('');if(type==="materiais"){
+ setupMaterialSupplierPicker(x);
  $("fields").insertAdjacentHTML("beforeend",'<p class="full material-service-note" id="materialServiceNote" hidden>Para serviços, o valor informado é o <strong>total contratado</strong>, sem precisar informar quantidade. O pagamento pode ser parcial.</p><section class="full material-form-preview" id="materialFormPreview" aria-label="Resumo do pagamento"></section>');
  ["previsto","valor","valorPago"].forEach(key=>$("itemForm").elements.namedItem(key)?.addEventListener("input",updateMaterialFormPreview));
- $("itemForm").elements.namedItem("unidade")?.addEventListener("change",updateMaterialFormLayout);
+ $("itemForm").elements.namedItem("unidade")?.addEventListener("change",()=>{
+  updateMaterialFormLayout();refreshMaterialSupplierOptions();
+});
  updateMaterialFormLayout();
  }$("modal").showModal()}
 function photos(){return '<section class="panel"><div class="panel-heading"><div><span class="section-overline">ACOMPANHAMENTO VISUAL</span><h3>Galeria da obra</h3><p class="muted">Clique em uma foto para ampliar.</p></div><span class="photo-count">'+db.fotos.length+' foto(s)</span></div><form id="photoForm" class="formgrid photo-upload"><label>Legenda<input name="caption" placeholder="Ex.: Alicerce após concretagem" required></label><label>Etapa<input name="stage" placeholder="Ex.: Fundações"></label><label class="full">Selecione uma imagem<input type="file" name="file" accept="image/*" required></label><button class="btn">+ Adicionar foto</button></form></section>'+(db.fotos.length?'<div class="photo-gallery">'+db.fotos.map(f=>'<article class="gallery-card"><button type="button" class="gallery-open" data-view-photo="'+f.id+'" aria-label="Ampliar foto: '+esc(f.caption)+'"><img src="'+esc(f.src)+'" alt="'+esc(f.caption)+'"><span class="zoom-hint">⤢ Ver foto</span></button><div class="gallery-meta"><b>'+esc(f.caption)+'</b><div class="muted">'+esc(f.stage||"Sem etapa")+' • '+date(f.date)+'</div>'+(isPresident()?'<button class="text-action danger-text" data-photo-del="'+f.id+'">Excluir</button>':'')+'</div></article>').join('')+'</div>':'<div class="empty-state">A galeria está vazia.<p>Registre o antes, durante e depois de cada etapa.</p></div>')}
@@ -1970,5 +2079,5 @@ $("closeViewer").onclick=closePhoto;$("photoViewer").onclick=e=>{if(e.target===$
  if(editing.id)db[editing.type]=db[editing.type].map(x=>x.id===editing.id?value:x);
  else db[editing.type].push(value);
  save();$("modal").close();render();
-};$("contactForm").onsubmit=saveContact;$("contactType").onchange=contactTypeChanged;$("contactCancel").onclick=()=> $("contactModal").close();$("contactClose").onclick=()=> $("contactModal").close();$("editProjectForm").onsubmit=saveEditedProject;$("cancelEditProject").onclick=cancelEditProject;$("closeEditProject").onclick=cancelEditProject;$("editProjectModal").addEventListener("close",()=>{editingProjectId=null});$("stockCheckForm").onsubmit=saveStockCheck;$("stockCheckClose").onclick=()=> $("stockCheckModal").close();$("stockCheckCancel").onclick=()=> $("stockCheckModal").close();$("newProjectForm").onsubmit=createNewProject;$("cancelProject").onclick=()=>$("newProjectModal").close();persistLocal();render();initOfflineSupport();initCloud();
+};$("contactModal").addEventListener("close",()=>{materialSupplierRegistering=false});$("contactForm").onsubmit=saveContact;$("contactType").onchange=contactTypeChanged;$("contactCancel").onclick=()=> $("contactModal").close();$("contactClose").onclick=()=> $("contactModal").close();$("editProjectForm").onsubmit=saveEditedProject;$("cancelEditProject").onclick=cancelEditProject;$("closeEditProject").onclick=cancelEditProject;$("editProjectModal").addEventListener("close",()=>{editingProjectId=null});$("stockCheckForm").onsubmit=saveStockCheck;$("stockCheckClose").onclick=()=> $("stockCheckModal").close();$("stockCheckCancel").onclick=()=> $("stockCheckModal").close();$("newProjectForm").onsubmit=createNewProject;$("cancelProject").onclick=()=>$("newProjectModal").close();persistLocal();render();initOfflineSupport();initCloud();
 </script></body></html>
