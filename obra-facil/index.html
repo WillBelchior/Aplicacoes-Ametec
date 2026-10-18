@@ -1279,6 +1279,92 @@ const stats=()=>({progress:db.etapas.length?Math.round(db.etapas.reduce((a,x)=>a
 /* Agenda global de contatos: pessoas e empresas, compartilhadas por todas as obras */
 let contactsCache=[],contactEditId=null,contactFilterType="Todos",contactSearch="",contactFilterCategory="",contactsBusy=false,contactsLoaded=false;
 const contactKinds=["Prestador de serviço","Fornecedor de materiais","Profissional técnico","Parceiro","Outros"];
+
+/* Foto quadrada (uma por pessoa/empresa), compactada e mantida no cadastro global. */
+let contactAvatarDraft="",contactAvatarChanged=false,contactAvatarBusy=false;
+function validContactAvatar(value){
+ return typeof value==="string"&&value.length<=145000&&/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+function initialContactAvatar(name,type){
+ return type==="Empresa"?"▣":String(name||"?").trim().slice(0,1).toLocaleUpperCase("pt-BR")||"?";
+}
+function paintContactAvatarPreview(){
+ const preview=$("contactAvatarPreview"),photo=$("contactAvatarImage"),initial=$("contactAvatarFallback"),
+ feedback=$("contactAvatarFeedback"),remove=$("contactAvatarRemove");
+ if(!preview||!photo||!initial)return;
+ const hasPhoto=validContactAvatar(contactAvatarDraft);
+ photo.hidden=!hasPhoto;
+ if(hasPhoto)photo.src=contactAvatarDraft;else photo.removeAttribute("src");
+ initial.hidden=hasPhoto;
+ initial.textContent=initialContactAvatar($("contactForm")?.elements?.namedItem("nome")?.value,$("contactType")?.value);
+ preview.title=hasPhoto?"Clique para ampliar":"Nenhuma foto. Selecione uma imagem";
+ if(feedback)feedback.textContent=hasPhoto?"Foto pronta · quadrada e compactada":"Sem foto cadastrada";
+ if(remove)remove.hidden=!hasPhoto||!isPresident();
+}
+function compressContactAvatar(file){
+ return new Promise((resolve,reject)=>{
+  if(!file||!file.type?.startsWith("image/"))return reject(new Error("Selecione uma imagem válida."));
+  if(file.size>12000000)return reject(new Error("A imagem original deve ter até 12 MB."));
+  const url=URL.createObjectURL(file),image=new Image();
+  image.onload=()=>{
+   try{
+    const source=Math.min(image.naturalWidth,image.naturalHeight);
+    if(!source)throw new Error("A imagem não possui dimensões válidas.");
+    const x=(image.naturalWidth-source)/2,y=(image.naturalHeight-source)/2;
+    const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");
+    if(!ctx)throw new Error("Não foi possível comprimir a imagem.");
+    let result="";
+    for(const [side,quality] of [[384,.68],[320,.62],[256,.55],[220,.5]]){
+     canvas.width=side;canvas.height=side;
+     ctx.fillStyle="#ffffff";ctx.fillRect(0,0,side,side);
+     ctx.drawImage(image,x,y,source,source,0,0,side,side);
+     result=canvas.toDataURL("image/jpeg",quality);
+     if(validContactAvatar(result))break;
+    }
+    URL.revokeObjectURL(url);
+    if(!validContactAvatar(result))throw new Error("A foto compactada ainda ficou grande. Experimente uma imagem menor.");
+    resolve(result);
+   }catch(e){URL.revokeObjectURL(url);reject(e)}
+  };
+  image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Não foi possível abrir a foto selecionada."))};
+  image.src=url;
+ });
+}
+async function chooseContactAvatar(event){
+ const file=event.target.files?.[0];
+ if(!file||contactAvatarBusy)return;
+ const feedback=$("contactAvatarFeedback"),saveBtn=$("contactSave");
+ contactAvatarBusy=true;
+ if(saveBtn)saveBtn.disabled=true;
+ if(feedback)feedback.textContent="Redimensionando foto…";
+ try{
+  contactAvatarDraft=await compressContactAvatar(file);
+  contactAvatarChanged=true;
+  paintContactAvatarPreview();
+ }catch(e){alert("Foto não adicionada: "+e.message);paintContactAvatarPreview()}
+ finally{contactAvatarBusy=false;if(saveBtn)saveBtn.disabled=false;event.target.value=""}
+}
+function openContactAvatarZoom(src,name){
+ if(!validContactAvatar(src))return;
+ const viewer=$("contactAvatarViewer"),image=$("contactAvatarZoom");
+ $("contactAvatarViewerTitle").textContent=name||"Foto de perfil";
+ image.src=src;image.alt="Foto ampliada de "+(name||"cadastro");
+ viewer.showModal();
+}
+function zoomStoredContactAvatar(id){
+ const item=contactsCache.find(c=>c.id===id);
+ if(!item)return;
+ openContactAvatarZoom(item.avatar_data,item.nome);
+}
+function contactAvatarCardMarkup(item){
+ const avatar=validContactAvatar(item.avatar_data);
+ const baseClass="contact-avatar"+(item.tipo==="Empresa"?" enterprise":"")+(avatar?" has-photo":"");
+ if(avatar){
+  return '<div class="'+baseClass+'"><button type="button" class="contact-avatar-photo" data-contact-avatar="'+esc(item.id)+'" aria-label="Ampliar foto de '+esc(item.nome)+'" title="Ampliar foto"><img src="'+esc(item.avatar_data)+'" alt="Foto de '+esc(item.nome)+'" loading="lazy"></button></div>';
+ }
+ return '<div class="'+baseClass+'" aria-hidden="true">'+esc(initialContactAvatar(item.nome,item.tipo))+'</div>';
+}
+
 function contactsPage(){
  return '<section class="contacts-intro"><div><span class="section-overline">AGENDA GERAL · TODAS AS OBRAS</span><h3>Pessoas e empresas</h3><p>Cadastre prestadores, fornecedores e outros contatos uma única vez e encontre-os rapidamente quando precisar.</p></div><div class="contact-head-actions"><button type="button" class="btn alt" id="contactsRefresh">↻ Atualizar</button><button type="button" class="btn" id="contactAdd">+ Novo cadastro</button></div></section>'+
  '<section class="contacts-summary" id="contactsMetrics"><div><span>Pessoas</span><strong>—</strong></div><div><span>Empresas</span><strong>—</strong></div><div><span>Total cadastrado</span><strong>—</strong></div></section>'+
@@ -1371,8 +1457,7 @@ function paintContacts(){
  (!term||[x.nome,x.especialidade,x.categoria,x.telefone,x.whatsapp,x.email,x.localizacao,x.responsavel].some(v=>String(v||"").toLocaleLowerCase("pt-BR").includes(term))));
  if(!rows.length){area.innerHTML='<div class="contact-empty"><span aria-hidden="true">⌕</span><h4>'+(!contactsCache.length?"Nenhum cadastro ainda":"Nenhum resultado encontrado")+'</h4><p>'+(!contactsCache.length?"Comece cadastrando uma pessoa ou empresa.":"Experimente outra pesquisa ou categoria.")+'</p></div>';return}
  area.innerHTML=rows.map(c=>{
-  const initial=(c.nome||"?").trim().slice(0,1).toLocaleUpperCase("pt-BR");
-  return '<article class="contact-card"><div class="contact-card-top"><div class="contact-avatar '+(c.tipo==="Empresa"?"enterprise":"")+'">'+(c.tipo==="Empresa"?"▣":esc(initial))+'</div><div class="contact-main"><h4>'+esc(c.nome)+'</h4><span>'+esc(c.tipo)+' · '+esc(c.categoria)+'</span></div></div>'+
+  return '<article class="contact-card"><div class="contact-card-top">'+contactAvatarCardMarkup(c)+'<div class="contact-main"><h4>'+esc(c.nome)+'</h4><span>'+esc(c.tipo)+' · '+esc(c.categoria)+'</span></div></div>'+
   (c.especialidade?'<p class="contact-specialty">'+esc(c.especialidade)+'</p>':'')+
   '<div class="contact-details">'+(c.telefone?'<p><span>Telefone</span>'+formatContactLink(c.telefone,"telefone")+'</p>':'')+
   (c.whatsapp?'<p><span>Mensagem</span>'+formatContactLink(c.whatsapp,"whatsapp")+'</p>':'')+
@@ -1383,6 +1468,7 @@ function paintContacts(){
   (c.observacoes?'<p class="contact-notes">'+esc(c.observacoes)+'</p>':'')+
   '</div><details class="contact-payment-section"><summary>Dados de pagamento · '+(contactPaymentNames(c).join(" / ")||"Não cadastrados")+'</summary><div class="contact-payment-body">'+contactPaymentDetails(c)+'</div></details><div class="contact-card-actions"><button type="button" class="btn alt" data-contact-edit="'+esc(c.id)+'">Editar</button>'+(isPresident()?'<button type="button" class="contact-delete" data-contact-delete="'+esc(c.id)+'">Excluir</button>':'')+'</div></article>'
  }).join("");
+ area.querySelectorAll("[data-contact-avatar]").forEach(b=>b.onclick=()=>zoomStoredContactAvatar(b.dataset.contactAvatar));
  area.querySelectorAll("[data-contact-edit]").forEach(b=>b.onclick=()=>openContactForm(b.dataset.contactEdit));
  area.querySelectorAll("[data-contact-delete]").forEach(b=>b.onclick=()=>deleteContact(b.dataset.contactDelete));
  bindContactPaymentCopyActions(area);
@@ -1417,6 +1503,7 @@ function contactTypeChanged(){
 function openContactForm(id=null){
  materialSupplierRegistering=false;
  contactEditId=id;const item=id?contactsCache.find(x=>x.id===id):null;
+ contactAvatarDraft=validContactAvatar(item?.avatar_data)?item.avatar_data:"";contactAvatarChanged=false;contactAvatarBusy=false;
  const form=$("contactForm");form.reset();
  for(const [key,value] of Object.entries(item||{})){
   if(key==="payment_methods")continue;
@@ -1428,7 +1515,7 @@ function openContactForm(id=null){
  $("contactType").value=item?.tipo||"Pessoa";
  $("contactModalTitle").textContent=item?"Editar cadastro":"+ Novo cadastro";
  $("contactSave").textContent=item?"Salvar alterações":"Cadastrar";
- contactTypeChanged();$("contactModal").showModal();
+ contactTypeChanged();paintContactAvatarPreview();$("contactModal").showModal();
  setTimeout(()=>form.elements.nome.focus(),70);
 }
 async function saveContact(e){
@@ -1436,6 +1523,7 @@ async function saveContact(e){
  if(!cloudReady||!cloudUser)return alert("Entre no aplicativo para salvar o cadastro.");if(!navigator.onLine||offlineSession)return alert("Cadastros globais precisam de internet para salvar. Você ainda pode consultar os contatos já carregados.");
  const form=e.target,fd=new FormData(form),type=String(fd.get("tipo")),name=String(fd.get("nome")||"").trim();
  if(!name||name.length<2)return alert("Informe um nome com pelo menos duas letras.");
+ if(contactAvatarBusy)return alert("Aguarde a preparação da foto antes de salvar.");
  const contact={tipo:type,nome:name,categoria:String(fd.get("categoria")||"Outros"),especialidade:String(fd.get("especialidade")||"").trim(),
   telefone:String(fd.get("telefone")||"").trim(),whatsapp:String(fd.get("whatsapp")||"").trim(),email:String(fd.get("email")||"").trim(),
   localizacao:String(fd.get("localizacao")||"").trim(),documento:type==="Empresa"?String(fd.get("documento")||"").trim():"",
@@ -1448,6 +1536,7 @@ async function saveContact(e){
   bank_account_type:fd.getAll("payment_methods").includes("deposito")?String(fd.get("bank_account_type")||"").trim():"",
   bank_holder:fd.getAll("payment_methods").includes("deposito")?String(fd.get("bank_holder")||"").trim():"",
   bank_holder_document:fd.getAll("payment_methods").includes("deposito")?String(fd.get("bank_holder_document")||"").trim():""};
+ if(contactAvatarChanged)contact.avatar_data=contactAvatarDraft||"";
  const btn=$("contactSave");btn.disabled=true;btn.textContent="Salvando…";
  try{
   let response;
@@ -1485,7 +1574,7 @@ function bindContactsPage(){
  paintContacts();
 }
 
-const activityTitles={login:"Entrou no aplicativo",criou_obra:"Criou uma obra",alterou_obra:"Alterou a obra",excluiu_obra:"Excluiu uma obra",adicionou:"Adicionou registro",alterou:"Modificou registro",excluiu:"Excluiu registro",aprovou_membro:"ADM liberou um cadastrado",promoveu_adm:"ADM concedeu acesso de administrador",abriu_eleicao:"Abriu eleição para Presidente",votou_presidente:"ADM registrou voto",eleito_presidente:"Presidente eleito",cancelou_eleicao:"Cancelou eleição",alterou_papel:"Alterou nível de acesso",removeu_usuario:"Presidente excluiu usuário",alterou_perfil:"Atualizou nome",alterou_pagamento_contato:"Atualizou formas de pagamento do contato",cadastrou_contato:"Cadastrou contato",alterou_contato:"Atualizou cadastro",excluiu_contato:"Excluiu contato"};
+const activityTitles={login:"Entrou no aplicativo",criou_obra:"Criou uma obra",alterou_obra:"Alterou a obra",excluiu_obra:"Excluiu uma obra",adicionou:"Adicionou registro",alterou:"Modificou registro",excluiu:"Excluiu registro",aprovou_membro:"ADM liberou um cadastrado",promoveu_adm:"ADM concedeu acesso de administrador",abriu_eleicao:"Abriu eleição para Presidente",votou_presidente:"ADM registrou voto",eleito_presidente:"Presidente eleito",cancelou_eleicao:"Cancelou eleição",alterou_papel:"Alterou nível de acesso",removeu_usuario:"Presidente excluiu usuário",alterou_perfil:"Atualizou nome",alterou_pagamento_contato:"Atualizou formas de pagamento do contato",adicionou_foto_contato:"Adicionou foto de perfil",alterou_foto_contato:"Substituiu foto de perfil",removeu_foto_contato:"Removeu foto de perfil",cadastrou_contato:"Cadastrou contato",alterou_contato:"Atualizou cadastro",excluiu_contato:"Excluiu contato"};
 const sectionTitles={etapas:"Etapas",materiais:"Materiais",equipe:"Equipe da obra",financeiro:"Financeiro",diario:"Diário",fotos:"Fotos",obra:"Obra",acesso:"Acesso",equipe_acesso:"Equipe",cadastros:"Pessoas e empresas"};
 function activityHtml(a){
  const title=activityTitles[a.kind]||"Atualizou registro",person=a.actor_name||a.actor_email||"Sistema";
@@ -2384,5 +2473,16 @@ $("closeViewer").onclick=closePhoto;$("photoViewer").onclick=e=>{if(e.target===$
  if(editing.id)db[editing.type]=db[editing.type].map(x=>x.id===editing.id?value:x);
  else db[editing.type].push(value);
  save();$("modal").close();render();
-};$("contactModal").addEventListener("close",()=>{materialSupplierRegistering=false});$("contactForm").onsubmit=saveContact;$("contactType").onchange=contactTypeChanged;$("contactForm").querySelectorAll('input[name="payment_methods"]').forEach(input=>input.onchange=toggleContactPaymentFields);$("contactCancel").onclick=()=> $("contactModal").close();$("contactClose").onclick=()=> $("contactModal").close();$("editProjectForm").onsubmit=saveEditedProject;$("cancelEditProject").onclick=cancelEditProject;$("closeEditProject").onclick=cancelEditProject;$("editProjectModal").addEventListener("close",()=>{editingProjectId=null});$("stockCheckForm").onsubmit=saveStockCheck;$("stockCheckClose").onclick=()=> $("stockCheckModal").close();$("stockCheckCancel").onclick=()=> $("stockCheckModal").close();$("newProjectForm").onsubmit=createNewProject;$("cancelProject").onclick=()=>$("newProjectModal").close();persistLocal();render();initOfflineSupport();initCloud();
+};$("contactModal").addEventListener("close",()=>{materialSupplierRegistering=false;contactAvatarDraft="";contactAvatarChanged=false});
+$("contactAvatarFile").onchange=chooseContactAvatar;
+$("contactAvatarPreview").onclick=()=>openContactAvatarZoom(contactAvatarDraft,$("contactForm").elements.nome.value||"Foto de perfil");
+$("contactAvatarRemove").onclick=()=>{
+ if(!isPresident()||!validContactAvatar(contactAvatarDraft))return;
+ if(!confirm("Remover a foto de perfil deste cadastro? A exclusão será registrada no Histórico ao salvar."))return;
+ contactAvatarDraft="";contactAvatarChanged=true;paintContactAvatarPreview();
+};
+$("contactForm").elements.nome.addEventListener("input",()=>{if(!validContactAvatar(contactAvatarDraft))paintContactAvatarPreview()});
+$("contactAvatarViewerClose").onclick=()=> $("contactAvatarViewer").close();
+$("contactAvatarViewer").onclick=event=>{if(event.target===$("contactAvatarViewer"))$("contactAvatarViewer").close()};
+$("contactForm").onsubmit=saveContact;$("contactType").onchange=()=>{contactTypeChanged();paintContactAvatarPreview()};$("contactForm").querySelectorAll('input[name="payment_methods"]').forEach(input=>input.onchange=toggleContactPaymentFields);$("contactCancel").onclick=()=> $("contactModal").close();$("contactClose").onclick=()=> $("contactModal").close();$("editProjectForm").onsubmit=saveEditedProject;$("cancelEditProject").onclick=cancelEditProject;$("closeEditProject").onclick=cancelEditProject;$("editProjectModal").addEventListener("close",()=>{editingProjectId=null});$("stockCheckForm").onsubmit=saveStockCheck;$("stockCheckClose").onclick=()=> $("stockCheckModal").close();$("stockCheckCancel").onclick=()=> $("stockCheckModal").close();$("newProjectForm").onsubmit=createNewProject;$("cancelProject").onclick=()=>$("newProjectModal").close();persistLocal();render();initOfflineSupport();initCloud();
 </script></body></html>
