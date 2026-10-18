@@ -1885,12 +1885,12 @@ function materialPayment(item){
  const totalCents=Math.round(quantity*unitPrice*100);
  const paidCents=Math.round(paidValue*100);
  const dueCents=Math.max(0,totalCents-paidCents);
- const status=totalCents>0&&paidCents>=totalCents?"PAGO":paidCents>0?"PARCIAL":"PENDENTE";
+ const status=totalCents>0&&paidCents===totalCents?"PAGO":paidCents>totalCents?"REVISAR":paidCents>0?"PARCIAL":"PENDENTE";
  return {total:totalCents/100,paid:paidCents/100,due:dueCents/100,status,hasTotal:totalCents>0,overpaid:paidCents>totalCents};
 }
 function materialPaymentBadge(item){
  const payment=materialPayment(item),kind=payment.status==="PAGO"?"paid":payment.status==="PARCIAL"?"partial":"pending";
- const subtitle=payment.due>0?'<small class="material-payment-due">Faltam '+money(payment.due)+'</small>':
+ const subtitle=payment.overpaid?'<small class="material-payment-due">Pago acima do total</small>':payment.due>0?'<small class="material-payment-due">Faltam '+money(payment.due)+'</small>':
  !payment.hasTotal?'<small class="material-payment-due">Informar quantidade/preço</small>':'';
  return '<span class="material-payment-badge payment-'+kind+'">'+payment.status+'</span>'+subtitle;
 }
