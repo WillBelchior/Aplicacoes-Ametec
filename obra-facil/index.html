@@ -1717,6 +1717,115 @@ let storageUsage=null,storageUsageAt=0,photoUploadBusy=false;
 const photoSignedCache=new Map(),photoSignedLoading=new Map();
 const PHOTO_FALLBACK="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360"><rect width="600" height="360" fill="#edf3f7"/><text x="300" y="180" text-anchor="middle" font-family="Arial" font-size="22" fill="#68859a">Carregando foto…</text></svg>');
 function storageSize(bytes){return (Number(bytes||0)/1000000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" MB"}
+
+/* Fotografia privada: apenas o caminho é gravado no projeto; URL temporária na tela. */
+function photoDisplaySrc(photo){
+ return photo?.storagePath?(photoSignedCache.get(photo.storagePath)?.url||PHOTO_FALLBACK):(photo?.src||PHOTO_FALLBACK);
+}
+function photoImageAttributes(photo){
+ return 'src="'+esc(photoDisplaySrc(photo))+'"'+(photo?.storagePath?' data-storage-photo="'+esc(photo.storagePath)+'"':'');
+}
+async function signedPhotoUrl(path){
+ if(!path)return "";
+ const cached=photoSignedCache.get(path);
+ if(cached&&cached.expires>Date.now())return cached.url;
+ if(photoSignedLoading.has(path))return photoSignedLoading.get(path);
+ if(!cloudClient||!cloudUser||!navigator.onLine)throw new Error("Foto indisponível sem conexão.");
+ const work=cloudClient.storage.from(PHOTO_BUCKET).createSignedUrl(path,3600).then(({data,error})=>{
+  if(error)throw error;
+  if(!data?.signedUrl)throw new Error("Não foi possível abrir a fotografia");
+  photoSignedCache.set(path,{url:data.signedUrl,expires:Date.now()+3450000});
+  return data.signedUrl;
+ }).finally(()=>photoSignedLoading.delete(path));
+ photoSignedLoading.set(path,work);
+ return work;
+}
+function hydratePhotoImages(){
+ document.querySelectorAll("img[data-storage-photo]").forEach(img=>{
+  const path=img.getAttribute("data-storage-photo");
+  if(!path)return;
+  signedPhotoUrl(path).then(url=>{
+   if(img.isConnected&&img.getAttribute("data-storage-photo")===path)img.src=url;
+  }).catch(()=>{if(img.isConnected)img.title="Foto indisponível. Verifique a conexão."});
+ });
+}
+function compressPhotoFile(file,width=1600,quality=.76){
+ return new Promise((resolve,reject)=>{
+  if(!file?.type?.startsWith("image/"))return reject(new Error("Escolha um arquivo de imagem válido."));
+  if(file.size>30000000)return reject(new Error("Imagem acima de 30 MB. Reduza a fotografia antes de enviar."));
+  const uri=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{
+   try{
+    const factor=Math.min(1,width/Math.max(img.width,img.height));
+    const canvas=document.createElement("canvas");
+    canvas.width=Math.max(1,Math.round(img.width*factor));
+    canvas.height=Math.max(1,Math.round(img.height*factor));
+    const ctx=canvas.getContext("2d");
+    if(!ctx)throw new Error("Não foi possível compactar a imagem.");
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    canvas.toBlob(blob=>{
+     URL.revokeObjectURL(uri);
+     if(!blob)return reject(new Error("Erro ao compactar a imagem."));
+     resolve(blob);
+    },"image/jpeg",quality);
+   }catch(e){URL.revokeObjectURL(uri);reject(e)}
+  };
+  img.onerror=()=>{URL.revokeObjectURL(uri);reject(new Error("Imagem não pôde ser aberta."))};
+  img.src=uri;
+ });
+}
+async function uploadProjectPhoto(file,projectId,caption,stage){
+ if(!cloudUser||!cloudClient||!accessReady)throw new Error("Faça login para cadastrar a foto.");
+ if(!navigator.onLine||offlineSession)throw new Error("O envio de fotos exige internet.");
+ const project=projects.find(p=>p.id===projectId);
+ if(!project)throw new Error("Obra não encontrada.");
+ const blob=await compressPhotoFile(file);
+ if(blob.size>5242880)throw new Error("Foto acima de 5 MB após compactação.");
+ const usage=await refreshStorageUsage(true);
+ if(!usage)throw new Error("Sem medição do espaço da nuvem. Não foi possível autorizar o envio.");
+ if(Number(usage.storage_used_bytes)+blob.size>PHOTO_APP_LIMIT)throw new Error("Limite reservado de 500 MB atingido.");
+ const path=projectId+"/"+crypto.randomUUID()+".jpg";
+ const {error}=await cloudClient.storage.from(PHOTO_BUCKET).upload(path,blob,{contentType:"image/jpeg",cacheControl:"3600",upsert:false});
+ if(error)throw new Error("Envio recusado: "+error.message);
+ storageUsageAt=0;
+ return {id:crypto.randomUUID(),caption:String(caption||file.name.replace(/\.[^.]+$/,"")||"Foto").slice(0,160),
+  stage:String(stage||""),storagePath:path,bytes:blob.size,date:new Date().toISOString().slice(0,10)};
+}
+async function uploadGalleryPhotos(event){
+ event.preventDefault();
+ if(photoUploadBusy)return;
+ const form=event.target,files=Array.from(form.elements.namedItem("files")?.files||[]);
+ if(!files.length)return alert("Selecione uma ou mais fotografias.");
+ if(files.length>15)return alert("Escolha até 15 fotografias por envio.");
+ const project=currentProject();if(!project)return;
+ const id=project.id,button=form.querySelector('button[type="submit"]');
+ const status=$("photoUploadStatus");photoUploadBusy=true;
+ if(button)button.disabled=true;
+ let completed=0;const errors=[];
+ try{
+  for(const [index,file] of files.entries()){
+   if(status)status.textContent="Enviando imagem "+(index+1)+" de "+files.length+"…";
+   try{
+    const caption=files.length===1?form.elements.namedItem("caption")?.value:file.name.replace(/\.[^.]+$/,"");
+    const photo=await uploadProjectPhoto(file,id,caption,form.elements.namedItem("stage")?.value);
+    project.payload.fotos.unshift(photo);completed++;
+   }catch(error){errors.push(file.name+": "+error.message)}
+  }
+  if(completed){
+   const previous=activeProjectId,previousDb=db;
+   activeProjectId=id;db=project.payload;save();
+   activeProjectId=previous;db=previousDb;persistLocal();
+   form.reset();render();refreshStorageUsage(true);
+  }
+  if(errors.length)alert(completed+" foto(s) adicionada(s). "+errors.length+" falha(s):\n"+errors.slice(0,5).join("\n"));
+  else if(completed)cloudStatus(completed+" foto(s) adicionada(s) à obra ✓");
+ }finally{
+  photoUploadBusy=false;if(button)button.disabled=false;
+  if(status)status.textContent="";
+ }
+}
+
 function storageUsageCard(){
  const u=storageUsage,used=Number(u?.storage_used_bytes||0),available=Math.max(0,PHOTO_APP_LIMIT-used);
  const percent=Math.min(100,Math.round(used/PHOTO_APP_LIMIT*100));
