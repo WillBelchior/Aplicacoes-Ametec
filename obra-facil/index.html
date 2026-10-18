@@ -2012,7 +2012,7 @@ function boardPhoto(card){return (db.fotos||[]).find(f=>f.id===card.photoId)}
 function boardCardHtml(card,index){
  const pic=card.type==="photo"?boardPhoto(card):null;
  const safeId=esc(card.id),w=boardWidths.includes(Number(card.width))?Number(card.width):6,h=boardHeights.includes(Number(card.height))?Number(card.height):290;
- const content=card.type==="photo"?(pic?'<button type="button" class="board-image-open" data-board-preview="'+esc(pic.id)+'" aria-label="Ampliar fotografia"><img src="'+esc(pic.src)+'" alt="'+esc(card.title||pic.caption||"Foto do projeto")+'" loading="lazy"></button>':'<p class="board-missing-photo">Imagem não encontrada na galeria. Adicione outra fotografia.</p>'):
+ const content=card.type==="photo"?(pic?'<button type="button" class="board-image-open" data-board-preview="'+esc(pic.id)+'" aria-label="Ampliar fotografia"><img '+photoImageAttributes(pic)+' alt="'+esc(card.title||pic.caption||"Foto do projeto")+'" loading="lazy"></button>':'<p class="board-missing-photo">Imagem não encontrada na galeria. Adicione outra fotografia.</p>'):
  '<textarea class="board-text" rows="5" data-board-field="body" aria-label="Conteúdo do cartão" placeholder="Escreva aqui ideias, medidas e observações...">'+esc(card.body||"")+'</textarea>';
  return '<article class="board-card" data-board-id="'+safeId+'" data-width="'+w+'" style="--board-height:'+h+'px">'+
  '<div class="board-card-toolbar"><button type="button" class="board-grip" aria-label="Arraste para mover este cartão" title="Segure e arraste para reorganizar">⠿</button>'+
@@ -2042,23 +2042,15 @@ function boardAddText(){
  cardEl?.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 async function boardUpload(file){
- if(!file||!file.type.startsWith("image/"))return alert("Escolha um arquivo de imagem.");
- if(file.size>18000000)return alert("Imagem muito grande. Escolha uma foto com até 18 MB.");
- const url=URL.createObjectURL(file),img=new Image();
+ if(!file)return alert("Escolha um arquivo de imagem.");
+ const p=currentProject();if(!p)return;
  try{
-  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("A imagem não pôde ser aberta."));img.src=url});
-  const ratio=Math.min(1,1400/Math.max(img.width,img.height)),canvas=document.createElement("canvas");
-  canvas.width=Math.max(1,Math.round(img.width*ratio));canvas.height=Math.max(1,Math.round(img.height*ratio));
-  const ctx=canvas.getContext("2d");if(!ctx)throw new Error("Falha ao processar imagem.");
-  ctx.drawImage(img,0,0,canvas.width,canvas.height);
-  const encoded=canvas.toDataURL("image/jpeg",.72);
-  if(encoded.length>1800000)throw new Error("A foto excedeu o tamanho recomendado. Tente uma foto menor.");
-  const photo={id:crypto.randomUUID(),caption:file.name.replace(/\.[^.]+$/,"").slice(0,100)||"Foto do projeto",stage:"Quadro do projeto",src:encoded,date:new Date().toISOString().slice(0,10)};
+  const photo=await uploadProjectPhoto(file,p.id,file.name.replace(/\.[^.]+$/,"").slice(0,100),"Quadro do projeto");
   db.fotos.unshift(photo);
   boardCards().push({id:crypto.randomUUID(),type:"photo",title:photo.caption,photoId:photo.id,width:6,height:290});
-  boardCommit();render();
- }catch(e){alert("Não foi possível inserir a imagem: "+e.message)}
- finally{URL.revokeObjectURL(url);const input=$("boardUpload");if(input)input.value=""}
+  boardCommit();render();refreshStorageUsage(true);
+ }catch(e){alert("Não foi possível adicionar a foto: "+e.message)}
+ finally{const input=$("boardUpload");if(input)input.value=""}
 }
 function boardGalleryPicker(){
  const photos=db.fotos||[];
@@ -2070,7 +2062,7 @@ function boardGalleryPicker(){
   boardCards().push({id:crypto.randomUUID(),type:"photo",title:photo.caption||"Fotografia",photoId:photo.id,width:6,height:290});
   boardCommit();dialog.close();render();
  });
- dialog.showModal();
+ dialog.showModal();hydratePhotoImages();
 }
 function boardOrderFromDom(){
  const grid=$("projectBoard");if(!grid)return;
