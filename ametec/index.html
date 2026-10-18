@@ -2608,6 +2608,39 @@ async function equipmentStatusChange(id,statusValue){
  if(error)return toast(error.message,true);
  await load();toast('Classificação atualizada.');
 }
+
+async function equipmentGalleryRows(id){const {data,error}=await supabase.from('ametec_equipamento_fotos').select('*').eq('equipamento_id',id).order('ordem');if(error)throw error;return data||[]}
+async function equipmentCompress(file){
+ if(!file.type.startsWith('image/'))throw Error('Imagem inválida');
+ const img=await createImageBitmap(file),c=document.createElement('canvas');c.width=c.height=256;
+ const n=Math.min(img.width,img.height);c.getContext('2d').drawImage(img,(img.width-n)/2,(img.height-n)/2,n,n,0,0,256,256);img.close();
+ for(const quality of [.55,.4,.3,.2]){const blob=await new Promise(ok=>c.toBlob(ok,'image/webp',quality));if(blob?.size<=102400)return blob}
+ throw Error('Não foi possível reduzir a foto.');
+}
+async function openEquipmentGallery(id){
+ try{
+ const rows=await equipmentGalleryRows(id),eq=data.equipamentos.find(e=>String(e.id)===String(id)),form=document.querySelector('#modalForm');
+ document.querySelector('#modalTitle').textContent='Fotos • '+eq.nome;
+ const signed=await Promise.all(rows.map(async x=>(await supabase.storage.from('ametec-perfis').createSignedUrl(x.foto_path,1200)).data?.signedUrl||''));
+ form.innerHTML='<div class="eq-gallery"><small>Até cinco fotos extras quadradas por equipamento • WebP 256 × 256 px</small><div class="eq-gallery-grid">'+rows.map((x,i)=>'<div><img src="'+esc(signed[i])+'"><button type="button" class="btn secondary" data-rm-photo="'+x.id+'">Remover</button></div>').join('')+'</div><label class="field"><span>Selecionar fotos</span><input type="file" id="galleryFiles" multiple accept="image/*"></label><button class="btn primary">Adicionar fotos</button></div>';
+ form.querySelectorAll('[data-rm-photo]').forEach(btn=>btn.onclick=async()=>{
+  if(!confirm('Remover esta foto?'))return;const row=rows.find(x=>String(x.id)===btn.dataset.rmPhoto);
+  const {error}=await supabase.from('ametec_equipamento_fotos').delete().eq('id',row.id);if(error)return toast(error.message,true);
+  const rm=await supabase.storage.from('ametec-perfis').remove([row.foto_path]);if(rm.error)toast(rm.error.message,true);
+  await openEquipmentGallery(id);
+ });
+ form.onsubmit=async e=>{e.preventDefault();const files=[...form.querySelector('#galleryFiles').files];if(!files.length)return;
+  if(files.length+rows.length>5)return toast('Máximo de 5 fotos extras.',true);
+  try{for(let i=0;i<files.length;i++){
+   const blob=await equipmentCompress(files[i]),path=session.user.id+'/equipamento/'+id+'/extra-'+Date.now()+'-'+i+'.webp';
+   const upload=await supabase.storage.from('ametec-perfis').upload(path,blob,{contentType:'image/webp'});if(upload.error)throw upload.error;
+   const save=await supabase.from('ametec_equipamento_fotos').insert({equipamento_id:id,foto_path:path,ordem:rows.length+i});if(save.error){await supabase.storage.from('ametec-perfis').remove([path]);throw save.error}
+  }await openEquipmentGallery(id);toast('Fotos salvas.')}catch(err){toast(err.message,true)}
+ };
+ document.querySelector('#modal').classList.add('open');
+ }catch(err){toast(err.message||String(err),true)}
+}
+window.openEquipmentGallery=openEquipmentGallery;
 function equipamentos(){
  document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">ATIVOS TÉCNICOS</div><h2>Equipamentos dos clientes</h2><p>Histórico de máquinas, quadros e sistemas atendidos.</p></div><button class="btn primary" id="add">+ Equipamento</button></div></section><section class="panel"><div class="cards">${data.equipamentos.map(x=>{
  const c=data.clientes.find(a=>a.id===x.cliente_id);
@@ -2617,10 +2650,12 @@ function equipamentos(){
    <div class="equipment-head-controls"><label class="equipment-due"><span>Próxima manutenção</span><input aria-label="Próxima manutenção de ${esc(x.nome)}" type="date" value="${esc(x.proxima_manutencao||'')}" data-eq-due="${x.id}"></label><label class="equipment-status-label"><span>Estado</span><select aria-label="Estado do equipamento ${esc(x.nome)}" data-eq-status="${x.id}">${equipmentStates.map(v=>`<option value="${v}" ${v===x.status?'selected':''}>${v}</option>`).join('')}</select></label></div>
   </div>
   <div class="entity-body"><div class="entity-grid"><div><span>Setor</span><b>${esc(x.setor||'—')}</b></div><div><span>Série</span><b>${esc(x.numero_serie||'—')}</b></div><div><span>Status</span><b>${esc(x.status||'—')}</b></div></div>
-  <div class="equipment-actions"><small>${x.proxima_manutencao?'🔔 Manutenção: '+date(x.proxima_manutencao):'Sem manutenção agendada'} ${x.recorrencia_manutencao&&x.recorrencia_manutencao!=='Nenhuma'?'• '+esc(x.recorrencia_manutencao):''}</small><button type="button" class="btn secondary" data-eq-edit="${x.id}">Editar informações e foto</button>${x.proxima_manutencao?'<a class="btn secondary" target="_blank" rel="noopener noreferrer" href="'+esc(equipmentCalendarUrl(x))+'">↗ Google Agenda</a>':''}</div>
+  <div class="equipment-actions"><small>${x.proxima_manutencao?'🔔 Manutenção: '+date(x.proxima_manutencao):'Sem manutenção agendada'} ${x.recorrencia_manutencao&&x.recorrencia_manutencao!=='Nenhuma'?'• '+esc(x.recorrencia_manutencao):''}</small><button type="button" class="btn secondary" data-eq-edit="${x.id}">Editar informações e foto</button><button type="button" class="btn secondary" data-gallery-eq="${x.id}">📷 Galeria</button><button type="button" class="btn secondary" data-delete-eq="${x.id}">Excluir</button>${x.proxima_manutencao?'<a class="btn secondary" target="_blank" rel="noopener noreferrer" href="'+esc(equipmentCalendarUrl(x))+'">↗ Google Agenda</a>':''}</div>
   </div>
  </article>`}).join('')||'<div class="empty">Nenhum equipamento cadastrado.</div>'}</div></section>`;
  document.querySelector('#add').onclick=()=>equipmentForm();
+ document.querySelectorAll('[data-gallery-eq]').forEach(b=>b.onclick=()=>openEquipmentGallery(b.dataset.galleryEq));
+ document.querySelectorAll('[data-delete-eq]').forEach(b=>b.onclick=()=>deleteEquipment(b.dataset.deleteEq));
  document.querySelectorAll('[data-eq-edit]').forEach(b=>b.onclick=()=>equipmentForm(data.equipamentos.find(x=>String(x.id)===b.dataset.eqEdit)));
  document.querySelectorAll('[data-eq-status]').forEach(el=>el.onchange=()=>equipmentStatusChange(el.dataset.eqStatus,el.value));
  document.querySelectorAll('[data-eq-due]').forEach(el=>el.onchange=async()=>{
@@ -4026,5 +4061,5 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .equipment-head{align-items:center;gap:12px}.equipment-identity{display:flex;align-items:center;gap:10px;min-width:0;flex:1}.equipment-identity>div{min-width:0}.equipment-identity b,.equipment-identity small{overflow-wrap:anywhere}.equipment-head-controls{display:flex;flex-wrap:wrap;gap:9px;align-items:center;justify-content:flex-end}.equipment-due,.equipment-status-label{display:grid;gap:4px;min-width:135px}.equipment-due span,.equipment-status-label span{font-size:9px;color:#96b0bf;text-transform:uppercase}.equipment-due input,.equipment-status-label select{min-height:39px;max-width:100%;border:1px solid #275167;border-radius:9px;background:#092332;color:#ebfaff;padding:7px;font:inherit;font-size:12px;color-scheme:dark}.equipment-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.equipment-actions small{color:#91aabb;font-size:11px;margin-right:auto}.equipment-actions a.btn{text-decoration:none;display:inline-flex;align-items:center}.equipment-identity .photo-avatar{width:45px;height:45px;min-width:45px}
 @media(max-width:700px){.equipment-head{flex-direction:column;align-items:stretch}.equipment-head-controls{justify-content:stretch}.equipment-head-controls>label{flex:1 1 140px}.equipment-actions .btn{flex:1 1 130px;text-align:center;justify-content:center}.equipment-due input,.equipment-status-label select{min-height:44px;font-size:14px}}
 </style>
-</body>
+<style>.eq-gallery{grid-column:1/-1;display:grid;gap:12px}.eq-gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}.eq-gallery-grid>div{display:grid;gap:7px}.eq-gallery-grid img{aspect-ratio:1;width:100%;object-fit:cover;border-radius:10px}</style></body>
 </html>
