@@ -1797,6 +1797,7 @@ function compressPhotoFile(file,width=1600,quality=.76){
 async function uploadProjectPhoto(file,projectId,caption,stage){
  if(!cloudUser||!cloudClient||!accessReady)throw new Error("Faça login para cadastrar a foto.");
  if(!navigator.onLine||offlineSession)throw new Error("O envio de fotos exige internet.");
+ if(readPending()[projectId])throw new Error("Esta obra possui alterações pendentes. Abra a Central de pendências e sincronize antes de enviar novas fotos, para evitar arquivos sem vínculo com a obra.");
  const project=projects.find(p=>p.id===projectId);
  if(!project)throw new Error("Obra não encontrada.");
  const blob=await compressPhotoFile(file);
