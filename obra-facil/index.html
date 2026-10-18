@@ -531,7 +531,34 @@ body.auth-locked{overflow:hidden}body.auth-locked .app{display:none!important;vi
 .sync-feedback[data-state="warning"]{background:#fff8e9;border-color:#ead8aa;color:#815b21}
 .sync-feedback[data-state="error"]{background:#fff0ed;border-color:#eebfba;color:#903d39}
 @media(max-width:768px){.offline-sync-button{width:auto;order:initial;max-width:100%;font-size:13px!important}.sync-feedback{font-size:12px}}
-</style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><div id="gatePending" hidden><p>Seu cadastro foi recebido. Um <strong>ADM</strong> precisa autorizar seu acesso.</p><button class="btn alt" type="button" id="gateCheckAccess">Verificar autorização</button></div><div class="auth-links"><button type="button" id="gateSwitch">Criar uma conta</button><button type="button" id="gateReset">Esqueci minha senha</button><button type="button" id="gateResend">Reenviar confirmação</button></div><p class="auth-privacy">Em aparelhos confiáveis, a sessão continua ativa até você sair. Não marque essa opção em celulares ou computadores compartilhados.</p></div></section><div class="app" inert aria-hidden="true"><aside><div class="brand-modern"><span class="brand-symbol" aria-hidden="true">⚓</span><span class="brand-title"><span class="brand-prefix">Projetos</span><span>Barquinha</span></span></div><nav id="nav"></nav><div class="aside-bottom"><button class="sidebar-logout" type="button" id="sidebarLogout"><span aria-hidden="true">↪</span> Sair</button><div class="aside-caption">Projetos Barquinha · Controle de obras</div></div></aside><main><div class="topbar"><span>PROJETOS / <strong id="breadcrumbProject">OBRA 001</strong></span><span><span class="dot"></span> Ambiente de acompanhamento</span></div><header><div><div class="head-kicker">CENTRAL DE GERENCIAMENTO</div><h2 id="pageTitle"></h2><div class="muted" id="activeProjectDescription">Obra 001 · Acompanhamento</div></div><div class="header-project-actions"><details class="account-menu" id="accountMenu"><summary id="accountSummary" aria-label="Abrir opções da conta">♙ Minha conta</summary><div class="account-menu-panel" id="cloudControls"></div></details><button class="btn alt offline-sync-button" type="button" id="syncPendingBtn" aria-label="Sincronizar manualmente os dados com a nuvem">↻ Sincronizar</button><span class="pill" id="mode">Dados locais</span></div></header><div id="manualSyncFeedback" class="sync-feedback" role="status" aria-live="polite" hidden></div><div class="warn" id="technicalNotice"><b>Estudo preliminar:</b> fundações, base elevada, contenção, pilares e vigas exigem dimensionamento de profissional habilitado, levantamento do terreno e avaliação do solo. Este aplicativo não substitui projeto com ART.</div><span id="cloudStatus" class="account-sync-status" role="status" aria-live="polite"></span><div id="content"></div><footer><button type="button" class="mobile-footer-logout" id="footerLogout">↪ Sair da conta</button>Projetos Barquinha · Os dados das obras ficam separados e sincronizados quando houver conexão.</footer></main></div><div id="photoViewer" class="photo-viewer photo-overlay" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden><button id="closeViewer" class="viewer-close" type="button" aria-label="Fechar foto">✕</button><div class="viewer-content"><img id="viewerImage" alt="Foto da obra"><div id="viewerCaption"></div><p id="viewerError" hidden>Não foi possível carregar esta foto. Atualize a página e tente novamente.</p></div></div><dialog id="contactModal" class="contact-modal" aria-label="Cadastro de pessoa ou empresa"><div class="contact-modal-header"><div><span class="section-overline">AGENDA COMPARTILHADA</span><h3 id="contactModalTitle">Novo cadastro</h3></div><button class="contact-close" id="contactCancel" type="button" aria-label="Fechar cadastro">✕</button></div><form id="contactForm" class="contact-form"><div class="contact-form-row"><label>Tipo de cadastro<select name="tipo" id="contactType" required><option value="Pessoa">Pessoa</option><option value="Empresa">Empresa</option></select></label><label>Categoria<select name="categoria" required><option>Prestador de serviço</option><option>Fornecedor de materiais</option><option>Profissional técnico</option><option>Parceiro</option><option>Outros</option></select></label></div><label id="contactNameLabel">Nome da pessoa<input name="nome" maxlength="160" required autocomplete="name" placeholder="Nome completo"></label><label>Atividade ou especialidade<input name="especialidade" maxlength="160" placeholder="Ex.: Pedreiro, elétrica, loja de materiais"></label><div class="contact-form-row"><label>Telefone<input name="telefone" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label><label>WhatsApp<input name="whatsapp" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label></div><label>E-mail<input name="email" type="email" maxlength="150" placeholder="contato@exemplo.com"></label><label>Localização / endereço<input name="localizacao" maxlength="240" placeholder="Cidade, bairro ou endereço"></label><div id="contactCompanyFields" hidden><label>CNPJ (opcional)<input name="documento" maxlength="25" placeholder="00.000.000/0000-00"></label><label>Responsável / contato comercial<input name="responsavel" maxlength="130" placeholder="Pessoa de contato da empresa"></label></div><label>Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações úteis, serviços prestados, referências..."></textarea></label><div class="contact-modal-actions"><button type="button" class="btn alt" id="contactClose">Cancelar</button><button class="btn" type="submit" id="contactSave">Salvar cadastro</button></div></form></dialog><dialog id="boardGalleryModal" class="board-gallery-modal"><div class="board-gallery-head"><h3>Escolher foto da galeria</h3><button type="button" class="btn alt" id="boardGalleryClose">Fechar</button></div><div id="boardGalleryOptions" class="board-gallery-grid"></div></dialog><dialog id="editProjectModal" class="new-project-modal edit-project-modal" aria-labelledby="editProjectTitle"><div class="edit-project-heading"><div><span class="section-overline">DADOS DA OBRA</span><h3 id="editProjectTitle">Editar informações</h3><p class="muted">Atualize os detalhes sem alterar etapas, materiais, fotos ou lançamentos já cadastrados.</p></div><button type="button" id="closeEditProject" class="edit-project-close" aria-label="Fechar edição">✕</button></div><form id="editProjectForm" class="formgrid"><label class="full">Nome da obra <input name="nome" required maxlength="120" autocomplete="off" placeholder="Nome do projeto"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option><option>Concluída</option><option>Arquivada</option></select></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label class="full">Descrição e detalhes <textarea name="descricao" rows="3" maxlength="2000" placeholder="Objetivo, características ou observações"></textarea></label><label class="full">Localização <input name="localizacao" maxlength="240" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Data de início <input name="inicio" type="date"></label><label>Prazo previsto <input name="prazo" type="date"></label><p class="full edit-project-note"><strong>Seus registros serão mantidos.</strong> Esta edição altera apenas as informações gerais da obra. As modificações sincronizadas aparecem no Histórico.</p><div class="full modal-actions"><button type="button" class="btn alt" id="cancelEditProject">Cancelar</button><button type="submit" class="btn" id="saveEditProject">Salvar alterações</button></div></form></dialog><dialog id="newProjectModal" class="new-project-modal"><h3>+ Nova obra</h3><p class="muted">Preencha os dados iniciais. Cada obra terá registros independentes.</p><form id="newProjectForm" class="formgrid"><label>Nome da obra <input name="nome" required maxlength="120" placeholder="Ex.: Ampliação da casa"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option></select></label><label class="full">Descrição <textarea name="descricao" rows="2" placeholder="Objetivo e observações iniciais"></textarea></label><label class="full">Localização <input name="localizacao" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Prazo previsto <input name="prazo" type="date"></label><label class="full project-copy"><input name="copyStages" type="checkbox" value="yes"> Copiar a lista de etapas da obra atual, zerando o avanço</label><div class="full modal-actions"><button class="btn alt" type="button" id="cancelProject">Cancelar</button><button class="btn" type="submit" id="saveProjectBtn">Criar obra</button></div></form></dialog><dialog id="modal"><h3 id="modalTitle"></h3><form id="itemForm"><div id="fields" class="formgrid"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn alt" type="button" id="cancel">Cancelar</button><button class="btn" type="submit">Salvar</button></div></form></dialog><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
+
+/* Central de pendências: diagnóstico detalhado sem descartar registros locais */
+.pending-indicator{border:1px solid #d6e4ed;cursor:pointer;min-height:39px;padding:8px 12px;font-family:inherit}
+.pending-indicator:hover,.pending-indicator[aria-expanded="true"]{border-color:#8fb5cf;background:#e1eff7}
+.pending-indicator:focus-visible{outline:3px solid #75acce;outline-offset:3px}
+.pending-panel[hidden],.pending-comparison[hidden]{display:none!important}
+.pending-panel{border:1px solid #d6e4ef;background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 8px 24px #183b5110}
+.pending-panel-heading,.pending-record-top,.pending-panel-actions,.pending-record-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pending-panel-heading h3{font-size:21px;margin:5px 0;color:#1d465e}
+.pending-panel-heading p{font-size:13px;color:#738899;margin:5px 0 0;line-height:1.5}
+.pending-records{display:grid;gap:12px}
+.pending-record{border:1px solid #e0e9ef;background:#fafcfd;border-radius:12px;padding:16px;margin:14px 0}
+.pending-record h4{font-size:16px;margin:0 0 6px;color:#17415b;overflow-wrap:anywhere}
+.pending-record-top span{font-size:12px;color:#7790a1}
+.pending-record-top .pending-record-status{border-radius:15px;background:#fff0d7;color:#926323;padding:6px 10px;font-weight:700}
+.pending-error,.pending-help{font-size:13px;line-height:1.6;margin:12px 0;overflow-wrap:anywhere}
+.pending-error{color:#7c4f2a;background:#fff7e8;padding:11px 12px;border-radius:9px;border:1px solid #ebdfc7}
+.pending-error small{font-size:11px;color:#927961}
+.pending-help{color:#5f7a8b}
+.pending-record-actions{justify-content:flex-start}
+.pending-record-actions .btn,.pending-panel-actions .btn{min-height:42px}
+.pending-comparison{background:#eaf4f9;border:1px solid #c9dfe9;border-radius:9px;padding:12px;color:#315b70;font-size:13px;line-height:1.6;margin-top:13px;overflow-wrap:anywhere}
+.pending-comparison p{margin:7px 0 0}
+.pending-panel-actions{justify-content:flex-end;margin-top:14px;border-top:1px solid #e7edf2;padding-top:16px}
+.pending-empty{padding:20px 12px;color:#376754;font-size:14px}
+.pending-empty p{color:#70899a;line-height:1.5}
+@media(max-width:650px){.pending-panel{padding:14px}.pending-record{padding:13px}.pending-panel-actions{align-items:stretch;flex-direction:column}.pending-panel-actions .btn,.pending-record-actions .btn{width:100%}.pending-record-actions{flex-direction:column;align-items:stretch}}
+</style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><div id="gatePending" hidden><p>Seu cadastro foi recebido. Um <strong>ADM</strong> precisa autorizar seu acesso.</p><button class="btn alt" type="button" id="gateCheckAccess">Verificar autorização</button></div><div class="auth-links"><button type="button" id="gateSwitch">Criar uma conta</button><button type="button" id="gateReset">Esqueci minha senha</button><button type="button" id="gateResend">Reenviar confirmação</button></div><p class="auth-privacy">Em aparelhos confiáveis, a sessão continua ativa até você sair. Não marque essa opção em celulares ou computadores compartilhados.</p></div></section><div class="app" inert aria-hidden="true"><aside><div class="brand-modern"><span class="brand-symbol" aria-hidden="true">⚓</span><span class="brand-title"><span class="brand-prefix">Projetos</span><span>Barquinha</span></span></div><nav id="nav"></nav><div class="aside-bottom"><button class="sidebar-logout" type="button" id="sidebarLogout"><span aria-hidden="true">↪</span> Sair</button><div class="aside-caption">Projetos Barquinha · Controle de obras</div></div></aside><main><div class="topbar"><span>PROJETOS / <strong id="breadcrumbProject">OBRA 001</strong></span><span><span class="dot"></span> Ambiente de acompanhamento</span></div><header><div><div class="head-kicker">CENTRAL DE GERENCIAMENTO</div><h2 id="pageTitle"></h2><div class="muted" id="activeProjectDescription">Obra 001 · Acompanhamento</div></div><div class="header-project-actions"><details class="account-menu" id="accountMenu"><summary id="accountSummary" aria-label="Abrir opções da conta">♙ Minha conta</summary><div class="account-menu-panel" id="cloudControls"></div></details><button class="btn alt offline-sync-button" type="button" id="syncPendingBtn" aria-label="Sincronizar manualmente os dados com a nuvem">↻ Sincronizar</button><button type="button" class="pill pending-indicator" id="mode" aria-controls="pendingPanel" aria-expanded="false" title="Ver pendências e detalhes da sincronização">Dados locais</button></div></header><div id="manualSyncFeedback" class="sync-feedback" role="status" aria-live="polite" hidden></div><section class="pending-panel" id="pendingPanel" hidden aria-label="Central de pendências"><div class="pending-panel-heading"><div><span class="section-overline">SINCRONIZAÇÃO</span><h3>Central de pendências</h3><p>Veja quais obras têm alterações ainda salvas neste aparelho. Nunca apague uma pendência sem conferir o backup.</p></div><button type="button" id="pendingClose" class="btn alt">Fechar</button></div><div id="pendingRecords"></div><div class="pending-panel-actions"><button type="button" class="btn alt" id="pendingBackup">↓ Baixar backup de segurança</button><button type="button" class="btn" id="pendingRetry">↻ Tentar sincronizar</button></div></section><div class="warn" id="technicalNotice"><b>Estudo preliminar:</b> fundações, base elevada, contenção, pilares e vigas exigem dimensionamento de profissional habilitado, levantamento do terreno e avaliação do solo. Este aplicativo não substitui projeto com ART.</div><span id="cloudStatus" class="account-sync-status" role="status" aria-live="polite"></span><div id="content"></div><footer><button type="button" class="mobile-footer-logout" id="footerLogout">↪ Sair da conta</button>Projetos Barquinha · Os dados das obras ficam separados e sincronizados quando houver conexão.</footer></main></div><div id="photoViewer" class="photo-viewer photo-overlay" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden><button id="closeViewer" class="viewer-close" type="button" aria-label="Fechar foto">✕</button><div class="viewer-content"><img id="viewerImage" alt="Foto da obra"><div id="viewerCaption"></div><p id="viewerError" hidden>Não foi possível carregar esta foto. Atualize a página e tente novamente.</p></div></div><dialog id="contactModal" class="contact-modal" aria-label="Cadastro de pessoa ou empresa"><div class="contact-modal-header"><div><span class="section-overline">AGENDA COMPARTILHADA</span><h3 id="contactModalTitle">Novo cadastro</h3></div><button class="contact-close" id="contactCancel" type="button" aria-label="Fechar cadastro">✕</button></div><form id="contactForm" class="contact-form"><div class="contact-form-row"><label>Tipo de cadastro<select name="tipo" id="contactType" required><option value="Pessoa">Pessoa</option><option value="Empresa">Empresa</option></select></label><label>Categoria<select name="categoria" required><option>Prestador de serviço</option><option>Fornecedor de materiais</option><option>Profissional técnico</option><option>Parceiro</option><option>Outros</option></select></label></div><label id="contactNameLabel">Nome da pessoa<input name="nome" maxlength="160" required autocomplete="name" placeholder="Nome completo"></label><label>Atividade ou especialidade<input name="especialidade" maxlength="160" placeholder="Ex.: Pedreiro, elétrica, loja de materiais"></label><div class="contact-form-row"><label>Telefone<input name="telefone" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label><label>WhatsApp<input name="whatsapp" type="tel" maxlength="40" placeholder="(85) 99999-9999"></label></div><label>E-mail<input name="email" type="email" maxlength="150" placeholder="contato@exemplo.com"></label><label>Localização / endereço<input name="localizacao" maxlength="240" placeholder="Cidade, bairro ou endereço"></label><div id="contactCompanyFields" hidden><label>CNPJ (opcional)<input name="documento" maxlength="25" placeholder="00.000.000/0000-00"></label><label>Responsável / contato comercial<input name="responsavel" maxlength="130" placeholder="Pessoa de contato da empresa"></label></div><label>Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações úteis, serviços prestados, referências..."></textarea></label><div class="contact-modal-actions"><button type="button" class="btn alt" id="contactClose">Cancelar</button><button class="btn" type="submit" id="contactSave">Salvar cadastro</button></div></form></dialog><dialog id="boardGalleryModal" class="board-gallery-modal"><div class="board-gallery-head"><h3>Escolher foto da galeria</h3><button type="button" class="btn alt" id="boardGalleryClose">Fechar</button></div><div id="boardGalleryOptions" class="board-gallery-grid"></div></dialog><dialog id="editProjectModal" class="new-project-modal edit-project-modal" aria-labelledby="editProjectTitle"><div class="edit-project-heading"><div><span class="section-overline">DADOS DA OBRA</span><h3 id="editProjectTitle">Editar informações</h3><p class="muted">Atualize os detalhes sem alterar etapas, materiais, fotos ou lançamentos já cadastrados.</p></div><button type="button" id="closeEditProject" class="edit-project-close" aria-label="Fechar edição">✕</button></div><form id="editProjectForm" class="formgrid"><label class="full">Nome da obra <input name="nome" required maxlength="120" autocomplete="off" placeholder="Nome do projeto"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option><option>Concluída</option><option>Arquivada</option></select></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label class="full">Descrição e detalhes <textarea name="descricao" rows="3" maxlength="2000" placeholder="Objetivo, características ou observações"></textarea></label><label class="full">Localização <input name="localizacao" maxlength="240" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Data de início <input name="inicio" type="date"></label><label>Prazo previsto <input name="prazo" type="date"></label><p class="full edit-project-note"><strong>Seus registros serão mantidos.</strong> Esta edição altera apenas as informações gerais da obra. As modificações sincronizadas aparecem no Histórico.</p><div class="full modal-actions"><button type="button" class="btn alt" id="cancelEditProject">Cancelar</button><button type="submit" class="btn" id="saveEditProject">Salvar alterações</button></div></form></dialog><dialog id="newProjectModal" class="new-project-modal"><h3>+ Nova obra</h3><p class="muted">Preencha os dados iniciais. Cada obra terá registros independentes.</p><form id="newProjectForm" class="formgrid"><label>Nome da obra <input name="nome" required maxlength="120" placeholder="Ex.: Ampliação da casa"></label><label>Situação <select name="situacao"><option>Planejada</option><option>Em andamento</option></select></label><label class="full">Descrição <textarea name="descricao" rows="2" placeholder="Objetivo e observações iniciais"></textarea></label><label class="full">Localização <input name="localizacao" placeholder="Bairro, cidade ou endereço"></label><label>Comprimento (m) <input name="comprimento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Largura (m) <input name="largura" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Orçamento previsto (R$) <input name="orcamento" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Prazo previsto <input name="prazo" type="date"></label><label class="full project-copy"><input name="copyStages" type="checkbox" value="yes"> Copiar a lista de etapas da obra atual, zerando o avanço</label><div class="full modal-actions"><button class="btn alt" type="button" id="cancelProject">Cancelar</button><button class="btn" type="submit" id="saveProjectBtn">Criar obra</button></div></form></dialog><dialog id="modal"><h3 id="modalTitle"></h3><form id="itemForm"><div id="fields" class="formgrid"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px"><button class="btn alt" type="button" id="cancel">Cancelar</button><button class="btn" type="submit">Salvar</button></div></form></dialog><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
 const tabs=[["obras","⌂ Minhas obras"],["financeiroGeral","＄ Financeiro"],["cadastros","♙ Cadastros"],["historico","◷ Histórico"],["acessos","♙ Acessos"]];
 const projectSubtabs=[["painel","▦ Visão geral"],["etapas","▣ Etapas"],["materiais","▥ Materiais"],["projeto","✎ Diário"],["fotos","▧ Fotos"],["financeiro","＄ Financeiro"]];
 const definitions={etapas:[["nome","Etapa","text",true],["status","Situação","select",false,["Pendente","Em andamento","Concluído","Bloqueado"]],["progresso","Avanço (%)","number"],["prazo","Previsão","date"],["responsavel","Responsável","text"],["observacoes","Observações","textarea"]],materiais:[["nome","Material","text",true],["unidade","Unidade","select",false,["un","m","m²","m³","kg","saco","litro","serviço"]],["previsto","Qtd. prevista","number"],["comprado","Qtd. comprada","number"],["recebido","Qtd. recebida","number"],["consumido","Qtd. consumida","number"],["valor","Preço unitário (R$)","number"],["fornecedor","Fornecedor","text"],["observacoes","Observações","textarea"]],equipe:[["nome","Nome","text",true],["funcao","Função","select",false,["Pedreiro","Servente","Mestre de obras","Outro"]],["telefone","Telefone","tel"],["diaria","Diária (R$)","number"],["dias","Dias trabalhados","number"],["observacoes","Observações","textarea"]],financeiro:[["descricao","Descrição","text",true],["categoria","Categoria","select",false,["Material","Mão de obra","Serviço","Transporte","Outros"]],["valor","Valor (R$)","number",true],["data","Data","date"],["status","Situação","select",false,["Pago","Pendente"]],["observacoes","Observações","textarea"]],diario:[["data","Data","date",true],["etapa","Etapa","text"],["clima","Clima","select",false,["Ensolarado","Nublado","Chuva","Não informado"]],["atividades","Atividades realizadas","textarea",true],["ocorrencias","Ocorrências/pendências","textarea"]]};
@@ -574,7 +601,8 @@ function cloudEnqueue(p,userId){
    const {data:remote,error:err}=await cloudClient.from("barquinha_projects").select("updated_at").eq("id",p.id).maybeSingle();
    if(err)throw err;
    if((remote?.updated_at||null)!==(meta?.baseVersion??knownCloudVersions[p.id]??null)){
-    cloudStatus("Conflito detectado. Abra Sincronizar para revisar e exporte um backup.");
+    recordPendingFailure(p.id,meta,"Conflito de versões: outra pessoa pode ter atualizado esta obra na nuvem.","VERSION_CONFLICT");
+    cloudStatus("Conflito detectado. Abra Pendências para comparar as versões.");
     return;
    }
    const version=await upsertProject(snapshot,userId);
@@ -583,7 +611,7 @@ function cloudEnqueue(p,userId){
    if(pending[p.id]?.changeId===meta?.changeId){delete pending[p.id];storePending(pending)}else if(pending[p.id]){pending[p.id].baseVersion=version;storePending(pending)}
    cloudStatus("Obras sincronizadas ✓");updateOfflineBadge();
    if(accessReady)await loadActivity(false);
-  }catch(e){cloudStatus("Alterações guardadas no aparelho. Falha de sincronização: "+e.message);updateOfflineBadge()}
+  }catch(e){recordPendingFailure(p.id,meta,e.message,e.code);cloudStatus("Alterações guardadas no aparelho. Falha de sincronização: "+e.message);updateOfflineBadge()}
  });
  return cloudQueue;
 }
@@ -788,9 +816,95 @@ function storePending(pending){
 function flagPending(id){
  if(!cloudUser)return;
  const pending=readPending(),old=pending[id];
- pending[id]={baseVersion:old?.baseVersion??knownCloudVersions[id]??null,changeId:crypto.randomUUID(),savedAt:new Date().toISOString()};
+ pending[id]={baseVersion:old?.baseVersion??knownCloudVersions[id]??null,changeId:crypto.randomUUID(),savedAt:new Date().toISOString(),lastError:old?.lastError||"",lastErrorAt:old?.lastErrorAt||"",lastErrorCode:old?.lastErrorCode||""};
  storePending(pending);updateOfflineBadge();
 }
+
+function recordPendingFailure(id,meta,reason,code=""){
+ const records=readPending(),found=records[id];
+ if(!found||found.changeId!==meta?.changeId)return;
+ records[id]={...found,lastError:String(reason||"Falha desconhecida").slice(0,450),lastErrorCode:String(code||"").slice(0,60),lastErrorAt:new Date().toISOString()};
+ storePending(records);paintPendingPanel();
+}
+function pendingExplanation(error){
+ const msg=String(error||"");
+ if(/somente o presidente.*exclu|presidente pode excluir/i.test(msg))return "O servidor identificou uma exclusão. Somente o Presidente pode excluir registros. Preserve o backup e peça ao Presidente para revisar.";
+ if(/row.level security|permission denied|not authorized|não autorizado|jwt|session|token/i.test(msg))return "Há um problema de permissão ou autenticação. Confirme seu acesso e entre novamente caso a sessão tenha expirado.";
+ if(/storage|request entity too large|too large|payload|quota|size/i.test(msg))return "Verifique o tamanho dos arquivos, principalmente fotos. Faça um backup antes de tentar reduzir imagens.";
+ if(/fetch|network|timeout|failed to|connection|conexão/i.test(msg))return "A conexão pode ter falhado durante o envio. Verifique a internet e tente novamente.";
+ if(/conflito|versão (da|na) nuvem|modificad[oa] na nuvem/i.test(msg))return "Alguém pode ter alterado a mesma obra. Compare as versões e guarde um backup antes de decidir o que fazer.";
+ return "Guarde uma cópia de segurança e tente sincronizar novamente. Se persistir, copie os detalhes do erro para investigar.";
+}
+function paintPendingPanel(){
+ const panel=$("pendingPanel"),area=$("pendingRecords");
+ if(!panel||panel.hidden||!area)return;
+ const items=Object.entries(readPending());
+ if(!items.length){
+  area.innerHTML='<div class="pending-empty"><strong>✓ Nenhuma pendência neste aparelho</strong><p>Todas as alterações locais conhecidas já foram enviadas. Clique em Sincronizar para buscar novidades.</p></div>';
+ }else{
+  area.innerHTML=items.map(([id,meta])=>{
+   const project=projects.find(p=>p.id===id);
+   const name=project?.nome||"Obra não encontrada neste aparelho";
+   const saveDate=meta.savedAt?new Date(meta.savedAt).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"Horário não registrado";
+   const errorDate=meta.lastErrorAt?new Date(meta.lastErrorAt).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"";
+   const errorText=meta.lastError||"Motivo ainda não identificado. Clique em Tentar sincronizar para registrar a resposta do servidor.";
+   return '<article class="pending-record"><div class="pending-record-top"><div><h4>'+esc(name)+'</h4><span>Alteração salva: '+esc(saveDate)+'</span></div><span class="pending-record-status">Pendente</span></div>'+
+    '<p class="pending-error"><strong>'+(meta.lastError?"Último erro":"Diagnóstico")+':</strong> '+esc(errorText)+(errorDate?' <small>('+esc(errorDate)+')</small>':'')+'</p>'+
+    '<p class="pending-help">'+esc(pendingExplanation(meta.lastError))+'</p>'+
+    '<div class="pending-record-actions">'+(project?'<button type="button" class="btn alt" data-pending-open="'+esc(id)+'">Abrir obra</button>':'')+
+    '<button type="button" class="btn alt" data-pending-compare="'+esc(id)+'">Comparar com a nuvem</button></div>'+
+    '<div class="pending-comparison" id="pendingCompare-'+esc(id)+'" hidden></div></article>';
+  }).join("");
+ }
+ area.querySelectorAll("[data-pending-open]").forEach(btn=>btn.onclick=()=>{
+  const id=btn.dataset.pendingOpen;
+  if(projects.some(p=>p.id===id)){openProject(id);$("pendingPanel").hidden=true;$("mode").setAttribute("aria-expanded","false")}
+ });
+ area.querySelectorAll("[data-pending-compare]").forEach(btn=>btn.onclick=()=>comparePendingWork(btn.dataset.pendingCompare,btn));
+ const retry=$("pendingRetry");if(retry)retry.disabled=manualSyncBusy||syncActive||!navigator.onLine;
+}
+async function comparePendingWork(id,button){
+ const detail=$("pendingCompare-"+id),project=projects.find(p=>p.id===id);
+ if(!detail||!project||!cloudClient||!navigator.onLine){alert("A comparação exige uma conexão ativa e uma obra salva neste aparelho.");return}
+ button.disabled=true;detail.hidden=false;detail.textContent="Consultando informações na nuvem…";
+ try{
+  const {data,error}=await cloudClient.from("barquinha_projects").select("*").eq("id",id).maybeSingle();
+  if(error)throw error;
+  const info=[];
+  if(!data)info.push("Esta obra não foi encontrada na nuvem. O conteúdo local continua preservado.");
+  else{
+   const fields=[["nome","Nome"],["descricao","Descrição"],["localizacao","Localização"],["situacao","Situação"],["inicio","Início"],["prazo","Prazo"],["comprimento","Comprimento"],["largura","Largura"],["orcamento","Orçamento"]];
+   for(const [field,label] of fields){
+    if(String(project[field]??"")!==String(data[field]??""))info.push(label+" diferente");
+   }
+   for(const [field,label] of [["etapas","Etapas"],["materiais","Materiais"],["financeiro","Financeiro"],["fotos","Fotos"],["diario","Diário"],["quadro","Quadro visual"],["equipe","Equipe"]]){
+    const local=project.payload?.[field]||[],remote=data.payload?.[field]||[];
+    if(JSON.stringify(local)!==JSON.stringify(remote))info.push(label+" diferente (local: "+local.length+" / nuvem: "+remote.length+")");
+   }
+   if(!info.length)info.push("O conteúdo local parece igual ao da nuvem. Pode ser um problema de permissão ou registro do envio.");
+   const pending=readPending()[id],lastCloud=data.updated_at;
+   if(pending?.baseVersion&&lastCloud!==pending.baseVersion)info.unshift("A versão da nuvem mudou desde a última sincronização (possível conflito).");
+  }
+  detail.innerHTML='<strong>Comparação sem alterar os dados:</strong><p>'+info.map(esc).join(" · ")+'</p>';
+ }catch(e){detail.textContent="Não foi possível comparar: "+e.message}
+ finally{button.disabled=false}
+}
+function togglePendingPanel(force){
+ const panel=$("pendingPanel"),badge=$("mode");if(!panel)return;
+ const open=typeof force==="boolean"?force:panel.hidden;
+ panel.hidden=!open;
+ if(badge)badge.setAttribute("aria-expanded",String(open));
+ if(open){paintPendingPanel();panel.scrollIntoView({behavior:"smooth",block:"nearest"})}
+}
+function backupPendingWork(){
+ if(!accessReady||!cloudUser)return;
+ if(!confirm("Baixar uma cópia de segurança de todas as obras deste aparelho, incluindo as alterações ainda pendentes?"))return;
+ const data={version:1,exported_at:new Date().toISOString(),origin:"backup-local-com-pendencias",projects,pending:readPending()};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+ const link=document.createElement("a");link.href=url;link.download="barquinha-backup-pendencias-"+new Date().toISOString().slice(0,10)+".json";
+ document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
 function updateOfflineBadge(){
  const el=$("mode"),sync=$("syncPendingBtn");
  const amount=cloudUser?Object.keys(readPending()).length:0;
@@ -798,6 +912,8 @@ function updateOfflineBadge(){
   el.textContent=offlineSession||!navigator.onLine?"◌ Offline"+(amount?" · "+amount+" pendência(s)":""):amount?"◌ "+amount+" pendência(s)":"☁ Sincronizado";
  }
  if(sync){sync.hidden=!accessReady;sync.disabled=syncActive||manualSyncBusy;sync.textContent=(syncActive||manualSyncBusy)?"↻ Sincronizando…":"↻ Sincronizar"}
+ if(el){el.setAttribute("aria-label",amount?amount+" pendência(s). Abrir detalhes da sincronização.":"Sem pendências. Abrir central de sincronização.")}
+ paintPendingPanel();
 }
 function cacheTrustedMember(){
  if(!cloudUser||memberProfile?.status!=="active")return;
@@ -829,20 +945,21 @@ async function syncPendingProjects({refreshAfter=true,showConflictAlert=true}={}
  updateOfflineBadge();
  try{
   for(const id of ids){
-   const record=projects.find(p=>p.id===id),meta=pending[id];if(!record||!meta)continue;
+   const record=projects.find(p=>p.id===id),meta=pending[id];if(!meta)continue;
+   if(!record){failed++;recordPendingFailure(id,meta,"A obra não está disponível entre os dados locais deste aparelho.");continue}
    const check=await cloudClient.from("barquinha_projects").select("updated_at").eq("id",id).maybeSingle();
-   if(check.error){failed++;continue}
+   if(check.error){failed++;recordPendingFailure(id,meta,check.error.message,check.error.code);continue}
    const serverVersion=check.data?.updated_at||null;
-   if(serverVersion!==meta.baseVersion){conflicts++;continue}
+   if(serverVersion!==meta.baseVersion){conflicts++;recordPendingFailure(id,meta,"Conflito de versões: a obra foi alterada ou excluída na nuvem desde a última cópia.", "VERSION_CONFLICT");continue}
    const snapshot=JSON.parse(JSON.stringify(record));
    try{
     const newVersion=await upsertProject(snapshot,cloudUser.id);
-    if(readPending()[id]?.changeId===meta.changeId){
-     const latest=readPending();delete latest[id];storePending(latest);
-    }
+    const latest=readPending();
+    if(latest[id]?.changeId===meta.changeId){delete latest[id];storePending(latest)}
+    else if(latest[id]){latest[id].baseVersion=newVersion;latest[id].lastError="";latest[id].lastErrorAt="";storePending(latest)}
     knownCloudVersions[id]=newVersion||new Date().toISOString();try{localStorage.setItem("barquinha-cloud-versions-"+cloudUser.id,JSON.stringify(knownCloudVersions))}catch(e){}
     completed++;
-   }catch(e){failed++}
+   }catch(e){failed++;recordPendingFailure(id,meta,e.message,e.code)}
   }
  }finally{syncActive=false;offlineSession=false;updateOfflineBadge()}
  const rest=Object.keys(readPending()).length;
@@ -922,6 +1039,10 @@ function initOfflineSupport(){
  window.addEventListener("offline",()=>{offlineSession=true;updateOfflineBadge();cloudStatus("Sem internet. Modificações ficam guardadas neste aparelho até sincronizar.")});
  window.addEventListener("online",()=>{updateOfflineBadge();onConnectionRestored()});
  const sync=$("syncPendingBtn");if(sync)sync.onclick=manualSync;
+ const status=$("mode");if(status)status.onclick=()=>togglePendingPanel();
+ const close=$("pendingClose");if(close)close.onclick=()=>togglePendingPanel(false);
+ const retry=$("pendingRetry");if(retry)retry.onclick=manualSync;
+ const backup=$("pendingBackup");if(backup)backup.onclick=backupPendingWork;
  if("serviceWorker" in navigator&&location.protocol==="https:"){
   window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}),{once:true});
  }
