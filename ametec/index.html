@@ -1256,24 +1256,59 @@ async function assertUniqueClientName(name,excludeId=null){
  const existing=(rows||[]).find(c=>String(c.id)!==String(excludeId||'')&&normalizedClientName(c.nome_fantasia)===normalized);
  if(existing)throw Error('A empresa "'+existing.nome_fantasia+'" já está cadastrada. Abra a ficha existente para evitar duplicidade.');
 }
-async function deleteClient(id){
- const client=data.clientes.find(c=>String(c.id)===String(id));if(!client)return;
- const checks=[
-  ['ametec_servicos','serviços'],['ametec_equipamentos','equipamentos'],
-  ['ametec_cliente_contatos','pessoas relacionadas']
- ];
- const linked=[];
- for(const [table,label] of checks){
-  const {count,error}=await supabase.from(table).select('id',{count:'exact',head:true}).eq('cliente_id',id);
-  if(error){toast('Não foi possível verificar vínculos: '+error.message,true);return}
-  if(count)linked.push(count+' '+label);
+
+async function backupAndConfirmDelete(label,records,paths){
+ const wantsBackup=confirm('Deseja baixar o backup de '+label+' antes de excluir?\nOK: baixar o arquivo.\nCancelar: excluir sem backup.');
+ if(wantsBackup){
+  const files=[];
+  for(const path of [...new Set(paths.filter(Boolean))]){
+   const {data,error}=await supabase.storage.from('ametec-perfis').download(path);
+   if(error)throw Error('Não foi possível gerar backup completo: '+error.message);
+   const encoded=await new Promise((resolve,reject)=>{const rd=new FileReader();rd.onload=()=>resolve(rd.result);rd.onerror=reject;rd.readAsDataURL(data)});
+   files.push({path,conteudo:encoded});
+  }
+  const payload=JSON.stringify({formato:'AMETEC-BACKUP-1',data:new Date().toISOString(),registros:records,imagens:files});
+  const url=URL.createObjectURL(new Blob([payload],{type:'application/json'})),a=document.createElement('a');
+  a.href=url;a.download='AMETEC-backup-'+label.replace(/[^a-z0-9]+/gi,'_')+'.json';document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  return confirm('O download foi iniciado. Verifique que salvou o arquivo antes de confirmar a EXCLUSÃO DEFINITIVA de '+label+'.');
  }
- if(linked.length){toast('Exclusão bloqueada: cliente possui '+linked.join(', ')+'. Remova os vínculos antes de excluir.',true);return}
- if(!confirm('Excluir definitivamente o cliente "'+client.nome_fantasia+'"? Esta ação não poderá ser desfeita.'))return;
- const {error}=await supabase.from('ametec_clientes').delete().eq('id',id);
- if(error){toast(error.message,true);return}
- if(client.foto_path)await supabase.storage.from('ametec-perfis').remove([client.foto_path]);
+ return confirm('EXCLUIR DEFINITIVAMENTE '+label+' SEM BACKUP?');
+}
+async function deleteStoredPhotos(paths){
+ const unique=[...new Set(paths.filter(Boolean))];
+ for(let i=0;i<unique.length;i+=50){const {error}=await supabase.storage.from('ametec-perfis').remove(unique.slice(i,i+50));if(error)throw error}
+}
+async function deleteEquipment(id){
+ try{
+ const eq=data.equipamentos.find(x=>String(x.id)===String(id));if(!eq)return;
+ const {count,error:err}=await supabase.from('ametec_servicos').select('id',{head:true,count:'exact'}).eq('equipamento_id',id);
+ if(err)throw err;
+ if(count)return toast('Este equipamento possui serviços vinculados; exclusão bloqueada para preservar o histórico.',true);
+ const photos=await equipmentGalleryRows(id),paths=[eq.foto_path,...photos.map(x=>x.foto_path)];
+ if(!await backupAndConfirmDelete(eq.nome,{equipamento:eq,fotos:photos},paths))return;
+ const {error}=await supabase.from('ametec_equipamentos').delete().eq('id',id);if(error)throw error;
+ try{await deleteStoredPhotos(paths)}catch(clean){toast('Equipamento excluído, mas a limpeza de imagens falhou: '+clean.message,true)}
+ await load();toast('Equipamento excluído.');
+ }catch(err){toast(err.message||String(err),true)}
+}
+window.deleteEquipment=deleteEquipment;
+
+async function deleteClient(id){
+ try{
+ const client=data.clientes.find(c=>String(c.id)===String(id));if(!client)return;
+ const {count,error:countError}=await supabase.from('ametec_servicos').select('id',{count:'exact',head:true}).eq('cliente_id',id);
+ if(countError)throw countError;
+ if(count)return toast('Cliente possui serviços vinculados. Exclusão bloqueada para preservar o histórico.',true);
+ const contacts=data.clienteContatos.filter(x=>String(x.cliente_id)===String(id));
+ const equipment=data.equipamentos.filter(x=>String(x.cliente_id)===String(id));
+ const galleries=(await Promise.all(equipment.map(x=>equipmentGalleryRows(x.id)))).flat();
+ const paths=[client.foto_path,...contacts.map(x=>x.foto_path),...equipment.map(x=>x.foto_path),...galleries.map(x=>x.foto_path)];
+ if(!await backupAndConfirmDelete(client.nome_fantasia,{cliente:client,pessoas:contacts,equipamentos:equipment,fotos:galleries},paths))return;
+ const {error}=await supabase.from('ametec_clientes').delete().eq('id',id);if(error)throw error;
+ try{await deleteStoredPhotos(paths)}catch(clean){toast('Cliente excluído, mas a limpeza de imagens falhou: '+clean.message,true)}
  await load();toast('Cliente excluído.');
+ }catch(err){toast(err.message||String(err),true)}
 }
 function clientes(){
   document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">RELACIONAMENTO</div><h2>Clientes AMETEC</h2><p>Empresas, contatos, responsáveis e histórico técnico em uma única visão.</p></div><button class="btn primary" id="add">+ Cliente</button></div></section><section class="panel"><div class="toolbar"><input id="search" placeholder="🔎 Buscar cliente, contato, cidade ou responsável"></div><div id="list" class="cards"></div></section>`;
