@@ -1269,7 +1269,7 @@ function render(){
  if(tab==="acessos")loadMembers();
  if(tab==="cadastros"||tab==="materiais")loadContacts(false);
  if(tab==="painel")paintRecentActivity();
- if(tab==="obras"){const button=$("refreshStorageUsage");if(button)button.onclick=()=>refreshStorageUsage(true);refreshStorageUsage(false)}
+ if(tab==="acessos"){const button=$("refreshStorageUsage");if(button)button.onclick=()=>refreshStorageUsage(true);refreshStorageUsage(false)}
  hydratePhotoImages();
  updateOfflineBadge();
 }
@@ -1622,7 +1622,8 @@ function accessPage(){
  const role=memberRoleName(memberProfile?.role),isAdmin=isTeamAdmin();
  const textRole=isPresident()?"Você é o Presidente. Pode gerenciar a equipe, autorizar novos participantes e excluir obras, registros e acessos de usuários.":isAdmin?"Você é ADM. Pode aprovar cadastrados, promover ADMs e votar para Presidente. Exclusões são exclusivas do Presidente.":"Você é Cadastrado. Pode acompanhar e modificar projetos, mas não pode excluir nem administrar contas.";
  return '<section class="panel"><div class="history-actions"><div><span class="section-overline">PERMISSÕES DE ACESSO</span><h3>Participantes e permissões</h3><p class="muted">'+textRole+'</p></div><button type="button" class="btn alt" id="refreshMembers">Atualizar participantes</button></div><div class="access-legend access-legend-three"><span class="access-role access-president">Presidente</span><span>Pode excluir obras, registros e usuários; também administra a equipe.</span><span class="access-role access-admin">ADM</span><span>Gerencia participantes e vota nas eleições.</span><span class="access-role access-registered">Cadastrado</span><span>Consulta, cadastra e edita registros sem poder excluí-los.</span></div><div id="accessList"><p class="muted">Carregando participantes…</p></div></section>'+
- '<section class="panel election-panel"><div class="panel-heading"><div><span class="section-overline">VOTAÇÃO DOS ADMS</span><h3>Eleição para Presidente</h3><p class="muted">Cada ADM habilitado vota uma única vez. O candidato com maioria absoluta dos votos dos ADMs habilitados assume automaticamente. O resultado fica no histórico.</p></div></div><div id="electionStatus"><p class="muted">Consultando eleição…</p></div></section>';
+ '<section class="panel election-panel"><div class="panel-heading"><div><span class="section-overline">VOTAÇÃO DOS ADMS</span><h3>Eleição para Presidente</h3><p class="muted">Cada ADM habilitado vota uma única vez. O candidato com maioria absoluta dos votos dos ADMs habilitados assume automaticamente. O resultado fica no histórico.</p></div></div><div id="electionStatus"><p class="muted">Consultando eleição…</p></div></section>'+
+ '<div id="accessStorageHolder">'+storageUsageCard()+'</div>';
 }
 async function loadElection(){
  if(!cloudReady||!cloudUser||!accessReady||!navigator.onLine||offlineSession)return;
@@ -1983,8 +1984,8 @@ async function refreshStorageUsage(force=false){
  const {data,error}=await cloudClient.rpc("barquinha_storage_usage");
  if(error){const label=$("storageMessage");if(label)label.textContent="Falha na medição: "+error.message;return storageUsage}
  storageUsage=data;storageUsageAt=Date.now();
- if(tab==="obras"&&$("portfolioStorageHolder")){
-  $("portfolioStorageHolder").innerHTML=storageUsageCard();
+ if(tab==="acessos"&&$("accessStorageHolder")){
+  $("accessStorageHolder").innerHTML=storageUsageCard();
   const btn=$("refreshStorageUsage");if(btn)btn.onclick=()=>refreshStorageUsage(true);
  }
  return storageUsage;
@@ -1992,7 +1993,7 @@ async function refreshStorageUsage(force=false){
 
 function projectsView(){
   return '<section class="motto-panel motto-home" aria-label="Mensagem de inspiração"><span class="motto-anchor" aria-hidden="true">⚓</span><div><span class="section-overline">NOSSA INSPIRAÇÃO</span><h3>De hora em hora, Deus melhora.</h3></div></section>'+
-  '<div id="portfolioStorageHolder">'+storageUsageCard()+'</div>'+ '<section class="panel portfolio-intro"><div><span class="section-overline">GESTÃO DE PROJETOS</span><h3>Minhas obras</h3><p class="muted">Abra uma obra para acessar seus próprios registros. Obras arquivadas continuam disponíveis no histórico.</p></div><div class="portfolio-header-buttons"><button type="button" class="btn alt" id="backupMain" aria-label="Baixar backup de todas as obras">↓ Baixar backup</button><button type="button" class="btn" id="newProject">+ Nova obra</button></div></section>'+
+  '<section class="panel portfolio-intro"><div><span class="section-overline">GESTÃO DE PROJETOS</span><h3>Minhas obras</h3><p class="muted">Abra uma obra para acessar seus próprios registros. Obras arquivadas continuam disponíveis no histórico.</p></div><div class="portfolio-header-buttons"><button type="button" class="btn alt" id="backupMain" aria-label="Baixar backup de todas as obras">↓ Baixar backup</button><button type="button" class="btn" id="newProject">+ Nova obra</button></div></section>'+
   '<div class="portfolio-grid">'+projects.map(p=>{
     const progress=projectProgress(p.payload),pagos=(p.payload.financeiro||[]).filter(v=>v.status==="Pago").reduce((n,v)=>n+num(v.valor),0),selected=p.id===activeProjectId;
     return '<article class="portfolio-card '+(selected?'selected':'')+'"><div class="portfolio-card-top"><span class="portfolio-icon">⌂</span><span class="portfolio-tag">'+esc(p.situacao||"Planejada")+'</span></div><h3>'+esc(p.nome)+'</h3><p class="portfolio-description">'+esc(p.descricao||p.localizacao||"Sem descrição")+'</p><div class="portfolio-progress-label"><span>Avanço da obra</span><strong>'+progress+'%</strong></div><div class="portfolio-progress"><span style="width:'+progress+'%"></span></div><div class="portfolio-meta"><span>Etapas: '+(p.payload.etapas||[]).length+'</span><span>Materiais: '+(p.payload.materiais||[]).length+'</span><span>Fotos: '+(p.payload.fotos||[]).length+'</span><span>Pago: '+money(pagos)+'</span></div><div class="portfolio-actions"><button type="button" class="btn" data-open-project="'+esc(p.id)+'">'+(selected?'Ver painel':'Abrir obra')+'</button><button type="button" class="btn alt portfolio-edit-btn" data-edit-project="'+esc(p.id)+'">✎ Editar</button><button type="button" class="btn alt" data-archive-project="'+esc(p.id)+'">'+(p.situacao==="Arquivada"?"Reativar":"Arquivar")+'</button>'+(isPresident()?'<button type="button" class="btn danger portfolio-delete" data-delete-project="'+esc(p.id)+'">Excluir obra</button>':'')+'</div>'+(selected?'<span class="portfolio-current">● Obra selecionada</span>':'')+'</article>'
