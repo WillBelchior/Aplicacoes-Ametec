@@ -1245,6 +1245,36 @@ window.editProfilePhoto=(kind,id)=>{
  };
  modal.classList.add('open');
 };
+function normalizedClientName(value){
+ return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+}
+async function assertUniqueClientName(name,excludeId=null){
+ const normalized=normalizedClientName(name);
+ if(!normalized)throw Error('Informe o nome da empresa.');
+ const {data:rows,error}=await supabase.from('ametec_clientes').select('id,nome_fantasia');
+ if(error)throw error;
+ const existing=(rows||[]).find(c=>String(c.id)!==String(excludeId||'')&&normalizedClientName(c.nome_fantasia)===normalized);
+ if(existing)throw Error('A empresa "'+existing.nome_fantasia+'" já está cadastrada. Abra a ficha existente para evitar duplicidade.');
+}
+async function deleteClient(id){
+ const client=data.clientes.find(c=>String(c.id)===String(id));if(!client)return;
+ const checks=[
+  ['ametec_servicos','serviços'],['ametec_equipamentos','equipamentos'],
+  ['ametec_cliente_contatos','pessoas relacionadas']
+ ];
+ const linked=[];
+ for(const [table,label] of checks){
+  const {count,error}=await supabase.from(table).select('id',{count:'exact',head:true}).eq('cliente_id',id);
+  if(error){toast('Não foi possível verificar vínculos: '+error.message,true);return}
+  if(count)linked.push(count+' '+label);
+ }
+ if(linked.length){toast('Exclusão bloqueada: cliente possui '+linked.join(', ')+'. Remova os vínculos antes de excluir.',true);return}
+ if(!confirm('Excluir definitivamente o cliente "'+client.nome_fantasia+'"? Esta ação não poderá ser desfeita.'))return;
+ const {error}=await supabase.from('ametec_clientes').delete().eq('id',id);
+ if(error){toast(error.message,true);return}
+ if(client.foto_path)await supabase.storage.from('ametec-perfis').remove([client.foto_path]);
+ await load();toast('Cliente excluído.');
+}
 function clientes(){
   document.querySelector('#app').innerHTML=`<section class="hero"><div class="hero-grid"><div><div class="eyebrow">RELACIONAMENTO</div><h2>Clientes AMETEC</h2><p>Empresas, contatos, responsáveis e histórico técnico em uma única visão.</p></div><button class="btn primary" id="add">+ Cliente</button></div></section><section class="panel"><div class="toolbar"><input id="search" placeholder="🔎 Buscar cliente, contato, cidade ou responsável"></div><div id="list" class="cards"></div></section>`;
   const draw=q=>{
@@ -1270,7 +1300,7 @@ function clientes(){
           <div class="actions">
             <button class="btn secondary" data-client="${x.id}">Abrir ficha</button>
             <button class="btn secondary" onclick="openClientServices('${x.id}')">Serviços</button>
-            <button class="btn primary" data-edit-client="${x.id}">Editar</button>
+            <button class="btn primary" data-edit-client="${x.id}">Editar</button><button class="btn secondary" data-delete-client="${x.id}">Excluir</button>
           </div>
         </div>
       </article>`
@@ -1280,14 +1310,15 @@ function clientes(){
   const bindClientCards=()=>{
     document.querySelectorAll('[data-client]').forEach(b=>b.onclick=()=>openClientDetail(b.dataset.client));
     document.querySelectorAll('[data-edit-client]').forEach(b=>b.onclick=()=>editClient(b.dataset.editClient));
+    document.querySelectorAll('[data-delete-client]').forEach(b=>b.onclick=()=>deleteClient(b.dataset.deleteClient));
   };
   draw();
   document.querySelector('#search').oninput=e=>draw(e.target.value);
-  document.querySelector('#add').onclick=()=>openForm('Novo cliente',[['nome_fantasia','Empresa','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{const {data:row,error}=await supabase.from('ametec_clientes').insert(v).select('id').single();if(error)throw error;return row.id},{},{kind:'cliente'})
+  document.querySelector('#add').onclick=()=>openForm('Novo cliente',[['nome_fantasia','Empresa','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{await assertUniqueClientName(v.nome_fantasia);const {data:row,error}=await supabase.from('ametec_clientes').insert(v).select('id').single();if(error)throw error;return row.id},{},{kind:'cliente'})
 }
 function editClient(id){
   const x=data.clientes.find(c=>c.id===id);if(!x)return;
-  openForm('Editar cliente',[['nome_fantasia','Empresa','text'],['contato','Contato geral','text'],['telefone','Telefone geral','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{const {error}=await supabase.from('ametec_clientes').update(v).eq('id',id);if(error)throw error;return id},x,{kind:'cliente',id})
+  openForm('Editar cliente',[['nome_fantasia','Empresa','text'],['contato','Contato geral','text'],['telefone','Telefone geral','text'],['endereco','Endereço','text'],['status','Status','select',['Ativo','Prospect','Bloqueado','Inativo']],['observacoes','Observações','textarea']],async v=>{await assertUniqueClientName(v.nome_fantasia,id);const {error}=await supabase.from('ametec_clientes').update(v).eq('id',id);if(error)throw error;return id},x,{kind:'cliente',id})
 }
 function openClientDetail(id){
   const x=data.clientes.find(c=>c.id===id);if(!x)return;
