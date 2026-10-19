@@ -1074,7 +1074,6 @@ async function processRecoveryCallback(){
  recoveryVerified=false;showGate("recovery");
  gateNotice("Validando o link de recuperação…");
  clearRecoveryUrl();
- const errorMessage=hash.get("error_description")||query.get("error_description");
  if(hash.get("error")||query.get("error")){
   showGate();
   gateNotice("O link de recuperação é inválido ou expirou. Solicite um novo e utilize o e-mail mais recente.","error");
@@ -1119,8 +1118,8 @@ async function submitRecoveredPassword(event){
   const {error}=await cloudClient.auth.updateUser({password});
   if(error)throw error;
   // Encerra a sessão temporária do link. O próximo acesso exige login normal.
-  const {error:logoutError}=await cloudClient.auth.signOut({scope:"local"});
-  if(logoutError)throw logoutError;
+  // Um erro ao encerrar a sessão não invalida a troca de senha já confirmada.
+  try{await cloudClient.auth.signOut({scope:"local"})}catch(e){}
   recoveryVerified=false;
   $("recoveryForm").reset();
   clearRecoveryUrl();
