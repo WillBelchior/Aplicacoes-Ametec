@@ -1025,7 +1025,7 @@ async function startSession(){
  if(logError)cloudStatus("Aviso: o registro do acesso falhou: "+logError.message);
  await cloudLoad(false);
  if(!cloudReady){showGate();gateNotice("Não foi possível carregar as obras. Verifique sua conexão.");return}
- allowInterface();cacheTrustedMember();cloudDisplay();await loadActivity(false);if(Object.keys(readPending()).length&&navigator.onLine)syncPendingProjects();
+ allowInterface();cacheTrustedMember();cloudDisplay();await loadActivity(false);
 }
 async function gateSubmit(e){
  e.preventDefault();if(authLoading||!cloudClient)return;
@@ -1379,10 +1379,10 @@ function updateOfflineBadge(){
  const el=$("mode"),sync=$("syncPendingBtn");
  const amount=cloudUser?Object.keys(readPending()).length:0;
  if(el){
-  el.textContent=offlineSession||!navigator.onLine?"◌ Offline"+(amount?" · "+amount+" pendência(s)":""):amount?"◌ "+amount+" pendência(s)":"☁ Sincronizado";
+  el.textContent=navigator.onLine?"☁ Nuvem":"◌ Sem conexão";
  }
  if(sync){sync.hidden=true;sync.disabled=true}
- if(el){el.setAttribute("aria-label",amount?amount+" pendência(s). Abrir detalhes da sincronização.":"Sem pendências. Abrir central de sincronização.")}
+ if(el){el.setAttribute("aria-label",navigator.onLine?"Armazenamento na nuvem":"Sem conexão com a nuvem")}
  paintPendingPanel();
 }
 function cacheTrustedMember(){
@@ -1522,9 +1522,9 @@ function tryResumeSyncOnFocus(){
 
 function initOfflineSupport(){
  window.addEventListener("offline",()=>{offlineSession=true;updateOfflineBadge();cloudStatus("Sem internet. Modificações ficam guardadas neste aparelho até sincronizar.")});
- window.addEventListener("online",()=>{updateOfflineBadge();onConnectionRestored()});
- document.addEventListener("visibilitychange",tryResumeSyncOnFocus);
- window.addEventListener("pageshow",tryResumeSyncOnFocus);
+ window.addEventListener("online",()=>{offlineSession=false;updateOfflineBadge();cloudStatus("Conexão restabelecida. Atualize a página para consultar a nuvem.")});
+ // Retomada automática de pendências desativada.
+ 
  const sync=$("syncPendingBtn");if(sync){sync.onclick=null;sync.hidden=true;}
  const status=$("mode");if(status)status.onclick=null;
  const close=$("pendingClose");if(close)close.onclick=()=>togglePendingPanel(false);
