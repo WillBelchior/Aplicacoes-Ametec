@@ -2422,8 +2422,8 @@ async function deleteMaterialRecord(id){
  if(readPending()[project.id])return alert("Esta obra possui alterações locais pendentes. Faça backup e sincronize antes de excluir.");
  if(syncActive||manualSyncBusy)return alert("Aguarde o fim da sincronização antes de excluir.");
  if(!confirm('Excluir definitivamente "'+(item.nome||"este material")+'" desta obra? O item será removido e a operação registrada no Histórico.'))return;
- const button=Array.from(document.querySelectorAll("[data-delete-material]")).find(b=>b.dataset.deleteMaterial===String(id));
- if(button)button.disabled=true;
+ const buttons=Array.from(document.querySelectorAll("[data-delete-material]")).filter(b=>b.dataset.deleteMaterial===String(id));
+ buttons.forEach(button=>{button.disabled=true});
  try{
   await cloudQueue.catch(()=>{});
   if(readPending()[project.id])throw new Error("Há alterações locais ainda não sincronizadas.");
@@ -2443,7 +2443,7 @@ async function deleteMaterialRecord(id){
   persistLocal();render();cloudStatus("Material excluído e operação registrada no Histórico ✓");
   await loadActivity(false);
  }catch(error){alert("Não foi possível excluir o material: "+error.message+"\nO registro foi preservado.")}
- finally{if(button?.isConnected)button.disabled=false}
+ finally{buttons.forEach(button=>{if(button.isConnected)button.disabled=false})}
 }
 
 function materialPaymentSummary(records){
