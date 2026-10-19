@@ -827,9 +827,10 @@ body.auth-locked{overflow:hidden}body.auth-locked .app{display:none!important;vi
 .auth-notice[data-tone="error"]{color:#9d3f35;background:#fff0ef;padding:10px 12px;border-radius:10px}
 .password-recovery-form .btn.alt{border:1px solid #d7e5ef;background:#eff5f8;color:#28536c}
 .recovery-safety{margin:0;color:#687f92;font-size:12px;line-height:1.55}
-</style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><form id="recoveryForm" class="auth-form password-recovery-form" hidden autocomplete="off">
- <label>Nova senha<input id="recoveryPassword" type="password" name="new-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Mínimo de 8 caracteres"></label>
- <label>Confirmar nova senha<input id="recoveryPasswordConfirm" type="password" name="confirm-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Repita a nova senha"></label>
+.auth-password-wrap{position:relative;display:block}.auth-password-wrap input{width:100%;padding-right:52px!important}.auth-eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);min-width:42px;min-height:42px;border:0;background:transparent;color:#48677e;border-radius:8px;cursor:pointer;font-size:22px}.auth-eye:hover,.auth-eye:focus-visible{background:#eaf1f7;outline-offset:2px}.auth-eye.is-visible{color:#154d7b;background:#eaf1f7}.auth-clear-errors{margin:7px 0 10px;background:transparent;border:1px solid #b6c9d8;border-radius:8px;padding:7px 12px;color:#365b75;cursor:pointer}.auth-clear-errors[hidden]{display:none!important}
+</style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><button type="button" class="auth-clear-errors" id="gateClearErrors" hidden>Limpar erros</button><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<span class="auth-password-wrap"><input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"><button type="button" class="auth-eye" data-toggle-password="gatePassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><form id="recoveryForm" class="auth-form password-recovery-form" hidden autocomplete="off">
+ <label>Nova senha<span class="auth-password-wrap"><input id="recoveryPassword" type="password" name="new-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Mínimo de 8 caracteres"><button type="button" class="auth-eye" data-toggle-password="recoveryPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label>
+ <label>Confirmar nova senha<span class="auth-password-wrap"><input id="recoveryPasswordConfirm" type="password" name="confirm-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Repita a nova senha"><button type="button" class="auth-eye" data-toggle-password="recoveryPasswordConfirm" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label>
  <button type="submit" class="btn" id="recoverySubmit">Salvar nova senha</button>
  <button type="button" class="btn alt" id="recoveryCancel">Voltar ao login</button>
  <p class="recovery-safety">A nova senha só é aceita após a validação do link recebido por e-mail. A troca de senha não libera contas pendentes de aprovação.</p>
@@ -979,9 +980,11 @@ async function cloudWrite(){
 }
 
 let memberProfile=null,accessReady=false,authRegister=false,activityCache=[],membersCache=[],auditPolling=null,authLoading=false;
-const RESET_CALLBACK_URL="https://obra-facil-acompanhamento.vercel.app/?recovery=1";
+const RESET_CALLBACK_URL=new URL("?recovery=1",location.origin+location.pathname).href;
 let recoveryVerified=false,recoveryBusy=false;
-function gateNotice(msg,tone="info"){const el=$("gateNotice");el.textContent=msg||"";el.dataset.tone=tone}
+function gateNotice(msg,tone="info"){const el=$("gateNotice");el.textContent=msg||"";el.dataset.tone=tone;const clear=$("gateClearErrors");if(clear)clear.hidden=!msg||tone!=="error"}
+function clearGateErrors(){const el=$("gateNotice");if(el?.dataset.tone==="error")gateNotice("");document.querySelectorAll("#gateForm input,#recoveryForm input").forEach(input=>{input.removeAttribute("aria-invalid");input.setCustomValidity("")})}
+function setupPasswordEyes(){document.querySelectorAll("[data-toggle-password]").forEach(btn=>{btn.onclick=()=>{const field=$(btn.dataset.togglePassword);if(!field)return;const visible=field.type==="password";field.type=visible?"text":"password";btn.textContent=visible?"🙈":"👁";btn.setAttribute("aria-label",visible?"Ocultar senha":"Mostrar senha");btn.setAttribute("aria-pressed",String(visible));btn.classList.toggle("is-visible",visible);field.focus({preventScroll:true})}})}
 function showGate(mode="login"){
  accessReady=false;document.body.classList.add("auth-locked");
  document.querySelector(".app")?.setAttribute("inert","");
@@ -1138,6 +1141,9 @@ async function cancelRecovery(){
 }
 
 function setupGate(){
+ setupPasswordEyes();
+ $("gateClearErrors").onclick=clearGateErrors;
+ document.querySelectorAll("#gateForm input,#recoveryForm input").forEach(input=>input.addEventListener("input",clearGateErrors));
  $("gateForm").onsubmit=gateSubmit;
  $("recoveryForm").onsubmit=submitRecoveredPassword;
  $("recoveryCancel").onclick=cancelRecovery;
