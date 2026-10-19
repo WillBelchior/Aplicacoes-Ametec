@@ -2389,6 +2389,53 @@ function materialPaymentBadge(item){
  !payment.hasTotal?'<small class="material-payment-due">'+(isServiceMaterial(item)?"Informe o valor do serviço":"Informe quantidade/preço")+'</small>':'';
  return '<span class="material-payment-badge payment-'+kind+'">'+payment.status+'</span>'+subtitle;
 }
+
+/* Ordem calculada dos materiais (o array original da obra não muda). */
+function materialPaymentRank(item){
+ const pay=materialPayment(item);
+ return pay.paid<=0?0:pay.status==="PAGO"?2:1;
+}
+function sortMaterialsByPayment(records){
+ return records.map((item,index)=>({item,index,paid:materialPayment(item).paid,rank:materialPaymentRank(item)}))
+  .sort((a,b)=>a.rank-b.rank||(a.rank===0?0:a.paid-b.paid)||a.index-b.index)
+  .map(row=>row.item);
+}
+function materialDeleteButton(item){
+ if(isPresident())return '<button type="button" class="btn danger material-delete-btn" data-delete-material="'+esc(item.id)+'" title="Excluir este material definitivamente">Excluir</button>';
+ return '<button type="button" class="btn material-delete-btn material-delete-disabled" disabled title="Somente o Presidente pode excluir materiais" aria-label="Excluir indisponível: somente Presidente">Excluir</button>';
+}
+async function deleteMaterialRecord(id){
+ if(!requirePresidentOnline())return;
+ if(tab!=="materiais")return;
+ const project=currentProject(),item=project?.payload?.materiais?.find(record=>String(record.id)===String(id));
+ if(!project||!item)return alert("Material não encontrado. Atualize a obra.");
+ if(readPending()[project.id])return alert("Esta obra possui alterações locais pendentes. Faça backup e sincronize antes de excluir.");
+ if(syncActive||manualSyncBusy)return alert("Aguarde o fim da sincronização antes de excluir.");
+ if(!confirm('Excluir definitivamente "'+(item.nome||"este material")+'" desta obra? O item será removido e a operação registrada no Histórico.'))return;
+ const button=Array.from(document.querySelectorAll("[data-delete-material]")).find(b=>b.dataset.deleteMaterial===String(id));
+ if(button)button.disabled=true;
+ try{
+  await cloudQueue.catch(()=>{});
+  if(readPending()[project.id])throw new Error("Há alterações locais ainda não sincronizadas.");
+  const expected=knownCloudVersions[project.id];
+  if(!expected)throw new Error("A versão da obra é desconhecida. Clique em Sincronizar antes de excluir.");
+  const newPayload=JSON.parse(JSON.stringify(project.payload));
+  newPayload.materiais=newPayload.materiais.filter(x=>String(x.id)!==String(id));
+  if(newPayload.materiais.length===project.payload.materiais.length)throw new Error("Material não encontrado na obra.");
+  const {data,error}=await cloudClient.from("barquinha_projects")
+    .update({payload:newPayload,updated_at:new Date().toISOString()})
+    .eq("id",project.id).eq("updated_at",expected).select("updated_at").maybeSingle();
+  if(error)throw error;
+  if(!data)throw new Error("A obra foi alterada ou a exclusão não foi autorizada. Atualize e tente novamente.");
+  project.payload=newPayload;db=newPayload;
+  knownCloudVersions[project.id]=data.updated_at;
+  try{localStorage.setItem("barquinha-cloud-versions-"+cloudUser.id,JSON.stringify(knownCloudVersions))}catch(e){}
+  persistLocal();render();cloudStatus("Material excluído e operação registrada no Histórico ✓");
+  await loadActivity(false);
+ }catch(error){alert("Não foi possível excluir o material: "+error.message+"\nO registro foi preservado.")}
+ finally{if(button?.isConnected)button.disabled=false}
+}
+
 function materialPaymentSummary(records){
  const totals=records.reduce((acc,item)=>{
   const p=materialPayment(item);
@@ -2424,8 +2471,8 @@ function updateMaterialFormPreview(){
  (!p.hasTotal?'<p class="material-payment-hint">'+(isServiceMaterial(row)?"Informe o valor total do serviço, sem necessidade de quantidade.":"Informe quantidade prevista e preço unitário para calcular o total.")+'</p>':'');
 }
 
-function listing(type){let cols=type==="etapas"?["nome","status","progresso","prazo"]:type==="materiais"?["nome","unidade","previsto","consumido","valor","total","valorPago","pagamento","fornecedor"]:type==="equipe"?["nome","funcao","telefone","diaria","dias"]:type==="financeiro"?["descricao","categoria","valor","data","status"]:["data","etapa","atividades","ocorrencias"];let headers=Object.fromEntries(definitions[type].map(x=>[x[0],x[1]]));return '<section class="panel"><div class="toolbar"><input id="search" placeholder="Pesquisar registros..." aria-label="Pesquisar"><button class="btn" id="add">+ Adicionar</button>'+(type==="materiais"?'<button type="button" class="btn alt" id="openStockPage">▣ Consultar Estoque</button>':'')+'</div>'+(type==="materiais"?'<p class="materials-explanation"><strong>Qtd. prevista</strong> é o que planejamos comprar. <strong>Qtd. consumida</strong> é o que efetivamente foi utilizado. A sobra estimada aparece no Estoque geral, mas deve ser conferida fisicamente.</p>':'')+'<div id="tableContent"></div></section><p class="muted">Cada registro pertence exclusivamente à obra selecionada. Conecte sua conta para sincronizar.</p>'; }
-function drawTable(){if(!definitions[tab])return;const type=tab;let cols=type==="etapas"?["nome","status","progresso","prazo"]:type==="materiais"?["nome","unidade","previsto","consumido","valor","total","valorPago","pagamento","fornecedor"]:type==="equipe"?["nome","funcao","telefone","diaria","dias"]:type==="financeiro"?["descricao","categoria","valor","data","status"]:["data","etapa","atividades","ocorrencias"];let headers=Object.fromEntries(definitions[type].map(x=>[x[0],x[1]]));if(type==="materiais"){headers.valor="Preço unit. (R$)";headers.total="Valor total (R$)";headers.pagamento="Situação";headers.fornecedor="Fornecedor / pagamento"}let q=$("search")?.value.toLowerCase()||"";let items=db[type].filter(x=>Object.values(x).some(v=>String(v).toLowerCase().includes(q)));const fmt=(x,k)=>type==="materiais"&&k==="fornecedor"?materialSupplierCell(x):type==="materiais"&&isServiceMaterial(x)&&["previsto","consumido"].includes(k)?"—":type==="materiais"&&k==="total"?money(materialPayment(x).total):type==="materiais"&&k==="valorPago"?money(materialPayment(x).paid):type==="materiais"&&k==="pagamento"?materialPaymentBadge(x):(["valor","diaria"].includes(k))?money(x[k]):(["data","prazo"].includes(k))?date(x[k]):esc(x[k]??"—");
+function listing(type){let cols=type==="etapas"?["nome","status","progresso","prazo"]:type==="materiais"?["nome","unidade","previsto","consumido","valor","total","valorPago","pagamento","fornecedor"]:type==="equipe"?["nome","funcao","telefone","diaria","dias"]:type==="financeiro"?["descricao","categoria","valor","data","status"]:["data","etapa","atividades","ocorrencias"];let headers=Object.fromEntries(definitions[type].map(x=>[x[0],x[1]]));return '<section class="panel"><div class="toolbar"><input id="search" placeholder="Pesquisar registros..." aria-label="Pesquisar"><button class="btn" id="add">+ Adicionar</button>'+(type==="materiais"?'<button type="button" class="btn alt" id="openStockPage">▣ Consultar Estoque</button>':'')+'</div>'+(type==="materiais"?'<p class="materials-explanation"><strong>Qtd. prevista</strong> é o que planejamos comprar. <strong>Qtd. consumida</strong> é o que efetivamente foi utilizado. A sobra estimada aparece no Estoque geral, mas deve ser conferida fisicamente.</p><p class="material-sort-hint"><strong>Ordem automática:</strong> sem pagamento → parciais (valor pago crescente) → quitados. <span>Exclusão exclusiva do Presidente.</span></p>':'')+'<div id="tableContent"></div></section><p class="muted">Cada registro pertence exclusivamente à obra selecionada. Conecte sua conta para sincronizar.</p>'; }
+function drawTable(){if(!definitions[tab])return;const type=tab;let cols=type==="etapas"?["nome","status","progresso","prazo"]:type==="materiais"?["nome","unidade","previsto","consumido","valor","total","valorPago","pagamento","fornecedor"]:type==="equipe"?["nome","funcao","telefone","diaria","dias"]:type==="financeiro"?["descricao","categoria","valor","data","status"]:["data","etapa","atividades","ocorrencias"];let headers=Object.fromEntries(definitions[type].map(x=>[x[0],x[1]]));if(type==="materiais"){headers.valor="Preço unit. (R$)";headers.total="Valor total (R$)";headers.pagamento="Situação";headers.fornecedor="Fornecedor / pagamento"}let q=$("search")?.value.toLowerCase()||"";let items=db[type].filter(x=>Object.values(x).some(v=>String(v).toLowerCase().includes(q)));if(type==="materiais")items=sortMaterialsByPayment(items);const fmt=(x,k)=>type==="materiais"&&k==="fornecedor"?materialSupplierCell(x):type==="materiais"&&isServiceMaterial(x)&&["previsto","consumido"].includes(k)?"—":type==="materiais"&&k==="total"?money(materialPayment(x).total):type==="materiais"&&k==="valorPago"?money(materialPayment(x).paid):type==="materiais"&&k==="pagamento"?materialPaymentBadge(x):(["valor","diaria"].includes(k))?money(x[k]):(["data","prazo"].includes(k))?date(x[k]):esc(x[k]??"—");
 let desktop=items.length?'<div class="scroll desktop-table"><table class="'+(type==="materiais"?"material-cost-table":"")+'"><thead><tr>'+cols.map(k=>'<th>'+headers[k]+'</th>').join('')+'<th>Ações</th></tr></thead><tbody>'+items.map(x=>'<tr>'+cols.map(k=>'<td>'+fmt(x,k)+'</td>').join('')+'<td class="actions"><button class="btn alt" data-edit="'+x.id+'">Editar</button> '+(isPresident()?'<button class="btn danger" data-del="'+x.id+'">Excluir</button>':'')+'</td></tr>').join('')+'</tbody></table></div>':'';
 let mobile=items.length?'<div class="mobile-records">'+items.map(x=>'<article class="mobile-record"><h4>'+esc(x.nome||x.descricao||x.atividades||date(x.data))+'</h4><dl>'+cols.filter(k=>!["nome","descricao","atividades"].includes(k)).map(k=>'<div><dt>'+esc(headers[k])+'</dt><dd>'+fmt(x,k)+'</dd></div>').join('')+'</dl><div class="record-actions"><button class="btn alt" data-edit="'+x.id+'">Editar</button>'+(isPresident()?'<button class="btn danger" data-del="'+x.id+'">Excluir</button>':'')+'</div></article>').join('')+'</div>':'';
 $("tableContent").innerHTML=(items.length?desktop+mobile:'<div class="empty-state">Nenhum registro encontrado.</div>')+(type==="materiais"?materialPaymentSummary(items):"");
