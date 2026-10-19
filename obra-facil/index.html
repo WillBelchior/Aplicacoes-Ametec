@@ -837,42 +837,116 @@ let cloudClient=null,cloudUser=null,cloudReady=false,cloudTimer=null;
 const cloudTimers=new Map();let cloudQueue=Promise.resolve();
 const cloudStatus=(msg)=>{const el=document.getElementById("cloudStatus");if(el)el.textContent=msg};
 const cloudMessage=()=>{const el=document.getElementById("mode");if(el)el.textContent=cloudReady?"☁ Nuvem ativa":"Dados locais"};
-async function upsertProject(p,userId){
-  const record={id:p.id,user_id:userId,nome:p.nome,descricao:p.descricao||"",localizacao:p.localizacao||"",situacao:p.situacao||"Planejada",inicio:p.inicio||null,prazo:p.prazo||null,comprimento:p.comprimento??null,largura:p.largura??null,orcamento:p.orcamento??null,payload:p.payload,updated_at:new Date().toISOString()};
-  const {data,error}=await cloudClient.from("barquinha_projects").upsert(record,{onConflict:"id"}).select("updated_at").single();
-  if(error)throw error;
-  return data?.updated_at||record.updated_at;
+
+/* Gravação condicional: o servidor confirma a versão dentro do próprio UPDATE.
+   Não é seguro fazer SELECT e UPSERT em chamadas separadas (janela de concorrência). */
+function syncConflict(message="A obra foi alterada em outro aparelho. Suas alterações locais foram preservadas."){
+ const e=new Error(message);e.code="VERSION_CONFLICT";return e;
+}
+function canonicalSyncJson(value){
+ if(Array.isArray(value))return value.map(canonicalSyncJson);
+ if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonicalSyncJson(value[k])]));
+ return value;
+}
+function sameProjectData(remote,local){
+ if(!remote||!local)return false;
+ for(const key of ["nome","descricao","localizacao","situacao","inicio","prazo"]){
+  if(String(remote[key]??"")!==String(local[key]??""))return false;
+ }
+ for(const key of ["comprimento","largura","orcamento"]){
+  const r=remote[key],l=local[key];
+  if(r==null&&l==null)continue;
+  if(Number(r)!==Number(l))return false;
+ }
+ return JSON.stringify(canonicalSyncJson(remote.payload))===JSON.stringify(canonicalSyncJson(local.payload));
+}
+async function upsertProject(p,userId,expectedVersion=null){
+ const base={nome:p.nome,descricao:p.descricao||"",localizacao:p.localizacao||"",situacao:p.situacao||"Planejada",inicio:p.inicio||null,prazo:p.prazo||null,comprimento:p.comprimento??null,largura:p.largura??null,orcamento:p.orcamento??null,payload:p.payload};
+ let response;
+ if(expectedVersion===null){
+  // Nova obra: INSERT falha caso o id já exista; jamais substitui uma obra existente.
+  response=await cloudClient.from("barquinha_projects").insert({id:p.id,user_id:userId,...base}).select("updated_at").single();
+ }else{
+  // Obra existente: sem correspondência exata de versão não há atualização.
+  response=await cloudClient.from("barquinha_projects").update(base)
+   .eq("id",p.id).eq("updated_at",expectedVersion).select("updated_at").maybeSingle();
+ }
+ if(response.error){
+  if(response.error.code==="23505")throw syncConflict("A obra já foi criada na nuvem; é necessário comparar as versões.");
+  throw response.error;
+ }
+ if(!response.data?.updated_at)throw syncConflict();
+ return response.data.updated_at;
+}
+async function uploadSnapshotSafely(snapshot,userId,baseVersion){
+ try{return await upsertProject(snapshot,userId,baseVersion)}
+ catch(error){
+  // Uma requisição pode chegar ao servidor e o celular perder apenas a resposta.
+  // Se a nuvem JÁ contiver exatamente este conteúdo, aceite o envio como confirmado.
+  // Se houver qualquer diferença, preserve a pendência e exija revisão.
+  if(!navigator.onLine)throw error;
+  try{
+   const {data, error:readError}=await cloudClient.from("barquinha_projects")
+    .select("nome,descricao,localizacao,situacao,inicio,prazo,comprimento,largura,orcamento,payload,updated_at")
+    .eq("id",snapshot.id).maybeSingle();
+   if(!readError&&sameProjectData(data,snapshot)&&data?.updated_at)return data.updated_at;
+  }catch(e){}
+  if(error.code==="PGRST116")throw syncConflict();
+  throw error;
+ }
+}
+function recordCloudSyncSuccess(id,meta,version,userId){
+ const current=readPending();
+ if(current[id]?.changeId===meta.changeId){
+  delete current[id];
+  storePending(current);
+ }else if(current[id]){
+  // Uma edição adicional ocorreu durante o envio. Ela usa como base a revisão
+  // recém-confirmada, sem perder a nova alteração local.
+  current[id].baseVersion=version;
+  current[id].lastError="";
+  current[id].lastErrorCode="";
+  current[id].lastErrorAt="";
+  storePending(current);
+ }
+ knownCloudVersions[id]=version;
+ try{localStorage.setItem("barquinha-cloud-versions-"+userId,JSON.stringify(knownCloudVersions))}catch(e){}
+ updateOfflineBadge();
 }
 function cloudEnqueue(p,userId){
- const snapshot=JSON.parse(JSON.stringify(p)),meta=readPending()[p.id];
+ const id=p.id;
  cloudQueue=cloudQueue.catch(()=>{}).then(async()=>{
-  if(!cloudClient||cloudUser?.id!==userId||!navigator.onLine)return;
+  if(!cloudClient||cloudUser?.id!==userId||!navigator.onLine||!cloudReady)return false;
+  // Lê meta e obra QUANDO a tarefa começa, nunca quando foi enfileirada.
+  const meta=readPending()[id];
+  if(!meta)return true;
+  const live=projects.find(item=>item.id===id);
+  if(!live){recordPendingFailure(id,meta,"A obra não está disponível no aparelho.");return false}
+  const snapshot=JSON.parse(JSON.stringify(live));
   try{
-   cloudStatus("Salvando "+snapshot.nome+"…");
-   const {data:remote,error:err}=await cloudClient.from("barquinha_projects").select("updated_at").eq("id",p.id).maybeSingle();
-   if(err)throw err;
-   if((remote?.updated_at||null)!==(meta?.baseVersion??knownCloudVersions[p.id]??null)){
-    recordPendingFailure(p.id,meta,"Conflito de versões: outra pessoa pode ter atualizado esta obra na nuvem.","VERSION_CONFLICT");
-    cloudStatus("Conflito detectado. Abra Pendências para comparar as versões.");
-    return;
-   }
-   const version=await upsertProject(snapshot,userId);
-   knownCloudVersions[p.id]=version;try{localStorage.setItem("barquinha-cloud-versions-"+userId,JSON.stringify(knownCloudVersions))}catch(e){}
-   const pending=readPending();
-   if(pending[p.id]?.changeId===meta?.changeId){delete pending[p.id];storePending(pending)}else if(pending[p.id]){pending[p.id].baseVersion=version;storePending(pending)}
-   cloudStatus("Obras sincronizadas ✓");updateOfflineBadge();
+   cloudStatus("Sincronizando "+snapshot.nome+"…");
+   const version=await uploadSnapshotSafely(snapshot,userId,meta.baseVersion??null);
+   recordCloudSyncSuccess(id,meta,version,userId);
+   cloudStatus("Obras sincronizadas ✓");
    if(accessReady)await loadActivity(false);
-  }catch(e){recordPendingFailure(p.id,meta,e.message,e.code);cloudStatus("Alterações guardadas no aparelho. Falha de sincronização: "+e.message);updateOfflineBadge()}
+   return true;
+  }catch(error){
+   recordPendingFailure(id,meta,error.message,error.code);
+   cloudStatus("Alteração preservada no aparelho. "+error.message);
+   updateOfflineBadge();
+   return false;
+  }
  });
  return cloudQueue;
 }
+
 function cloudSchedule(){
  if(!cloudUser||!cloudReady)return;
  const p=currentProject();if(!p)return;
  clearTimeout(cloudTimers.get(p.id));
  if(!navigator.onLine||offlineSession){updateOfflineBadge();return}
- const snapshot=JSON.parse(JSON.stringify(p)),uid=cloudUser.id;
- cloudTimers.set(p.id,setTimeout(()=>{cloudTimers.delete(p.id);cloudEnqueue(snapshot,uid).catch(()=>{})},400));
+ const uid=cloudUser.id,projectId=p.id;
+ cloudTimers.set(projectId,setTimeout(()=>{cloudTimers.delete(projectId);cloudEnqueue({id:projectId},uid).catch(()=>{})},650));
 }
 async function cloudWrite(){
   if(!cloudClient||!cloudUser)return false;
@@ -1192,38 +1266,43 @@ async function allowOfflineTrusted(){
 }
 async function syncPendingProjects({refreshAfter=true,showConflictAlert=true}={}){
  if(syncActive||!cloudUser||!navigator.onLine||!cloudReady)return {skipped:true};
- const pending=readPending(),ids=Object.keys(pending);
- if(!ids.length){updateOfflineBadge();return {attempted:0,completed:0,conflicts:0,failed:0,remaining:0}}
- syncActive=true;let conflicts=0,completed=0,failed=0;
+ syncActive=true;let conflicts=0,completed=0,failed=0,ids=[];
  updateOfflineBadge();
  try{
+  // Conclui envios iniciados antes da sincronização manual para não usar
+  // revisões antigas em paralelo.
+  await cloudQueue.catch(()=>{});
+  const pending=readPending();ids=Object.keys(pending);
   for(const id of ids){
-   const record=projects.find(p=>p.id===id),meta=pending[id];if(!meta)continue;
-   if(!record){failed++;recordPendingFailure(id,meta,"A obra não está disponível entre os dados locais deste aparelho.");continue}
-   const check=await cloudClient.from("barquinha_projects").select("updated_at").eq("id",id).maybeSingle();
-   if(check.error){failed++;recordPendingFailure(id,meta,check.error.message,check.error.code);continue}
-   const serverVersion=check.data?.updated_at||null;
-   if(serverVersion!==meta.baseVersion){conflicts++;recordPendingFailure(id,meta,"Conflito de versões: a obra foi alterada ou excluída na nuvem desde a última cópia.", "VERSION_CONFLICT");continue}
+   if(!navigator.onLine){failed++;continue}
+   const meta=readPending()[id];if(!meta)continue;
+   const record=projects.find(p=>p.id===id);
+   if(!record){failed++;recordPendingFailure(id,meta,"A obra não está disponível neste aparelho.");continue}
    const snapshot=JSON.parse(JSON.stringify(record));
    try{
-    const newVersion=await upsertProject(snapshot,cloudUser.id);
-    const latest=readPending();
-    if(latest[id]?.changeId===meta.changeId){delete latest[id];storePending(latest)}
-    else if(latest[id]){latest[id].baseVersion=newVersion;latest[id].lastError="";latest[id].lastErrorAt="";storePending(latest)}
-    knownCloudVersions[id]=newVersion||new Date().toISOString();try{localStorage.setItem("barquinha-cloud-versions-"+cloudUser.id,JSON.stringify(knownCloudVersions))}catch(e){}
+    const version=await uploadSnapshotSafely(snapshot,cloudUser.id,meta.baseVersion??null);
+    recordCloudSyncSuccess(id,meta,version,cloudUser.id);
     completed++;
-   }catch(e){failed++;recordPendingFailure(id,meta,e.message,e.code)}
+   }catch(error){
+    if(error.code==="VERSION_CONFLICT"||error.code==="23505"){
+     conflicts++;
+     recordPendingFailure(id,meta,"Conflito: esta obra mudou em outro aparelho. Faça backup e compare as versões antes de resolver.","VERSION_CONFLICT");
+    }else{
+     failed++;
+     recordPendingFailure(id,meta,error.message,error.code);
+    }
+   }
   }
  }finally{syncActive=false;offlineSession=false;updateOfflineBadge()}
- const rest=Object.keys(readPending()).length;
+ const remaining=Object.keys(readPending()).length;
  if(conflicts){
-  lastSyncWarning=conflicts+" obra(s) com alterações conflitantes: alguém modificou a nuvem após a edição local. Nada foi sobrescrito. Faça um backup e revise antes de resolver.";
+  lastSyncWarning=conflicts+" obra(s) com conflito de versões. Seus dados locais continuam preservados. Faça backup e compare com a nuvem.";
   cloudStatus(lastSyncWarning);
   if(showConflictAlert)alert(lastSyncWarning);
- }else if(failed)cloudStatus("Algumas alterações não foram enviadas. Pendências: "+rest);
+ }else if(failed)cloudStatus("Algumas alterações não puderam ser enviadas. Pendências: "+remaining);
  else if(completed)cloudStatus(completed+" obra(s) sincronizada(s) ✓");
  if(completed&&!conflicts&&!failed&&refreshAfter)await cloudLoad(false);
- return {attempted:ids.length,completed,conflicts,failed,remaining:rest};
+ return {attempted:ids.length,completed,conflicts,failed,remaining};
 }
 
 /* Sincronização manual: verifica sessão, envia pendências e busca registros recentes sem descartar rascunhos. */
@@ -2203,7 +2282,7 @@ async function createNewProject(e){
     if(!cloudReady||!cloudUser)throw Error("Faça login para cadastrar uma obra.");
     let version=null,sent=false;
     if(navigator.onLine&&!offlineSession){
-      try{version=await upsertProject(p,cloudUser.id);sent=true}catch(e){cloudStatus("Sem conexão com a nuvem: obra guardada como pendente.")}
+      try{version=await uploadSnapshotSafely(p,cloudUser.id,null);sent=true}catch(e){cloudStatus("Nova obra guardada localmente até sincronização: "+e.message)}
     }
     projects.push(p);$("newProjectModal").close();openProject(p.id);
     if(sent){
