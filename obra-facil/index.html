@@ -2214,7 +2214,7 @@ function compressPhotoFile(file,width=1600,quality=.76){
 async function uploadProjectPhoto(file,projectId,caption,stage){
  if(!cloudUser||!cloudClient||!accessReady)throw new Error("Faça login para cadastrar a foto.");
  if(!navigator.onLine||offlineSession)throw new Error("O envio de fotos exige internet.");
- if(readPending()[projectId])throw new Error("Esta obra possui alterações pendentes. Abra a Central de pendências e sincronize antes de enviar novas fotos, para evitar arquivos sem vínculo com a obra.");
+ // A foto será vinculada diretamente à versão atual da obra na nuvem, sem exigir sincronização de rascunhos locais.
  const project=projects.find(p=>p.id===projectId);
  if(!project)throw new Error("Obra não encontrada.");
  const blob=await compressPhotoFile(file);
@@ -2222,12 +2222,29 @@ async function uploadProjectPhoto(file,projectId,caption,stage){
  const usage=await refreshStorageUsage(true);
  if(!usage)throw new Error("Sem medição do espaço da nuvem. Não foi possível autorizar o envio.");
  if(Number(usage.storage_used_bytes)+blob.size>PHOTO_APP_LIMIT)throw new Error("Limite reservado de 500 MB atingido.");
+ const {data:remote,error:readError}=await cloudClient.from("barquinha_projects")
+  .select("payload,updated_at").eq("id",projectId).maybeSingle();
+ if(readError||!remote)throw new Error("Não foi possível consultar a obra na nuvem: "+(readError?.message||"obra não encontrada"));
  const path=projectId+"/"+crypto.randomUUID()+".jpg";
  const {error}=await cloudClient.storage.from(PHOTO_BUCKET).upload(path,blob,{contentType:"image/jpeg",cacheControl:"3600",upsert:false});
  if(error)throw new Error("Envio recusado: "+error.message);
- storageUsageAt=0;
- return {id:crypto.randomUUID(),caption:String(caption||file.name.replace(/\.[^.]+$/,"")||"Foto").slice(0,160),
+ const photo={id:crypto.randomUUID(),caption:String(caption||file.name.replace(/\\.[^.]+$/,"")||"Foto").slice(0,160),
   stage:String(stage||""),storagePath:path,bytes:blob.size,date:new Date().toISOString().slice(0,10)};
+ try{
+  const payload={...remote.payload,fotos:[photo,...(remote.payload?.fotos||[])]};
+  const {data:written,error:writeError}=await cloudClient.from("barquinha_projects")
+   .update({payload}).eq("id",projectId).eq("updated_at",remote.updated_at)
+   .select("updated_at").maybeSingle();
+  if(writeError||!written)throw new Error(writeError?.message||"A obra foi alterada durante o envio. Tente novamente.");
+  knownCloudVersions[projectId]=written.updated_at;
+  if(cloudUser)try{localStorage.setItem("barquinha-cloud-versions-"+cloudUser.id,JSON.stringify(knownCloudVersions))}catch(e){}
+  storageUsageAt=0;
+  return photo;
+ }catch(writeFailure){
+  const {error:cleanupError}=await cloudClient.storage.from(PHOTO_BUCKET).remove([path]);
+  if(cleanupError)throw new Error("Não foi possível vincular a foto e a remoção do arquivo falhou. Informe ao suporte o caminho: "+path);
+  throw new Error("Foto não cadastrada: "+writeFailure.message);
+ }
 }
 async function uploadGalleryPhotos(event){
  event.preventDefault();
@@ -2251,7 +2268,7 @@ async function uploadGalleryPhotos(event){
   }
   if(completed){
    const previous=activeProjectId,previousDb=db;
-   activeProjectId=id;db=project.payload;save();
+   activeProjectId=id;db=project.payload;persistLocal();
    activeProjectId=previous;db=previousDb;persistLocal();
    form.reset();render();refreshStorageUsage(true);
   }
