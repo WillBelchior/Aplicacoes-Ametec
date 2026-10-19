@@ -2827,19 +2827,28 @@ async function fillStageResponsibleOptions(currentName=""){
  const select=document.createElement("select");
  select.name="responsavel";select.id="stageResponsibleSelect";select.setAttribute("aria-label","Responsável pela etapa");
  const addOption=(value,label)=>{const o=document.createElement("option");o.value=value;o.textContent=label;select.appendChild(o)};
- addOption("","Selecione um participante");
+ addOption("","Selecione um responsável");
  if(currentName)addOption(currentName,currentName+" (atual)");
- input.replaceWith(select);
- select.value=currentName||"";
- if(!cloudClient||!cloudUser||!navigator.onLine){return}
+ input.replaceWith(select);select.value=currentName||"";
+ if(!cloudClient||!cloudUser||!navigator.onLine)return;
  const originalType=editing.type,originalId=editing.id;
- const {data,error}=await cloudClient.from("barquinha_members").select("display_name,email,status").eq("status","active").order("display_name",{ascending:true});
- if(error){console.warn("Não foi possível consultar responsáveis:",error.message);return}
+ const [members,contacts]=await Promise.all([
+  cloudClient.from("barquinha_members").select("display_name,email").eq("status","active").order("display_name",{ascending:true}),
+  cloudClient.from("barquinha_contacts").select("nome,tipo").in("tipo",["Pessoa","Empresa"]).order("nome",{ascending:true})
+ ]);
  if(!$("modal")?.open||editing.type!==originalType||editing.id!==originalId||select!==$("stageResponsibleSelect"))return;
- const chosen=select.value,people=[...new Set((data||[]).map(m=>String(m.display_name||m.email||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
- select.replaceChildren();addOption("","Selecione um participante");
- for(const name of people)addOption(name,name);
- if(chosen&&!people.includes(chosen))addOption(chosen,chosen+" (nome anterior)");
+ const chosen=select.value,seen=new Set(),groups=[];
+ const addGroup=(label,rows)=>{const options=[];for(const row of rows){const name=String(row||"").trim(),key=name.toLocaleLowerCase("pt-BR");if(!name||seen.has(key))continue;seen.add(key);options.push(name)}if(options.length)groups.push({label,names:options.sort((a,b)=>a.localeCompare(b,"pt-BR"))})};
+ if(members.error)console.warn("Falha ao carregar participantes:",members.error.message);
+ else addGroup("Participantes do aplicativo",(members.data||[]).map(m=>m.display_name||m.email));
+ if(contacts.error)console.warn("Falha ao carregar pessoas e empresas:",contacts.error.message);
+ else{
+  addGroup("Pessoas cadastradas",(contacts.data||[]).filter(c=>c.tipo==="Pessoa").map(c=>c.nome));
+  addGroup("Empresas cadastradas",(contacts.data||[]).filter(c=>c.tipo==="Empresa").map(c=>c.nome));
+ }
+ select.replaceChildren();addOption("","Selecione um responsável");
+ for(const group of groups){const optgroup=document.createElement("optgroup");optgroup.label=group.label;for(const name of group.names){const option=document.createElement("option");option.value=name;option.textContent=name;optgroup.appendChild(option)}select.appendChild(optgroup)}
+ if(chosen&&!seen.has(chosen.toLocaleLowerCase("pt-BR")))addOption(chosen,chosen+" (registro anterior)");
  select.value=chosen||"";
 }
 function openForm(type,id){editing={type,id};const x=id?db[type].find(z=>z.id===id):{};$("modalTitle").textContent=(id?"Editar ":"Cadastrar ")+type;$("fields").innerHTML=definitions[type].map(([key,label,kind,required,opts])=>'<label class="'+(kind==="textarea"?"full":"")+'">'+esc(label)+(kind==="select"?'<select name="'+key+'">'+opts.map(o=>'<option value="'+esc(o)+'" '+(x[key]===o?'selected':'')+'>'+esc(o)+'</option>').join('')+'</select>':kind==="textarea"?'<textarea name="'+key+'" rows="3">'+esc(x[key]||"")+'</textarea>':'<input name="'+key+'" type="'+kind+'" '+(kind==="number"? (["valor","valorPago"].includes(key)?'step="0.01" min="0"':'step="any" min="0"'):'')+' value="'+esc(x[key]??"")+'" '+(required?'required':'')+'/>')+'</label>').join('');if(type==="materiais"){
