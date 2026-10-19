@@ -951,7 +951,7 @@ function cloudSchedule(){
 async function cloudWrite(){
   if(!cloudClient||!cloudUser)return false;
   const p=currentProject();if(!p)return false;
-  try{cloudStatus("Salvando obra…");await cloudEnqueue(p,cloudUser.id);return true}catch(e){cloudStatus("Falha: "+e.message);return false}
+  try{cloudStatus("Salvando obra…");return (await cloudEnqueue(p,cloudUser.id))===true}catch(e){cloudStatus("Falha: "+e.message);return false}
 }
 
 let memberProfile=null,accessReady=false,authRegister=false,activityCache=[],membersCache=[],auditPolling=null,authLoading=false;
@@ -1155,7 +1155,8 @@ function recordPendingFailure(id,meta,reason,code=""){
 }
 function pendingExplanation(error){
  const msg=String(error||"");
- if(/somente o presidente.*exclu|presidente pode excluir/i.test(msg))return "O servidor identificou uma exclusão. Somente o Presidente pode excluir registros. Preserve o backup e peça ao Presidente para revisar.";
+ if(/somente adm ou presidente.*exclu/i.test(msg))return "Este registro só pode ser excluído por ADM ou Presidente. Confirme o nível de acesso e faça backup antes de tentar novamente.";
+ if(/somente o presidente.*exclu|presidente pode excluir/i.test(msg))return "O servidor identificou uma exclusão reservada ao Presidente. Preserve o backup e peça ao Presidente para revisar.";
  if(/row.level security|permission denied|not authorized|não autorizado|jwt|session|token/i.test(msg))return "Há um problema de permissão ou autenticação. Confirme seu acesso e entre novamente caso a sessão tenha expirado.";
  if(/storage|request entity too large|too large|payload|quota|size/i.test(msg))return "Verifique o tamanho dos arquivos, principalmente fotos. Faça um backup antes de tentar reduzir imagens.";
  if(/fetch|network|timeout|failed to|connection|conexão/i.test(msg))return "A conexão pode ter falhado durante o envio. Verifique a internet e tente novamente.";
@@ -1367,9 +1368,21 @@ async function onConnectionRestored(){
  }catch(e){cloudStatus("Ainda não foi possível sincronizar. Tente novamente quando houver internet.")}
  updateOfflineBadge();
 }
+
+let lastForegroundSyncAt=0;
+function tryResumeSyncOnFocus(){
+ if(document.hidden||!navigator.onLine||!accessReady||!cloudUser||!cloudReady||manualSyncBusy||syncActive)return;
+ if(!Object.keys(readPending()).length)return;
+ if(Date.now()-lastForegroundSyncAt<90000)return;
+ lastForegroundSyncAt=Date.now();
+ onConnectionRestored().catch(()=>{});
+}
+
 function initOfflineSupport(){
  window.addEventListener("offline",()=>{offlineSession=true;updateOfflineBadge();cloudStatus("Sem internet. Modificações ficam guardadas neste aparelho até sincronizar.")});
  window.addEventListener("online",()=>{updateOfflineBadge();onConnectionRestored()});
+ document.addEventListener("visibilitychange",tryResumeSyncOnFocus);
+ window.addEventListener("pageshow",tryResumeSyncOnFocus);
  const sync=$("syncPendingBtn");if(sync)sync.onclick=manualSync;
  const status=$("mode");if(status)status.onclick=()=>togglePendingPanel();
  const close=$("pendingClose");if(close)close.onclick=()=>togglePendingPanel(false);
