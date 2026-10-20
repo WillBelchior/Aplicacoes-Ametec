@@ -4165,5 +4165,46 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
  .archive-rank-row strong{grid-column:1;justify-self:start}
 }
 </style>
+<style id="archive-readable-final">
+/* Escala editorial para relatórios arquivados - estilos explícitos para vencer regras antigas */
+.archive-analytics{font-size:16px!important;line-height:1.5!important}
+.archive-analytics .archive-kpi{padding:22px!important;min-height:135px!important}
+.archive-analytics .archive-kpi span{font-size:15px!important;line-height:1.5!important}
+.archive-analytics .archive-kpi b{font-size:clamp(24px,2.2vw,34px)!important;line-height:1.25!important}
+.archive-analytics .archive-kpi small{font-size:14px!important;line-height:1.5!important}
+.archive-analytics .archive-chart-card{padding:23px!important}
+.archive-analytics .archive-chart-head b{font-size:20px!important}
+.archive-analytics .archive-chart-head small{font-size:15px!important;color:#b5cddd!important}
+.archive-analytics .archive-month-value{font-size:14px!important}
+.archive-analytics .archive-month-col span{font-size:14px!important}
+.archive-analytics .archive-composition-legend span{font-size:15px!important}
+.archive-analytics .archive-composition-legend b{font-size:19px!important}
+.archive-analytics .archive-donut b{font-size:29px!important}
+.archive-analytics .archive-donut small{font-size:13px!important}
+.archive-analytics .archive-rank-label span{font-size:15px!important}
+.archive-analytics .archive-rank-label b{font-size:16px!important}
+.archive-analytics .archive-rank-label small{font-size:14px!important}
+.archive-analytics .archive-rank-row strong{font-size:15px!important;white-space:normal!important;text-align:right}
+.archive-analytics .archive-rank-track{height:14px!important}
+.archive-analytics .archive-rank-row{min-height:54px!important;gap:16px!important}
+.archive-analytics .archive-insight{font-size:16px!important;line-height:1.7!important;padding:19px!important}
+.archive-history-head b{font-size:20px!important}
+.archive-history-head small{font-size:15px!important}
+.archive-client-folder b{font-size:16px!important}
+.archive-client-folder-meta span{font-size:13px!important}
+.archive-client-folder-meta b{font-size:15px!important}
+.archive-analytics .archive-analysis-grid{gap:16px!important}
+@media(max-width:1000px){
+.archive-analytics .archive-analysis-grid{grid-template-columns:1fr!important}
+.archive-analytics .archive-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:600px){
+.archive-analytics .archive-kpis{grid-template-columns:1fr!important}
+.archive-analytics .archive-chart-card{padding:16px!important}
+.archive-analytics .archive-composition{grid-template-columns:1fr!important}
+.archive-analytics .archive-rank-row{grid-template-columns:1fr!important}
+.archive-analytics .archive-rank-row strong{text-align:left!important}
+}
+</style>
 </body>
 </html>
