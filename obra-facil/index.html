@@ -875,6 +875,20 @@ body.auth-locked{overflow:hidden}body.auth-locked .app{display:none!important;vi
  .supplier-group-item-values>div{min-width:0}
  .supplier-group-item-values>div:last-child{grid-column:1/-1}
 }
+
+/* Destaque do custo total da obra e discriminação de materiais e serviços. */
+.portfolio-budget{margin:15px 0 16px;border:1px solid #dbe7ef;border-radius:15px;overflow:hidden;background:#f4f8fb;min-width:0}
+.portfolio-budget-total{background:linear-gradient(125deg,#16384f,#1c5777);color:#fff;padding:17px 18px;display:grid;gap:6px}
+.portfolio-budget-total>span{color:#c8e1f0;letter-spacing:.09em;font-size:11px;font-weight:800}
+.portfolio-budget-total>strong{color:#fff;font-size:clamp(25px,3vw,34px);line-height:1.15;font-weight:800;letter-spacing:-.025em;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.portfolio-budget-total>small{font-size:11px;line-height:1.4;color:#d7eaf5}
+.portfolio-budget-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:#dce8f0}
+.portfolio-budget-split>div{min-width:0;display:grid;gap:5px;padding:13px 15px;background:#f4f8fb}
+.portfolio-budget-split span{font-size:12px;color:#557589;font-weight:650}
+.portfolio-budget-split strong{font-size:clamp(16px,2vw,20px);color:#234d68;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.portfolio-budget-other{padding:10px 15px;margin:0;border-top:1px solid #dce8f0;font-size:12px;color:#53748b;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.portfolio-budget-other strong{color:#234d68}
+@media(max-width:600px){.portfolio-budget-total{padding:15px}.portfolio-budget-total>strong{font-size:clamp(27px,7vw,35px)}.portfolio-budget-split>div{padding:12px}.portfolio-budget-split strong{font-size:clamp(16px,4.5vw,20px)}}
 </style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><button type="button" class="auth-clear-errors" id="gateClearErrors" hidden>Limpar erros</button><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<span class="auth-password-wrap"><input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"><button type="button" class="auth-eye" data-toggle-password="gatePassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><form id="recoveryForm" class="auth-form password-recovery-form" hidden autocomplete="off">
  <label>Nova senha<span class="auth-password-wrap"><input id="recoveryPassword" type="password" name="new-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Mínimo de 8 caracteres"><button type="button" class="auth-eye" data-toggle-password="recoveryPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label>
  <label>Confirmar nova senha<span class="auth-password-wrap"><input id="recoveryPasswordConfirm" type="password" name="confirm-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Repita a nova senha"><button type="button" class="auth-eye" data-toggle-password="recoveryPasswordConfirm" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label>
@@ -2392,12 +2406,29 @@ async function refreshStorageUsage(force=false){
  return storageUsage;
 }
 
+/* Resumo único de custos no cartão: valores previstos dos materiais/serviços;
+   lançamentos avulsos aparecem separadamente para fechar o total do Financeiro. */
+function portfolioCardCosts(project){
+ const materials=project?.payload?.materiais||[];
+ let materialsCents=0,servicesCents=0;
+ for(const item of materials){
+  const amount=Math.round(materialPayment(item).total*100);
+  if(isServiceMaterial(item))servicesCents+=amount;
+  else materialsCents+=amount;
+ }
+ const totals=financeTotals(project);
+ return {materials:materialsCents/100,services:servicesCents/100,other:totals.manual.total,total:totals.total,paid:totals.paid};
+}
 function projectsView(){
   return '<section class="motto-panel motto-home" aria-label="Mensagem de inspiração"><span class="motto-anchor" aria-hidden="true">⚓</span><div><span class="section-overline">NOSSA INSPIRAÇÃO</span><h3>De hora em hora, Deus melhora.</h3></div></section>'+
   '<section class="panel portfolio-intro"><div><span class="section-overline">GESTÃO DE PROJETOS</span><h3>Minhas obras</h3><p class="muted">Abra uma obra para acessar seus próprios registros. Obras arquivadas continuam disponíveis no histórico.</p></div><div class="portfolio-header-buttons"><button type="button" class="btn alt" id="backupMain" aria-label="Baixar backup de todas as obras">↓ Baixar backup</button><button type="button" class="btn" id="newProject">+ Nova obra</button></div></section>'+
   '<div class="portfolio-grid">'+projects.map(p=>{
-    const progress=projectProgress(p.payload),pagos=(p.payload.financeiro||[]).filter(v=>v.status==="Pago").reduce((n,v)=>n+num(v.valor),0),selected=p.id===activeProjectId;
-    return '<article class="portfolio-card '+(selected?'selected':'')+'"><div class="portfolio-card-top"><span class="portfolio-icon">⌂</span><span class="portfolio-tag">'+esc(p.situacao||"Planejada")+'</span></div><h3>'+esc(p.nome)+'</h3><p class="portfolio-description">'+esc(p.descricao||p.localizacao||"Sem descrição")+'</p><div class="portfolio-progress-label"><span>Avanço da obra</span><strong>'+progress+'%</strong></div><div class="portfolio-progress"><span style="width:'+progress+'%"></span></div><div class="portfolio-meta"><span>Etapas: '+(p.payload.etapas||[]).length+'</span><span>Materiais: '+(p.payload.materiais||[]).length+'</span><span>Fotos: '+(p.payload.fotos||[]).length+'</span><span>Pago: '+money(pagos)+'</span></div><div class="portfolio-actions"><button type="button" class="btn" data-open-project="'+esc(p.id)+'">'+(selected?'Ver painel':'Abrir obra')+'</button><button type="button" class="btn alt portfolio-edit-btn" data-edit-project="'+esc(p.id)+'">✎ Editar</button><button type="button" class="btn alt" data-archive-project="'+esc(p.id)+'">'+(p.situacao==="Arquivada"?"Reativar":"Arquivar")+'</button>'+(isPresident()?'<button type="button" class="btn danger portfolio-delete" data-delete-project="'+esc(p.id)+'">Excluir obra</button>':'')+'</div>'+(selected?'<span class="portfolio-current">● Obra selecionada</span>':'')+'</article>'
+    const progress=projectProgress(p.payload),costs=portfolioCardCosts(p),selected=p.id===activeProjectId;
+    return '<article class="portfolio-card '+(selected?'selected':'')+'"><div class="portfolio-card-top"><span class="portfolio-icon">⌂</span><span class="portfolio-tag">'+esc(p.situacao||"Planejada")+'</span></div><h3>'+esc(p.nome)+'</h3><p class="portfolio-description">'+esc(p.descricao||p.localizacao||"Sem descrição")+'</p><div class="portfolio-progress-label"><span>Avanço da obra</span><strong>'+progress+'%</strong></div><div class="portfolio-progress"><span style="width:'+progress+'%"></span></div>'+
+    '<section class="portfolio-budget" aria-label="Valores financeiros desta obra"><div class="portfolio-budget-total"><span>VALOR TOTAL DA OBRA</span><strong>'+money(costs.total)+'</strong><small>Valor previsto conforme materiais, serviços e lançamentos</small></div>'+
+    '<div class="portfolio-budget-split"><div><span>Materiais</span><strong>'+money(costs.materials)+'</strong></div><div><span>Serviços</span><strong>'+money(costs.services)+'</strong></div></div>'+
+    (costs.other?'<p class="portfolio-budget-other">Outros lançamentos financeiros: <strong>'+money(costs.other)+'</strong></p>':'')+'</section>'+
+    '<div class="portfolio-meta"><span>Etapas: '+(p.payload.etapas||[]).length+'</span><span>Materiais: '+(p.payload.materiais||[]).length+'</span><span>Fotos: '+(p.payload.fotos||[]).length+'</span><span>Pago: '+money(costs.paid)+'</span></div><div class="portfolio-actions"><button type="button" class="btn" data-open-project="'+esc(p.id)+'">'+(selected?'Ver painel':'Abrir obra')+'</button><button type="button" class="btn alt portfolio-edit-btn" data-edit-project="'+esc(p.id)+'">✎ Editar</button><button type="button" class="btn alt" data-archive-project="'+esc(p.id)+'">'+(p.situacao==="Arquivada"?"Reativar":"Arquivar")+'</button>'+(isPresident()?'<button type="button" class="btn danger portfolio-delete" data-delete-project="'+esc(p.id)+'">Excluir obra</button>':'')+'</div>'+(selected?'<span class="portfolio-current">● Obra selecionada</span>':'')+'</article>'
   }).join('')+'</div><div class="portfolio-bottom"><p class="muted">Cada obra tem seus próprios registros. O backup de todas as obras está disponível no botão “Baixar backup” acima e só será baixado após sua confirmação.</p></div>'
 }
 async function presidentDeleteProject(id){
