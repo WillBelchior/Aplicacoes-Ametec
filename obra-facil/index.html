@@ -831,6 +831,11 @@ body.auth-locked{overflow:hidden}body.auth-locked .app{display:none!important;vi
 /* Interface simplificada: sem botão ou painel de sincronização manual. */
 #syncPendingBtn,#pendingPanel,#manualSyncFeedback{display:none!important}
 #mode{pointer-events:none;cursor:default}
+
+/* Resumo financeiro: separação clara entre materiais e lançamentos manuais. */
+.finance-breakdown-heading{font-size:15px;color:#254861;margin:22px 0 0}
+.finance-source-breakdown{margin-top:11px}
+.finance-data-warning{margin:13px 0 0;font-size:13px;line-height:1.5;color:#855a25;padding:10px 12px;border:1px solid #edddb9;background:#fff9ee;border-radius:10px}
 </style></head><body class="auth-locked"><section id="authGate" class="auth-gate" aria-label="Acesso às obras"><div class="auth-shell"><div class="auth-brand"><span class="auth-anchor">⚓</span><div><span>PROJETOS</span><strong>Barquinha</strong></div></div><h1 id="gateTitle">Entrar</h1><p id="gateDescription">Identifique-se para acompanhar as obras e suas atividades.</p><div class="auth-notice" id="gateNotice" role="status"></div><button type="button" class="auth-clear-errors" id="gateClearErrors" hidden>Limpar erros</button><form id="gateForm" class="auth-form"><label id="gateNameField" hidden>Nome para o histórico<input id="gateName" type="text" autocomplete="name" maxlength="100"></label><label>E-mail<input id="gateEmail" type="email" autocomplete="email" required placeholder="seu@email.com"></label><label>Senha<span class="auth-password-wrap"><input id="gatePassword" type="password" autocomplete="current-password" required minlength="6"><button type="button" class="auth-eye" data-toggle-password="gatePassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label><label class="trusted-device-option" id="gateTrustSection"><input id="gateTrustDevice" type="checkbox"><span><strong>Confiar neste aparelho</strong><small>Continuar conectado após atualizar ou fechar a página. Para encerrar, use “Sair da conta”.</small></span></label><button type="submit" class="btn" id="gateSubmit">Entrar</button></form><form id="recoveryForm" class="auth-form password-recovery-form" hidden autocomplete="off">
  <label>Nova senha<span class="auth-password-wrap"><input id="recoveryPassword" type="password" name="new-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Mínimo de 8 caracteres"><button type="button" class="auth-eye" data-toggle-password="recoveryPassword" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label>
  <label>Confirmar nova senha<span class="auth-password-wrap"><input id="recoveryPasswordConfirm" type="password" name="confirm-password" autocomplete="new-password" required minlength="8" maxlength="128" placeholder="Repita a nova senha"><button type="button" class="auth-eye" data-toggle-password="recoveryPasswordConfirm" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar ou ocultar senha">👁</button></span></label>
@@ -2121,29 +2126,72 @@ function saveStockCheck(e){
  stockEditKey=null;render();
 }
 
+/* Materiais e serviços orçados são a fonte dos gastos desta seção.
+   Não criamos lançamentos duplicados em financeiro: o resumo combina as duas origens apenas na exibição. */
+function materialFinanceTotals(p){
+ const cents=(p?.payload?.materiais||[]).reduce((acc,item)=>{
+  const value=materialPayment(item);
+  acc.planned+=Math.round(value.total*100);
+  acc.paid+=Math.round(value.paid*100);
+  acc.due+=Math.round(value.due*100);
+  acc.count++;
+  if(value.overpaid)acc.review++;
+  return acc;
+ },{planned:0,paid:0,due:0,count:0,review:0});
+ return {planned:cents.planned/100,paid:cents.paid/100,due:cents.due/100,count:cents.count,review:cents.review};
+}
 function financeTotals(p){
  const items=p?.payload?.financeiro||[];
- const paid=items.filter(v=>v.status==="Pago").reduce((a,v)=>a+num(v.valor),0);
- const pending=items.filter(v=>v.status==="Pendente").reduce((a,v)=>a+num(v.valor),0);
- const other=items.filter(v=>v.status!=="Pago"&&v.status!=="Pendente").reduce((a,v)=>a+num(v.valor),0);
- return {paid,pending,other,total:paid+pending+other,count:items.length};
+ const toCents=value=>Math.round(num(value)*100);
+ const manualCents=items.reduce((acc,item)=>{
+  const value=toCents(item.valor);
+  if(item.status==="Pago")acc.paid+=value;
+  else if(item.status==="Pendente")acc.pending+=value;
+  else acc.other+=value;
+  return acc;
+ },{paid:0,pending:0,other:0});
+ const manual={paid:manualCents.paid/100,pending:manualCents.pending/100,other:manualCents.other/100,total:(manualCents.paid+manualCents.pending+manualCents.other)/100,count:items.length};
+ const materials=materialFinanceTotals(p);
+ return {paid:manual.paid+materials.paid,pending:manual.pending+materials.due,other:manual.other,
+  total:manual.total+materials.planned,count:manual.count+materials.count,manual,materials};
 }
 function financeMetric(label,amount,hint=""){return '<div class="finance-metric"><span>'+label+'</span><strong>'+money(amount)+'</strong>'+(hint?'<small>'+hint+'</small>':'')+'</div>'}
+function financeSourceBreakdown(t){
+ return '<div class="finance-metrics finance-source-breakdown">'+
+ financeMetric("Materiais e serviços previstos",t.materials.planned,t.materials.count+" item(ns) da lista de Materiais")+
+ financeMetric("Materiais pagos",t.materials.paid,"Valores pagos em Materiais")+
+ financeMetric("Materiais a pagar",t.materials.due,"Saldo previsto na lista de Materiais")+
+ financeMetric("Outros lançamentos",t.manual.total,t.manual.count+" lançamento(s) feitos em Financeiro")+'</div>'+
+ (t.materials.review?'<p class="finance-data-warning">Atenção: '+t.materials.review+' material(is) têm valor pago superior ao previsto. Revise os valores.</p>':"");
+}
+function financeDuplicateHint(t){
+ return t.materials.count&&t.manual.count?'<p class="finance-data-warning">Evite cadastrar a mesma compra nas abas Materiais e Financeiro: os valores das duas origens são somados no consolidado e um registro duplicado será contado duas vezes.</p>':"";
+}
 function globalFinanceView(){
  const rows=projects.map(p=>({p,totals:financeTotals(p)}));
- const sums=rows.reduce((a,{totals:t})=>({paid:a.paid+t.paid,pending:a.pending+t.pending,other:a.other+t.other,total:a.total+t.total,count:a.count+t.count}),{paid:0,pending:0,other:0,total:0,count:0});
+ const sums=rows.reduce((a,{totals:t})=>({
+  paid:a.paid+t.paid,pending:a.pending+t.pending,other:a.other+t.other,total:a.total+t.total,count:a.count+t.count,
+  materials:{planned:a.materials.planned+t.materials.planned,paid:a.materials.paid+t.materials.paid,due:a.materials.due+t.materials.due,count:a.materials.count+t.materials.count,review:a.materials.review+t.materials.review},
+  manual:{paid:a.manual.paid+t.manual.paid,pending:a.manual.pending+t.manual.pending,other:a.manual.other+t.manual.other,total:a.manual.total+t.manual.total,count:a.manual.count+t.manual.count}
+ }),{paid:0,pending:0,other:0,total:0,count:0,materials:{planned:0,paid:0,due:0,count:0,review:0},manual:{paid:0,pending:0,other:0,total:0,count:0}});
  const totalBudget=projects.reduce((a,p)=>a+num(p.orcamento),0);
- return '<section class="panel finance-overview"><span class="section-overline">TODAS AS OBRAS</span><h3>Financeiro geral</h3><p class="muted">Esta página consolida os lançamentos de todas as obras. Para adicionar ou editar uma despesa, abra a obra correspondente e acesse sua subaba Financeiro.</p><div class="finance-metrics">'+
- financeMetric("Gastos pagos",sums.paid,projects.length+" obra(s)")+
- financeMetric("Pagamentos pendentes",sums.pending,sums.count+" lançamento(s)")+
- financeMetric("Total registrado",sums.total,"Inclui todos os status")+
- financeMetric("Orçamento previsto",totalBudget,"Soma dos orçamentos informados")+'</div></section>'+
+ return '<section class="panel finance-overview"><span class="section-overline">TODAS AS OBRAS</span><h3>Financeiro geral</h3><p class="muted">Consolida automaticamente os materiais e serviços orçados, os valores pagos na lista de Materiais e os lançamentos avulsos da aba Financeiro de cada obra.</p><div class="finance-metrics">'+
+ financeMetric("Gastos pagos",sums.paid,"Materiais + outros lançamentos")+
+ financeMetric("Pagamentos pendentes",sums.pending,"Materiais a pagar + outros pendentes")+
+ financeMetric("Total previsto / registrado",sums.total,"Orçamento de materiais + lançamentos avulsos")+
+ financeMetric("Orçamento informado das obras",totalBudget,"Valor do cadastro da obra; não somado ao total acima")+'</div>'+
+ '<h4 class="finance-breakdown-heading">Origem dos valores</h4>'+financeSourceBreakdown(sums)+financeDuplicateHint(sums)+'</section>'+
  '<section class="panel"><div class="panel-heading"><div><span class="section-overline">COMPARATIVO</span><h3>Resultados por obra</h3></div></div><div class="global-finance-rows">'+
- (rows.length?rows.map(({p,totals:t})=>'<article class="finance-project-row"><div><h4>'+esc(p.nome)+'</h4><span>'+esc(p.situacao||"Planejada")+' · '+t.count+' lançamento(s)</span></div><div class="finance-project-numbers"><div><small>Pago</small><strong>'+money(t.paid)+'</strong></div><div><small>Pendente</small><strong>'+money(t.pending)+'</strong></div><div><small>Total</small><strong>'+money(t.total)+'</strong></div></div><button type="button" class="btn alt" data-open-finance="'+esc(p.id)+'">Ver obra →</button></article>').join(""):'<p class="muted">Nenhuma obra cadastrada.</p>')+'</div></section>';
+ (rows.length?rows.map(({p,totals:t})=>'<article class="finance-project-row"><div><h4>'+esc(p.nome)+'</h4><span>'+esc(p.situacao||"Planejada")+' · '+t.materials.count+' material(is)/serviço(s) · '+t.manual.count+' lançamento(s) avulso(s)</span></div><div class="finance-project-numbers"><div><small>Materiais previstos</small><strong>'+money(t.materials.planned)+'</strong></div><div><small>Pago</small><strong>'+money(t.paid)+'</strong></div><div><small>Pendente</small><strong>'+money(t.pending)+'</strong></div><div><small>Total</small><strong>'+money(t.total)+'</strong></div></div><button type="button" class="btn alt" data-open-finance="'+esc(p.id)+'">Ver obra →</button></article>').join(""):'<p class="muted">Nenhuma obra cadastrada.</p>')+'</div></section>';
 }
 function projectFinanceView(){
  const t=financeTotals(currentProject());
- return '<section class="panel finance-project-intro"><span class="section-overline">EXCLUSIVO DESTA OBRA</span><h3>Financeiro · '+esc(currentProject()?.nome||"Obra")+'</h3><p class="muted">As alterações feitas aqui afetam somente a obra aberta. O resumo global aparece na aba Financeiro do menu principal.</p><div class="finance-metrics">'+financeMetric("Pagos",t.paid)+financeMetric("Pendentes",t.pending)+financeMetric("Total registrado",t.total)+'</div></section>'+listing("financeiro");
+ return '<section class="panel finance-project-intro"><span class="section-overline">EXCLUSIVO DESTA OBRA</span><h3>Financeiro · '+esc(currentProject()?.nome||"Obra")+'</h3><p class="muted">Os valores dos materiais e serviços entram automaticamente neste resumo, inclusive pagamentos parciais. Os lançamentos avulsos continuam separados abaixo.</p><div class="finance-metrics">'+
+ financeMetric("Pagos",t.paid,"Materiais + lançamentos avulsos")+
+ financeMetric("Pendentes",t.pending,"Materiais restantes + lançamentos pendentes")+
+ financeMetric("Total previsto / registrado",t.total,"Materiais orçados + lançamentos avulsos")+'</div>'+
+ '<h4 class="finance-breakdown-heading">Origem dos valores</h4>'+financeSourceBreakdown(t)+financeDuplicateHint(t)+'</section>'+
+ listing("financeiro");
 }
 
 
