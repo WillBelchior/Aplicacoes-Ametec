@@ -3806,29 +3806,29 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .archive-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
 .archive-kpi{border:1px solid #17384b;background:#071923;border-radius:12px;padding:12px;min-width:0}
 .archive-kpi.primary{background:linear-gradient(135deg,#0b2c3d,#0c4057);border-color:#28667e}
-.archive-kpi span{display:block;font-size:8px;color:#85a4b4;text-transform:uppercase;letter-spacing:.05em}
-.archive-kpi b{display:block;font-size:17px;color:#fff;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.archive-kpi small{display:block;font-size:9px;color:#7693a2;margin-top:3px}
+.archive-kpi span{display:block;font-size:15px;color:#85a4b4;text-transform:uppercase;letter-spacing:.05em}
+.archive-kpi b{display:block;font-size:26px;color:#fff;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.archive-kpi small{display:block;font-size:14px;color:#7693a2;margin-top:3px}
 .archive-kpi b.positive{color:#69dfa9}.archive-kpi b.negative{color:#ff8c8c}
 .archive-analysis-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:10px}
 .archive-chart-card{border:1px solid #17384b;background:#071923;border-radius:14px;padding:13px;min-width:0;overflow:hidden}
 .archive-chart-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}
-.archive-chart-head b{display:block;font-size:13px;color:#f3fbff}.archive-chart-head small{display:block;font-size:9px;color:#7795a5;margin-top:2px}
+.archive-chart-head b{display:block;font-size:20px;color:#f3fbff}.archive-chart-head small{display:block;font-size:15px;color:#7795a5;margin-top:2px}
 .archive-month-chart{height:185px;display:flex;gap:7px;align-items:flex-end;border-bottom:1px solid #214455;padding:10px 4px 0;overflow-x:auto}
 .archive-month-col{min-width:52px;flex:1;display:grid;grid-template-rows:auto 125px auto;align-items:end;text-align:center;gap:5px}
-.archive-month-value{font-size:8px;color:#9db8c5;white-space:nowrap}
+.archive-month-value{font-size:15px;color:#9db8c5;white-space:nowrap}
 .archive-month-bar-wrap{height:125px;display:flex;align-items:flex-end;justify-content:center}
 .archive-month-bar-wrap i{display:block;width:65%;max-width:36px;min-height:5px;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,#36c9f4,#197ea5)}
-.archive-month-col span{font-size:8px;color:#7d9aa9;text-transform:capitalize}
+.archive-month-col span{font-size:14px;color:#7d9aa9;text-transform:capitalize}
 .archive-composition{display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:center}
 .archive-donut{--service:0;width:124px;height:124px;border-radius:50%;background:conic-gradient(#24bce8 calc(var(--service)*1%),#e0a928 0);display:grid;place-items:center;position:relative}
 .archive-donut:after{content:"";position:absolute;width:82px;height:82px;border-radius:50%;background:#071923}
-.archive-donut div{position:relative;z-index:1;text-align:center}.archive-donut b{display:block;font-size:20px}.archive-donut small{font-size:8px;color:#8da8b6}
-.archive-composition-legend{display:grid;gap:9px}.archive-composition-legend div{border-bottom:1px solid #143343;padding-bottom:8px}.archive-composition-legend span{display:block;font-size:9px;color:#809ead}.archive-composition-legend b{display:block;font-size:13px;margin-top:2px}
-.archive-rank{display:grid;gap:10px}.archive-rank-row{display:grid;grid-template-columns:minmax(120px,.8fr) minmax(80px,1fr) auto;gap:9px;align-items:center}.archive-rank-label{min-width:0}.archive-rank-label span{font-size:8px;color:#6dd0f2;margin-right:5px}.archive-rank-label b{font-size:10px;color:#eaf9ff}.archive-rank-label small{display:block;font-size:8px;color:#718e9d;margin-top:1px}.archive-rank-track{height:8px;background:#05131b;border-radius:99px;overflow:hidden}.archive-rank-track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#20a7db,#35d39c)}.archive-rank-track.type i{background:linear-gradient(90deg,#d09c2c,#f1c451)}.archive-rank-row strong{font-size:9px;color:#fff;white-space:nowrap}
-.archive-insight{border:1px solid #26546a;background:#092331;border-radius:12px;padding:11px 12px;color:#a7c3d0;font-size:10px;line-height:1.55}
+.archive-donut div{position:relative;z-index:1;text-align:center}.archive-donut b{display:block;font-size:20px}.archive-donut small{font-size:13px;color:#8da8b6}
+.archive-composition-legend{display:grid;gap:9px}.archive-composition-legend div{border-bottom:1px solid #143343;padding-bottom:8px}.archive-composition-legend span{display:block;font-size:15px;color:#809ead}.archive-composition-legend b{display:block;font-size:19px;margin-top:2px}
+.archive-rank{display:grid;gap:10px}.archive-rank-row{display:grid;grid-template-columns:minmax(120px,.8fr) minmax(80px,1fr) auto;gap:9px;align-items:center}.archive-rank-label{min-width:0}.archive-rank-label span{font-size:15px;color:#6dd0f2;margin-right:5px}.archive-rank-label b{font-size:16px;color:#eaf9ff}.archive-rank-label small{display:block;font-size:14px;color:#718e9d;margin-top:1px}.archive-rank-track{height:8px;background:#05131b;border-radius:99px;overflow:hidden}.archive-rank-track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#20a7db,#35d39c)}.archive-rank-track.type i{background:linear-gradient(90deg,#d09c2c,#f1c451)}.archive-rank-row strong{font-size:15px;color:#fff;white-space:nowrap}
+.archive-insight{border:1px solid #26546a;background:#092331;border-radius:12px;padding:11px 12px;color:#a7c3d0;font-size:16px;line-height:1.55}
 .archive-insight b{color:#effbff}
-.archive-history-head{display:flex;justify-content:space-between;align-items:end;margin:18px 0 10px;padding-top:14px;border-top:1px solid #17384b}.archive-history-head b{display:block;font-size:14px}.archive-history-head small{display:block;font-size:9px;color:#7895a4;margin-top:2px}
+.archive-history-head{display:flex;justify-content:space-between;align-items:end;margin:18px 0 10px;padding-top:14px;border-top:1px solid #17384b}.archive-history-head b{display:block;font-size:20px}.archive-history-head small{display:block;font-size:15px;color:#7895a4;margin-top:2px}
 .archive-analytics-empty{border:1px dashed #28536a;border-radius:12px;padding:18px;text-align:center;color:#809ead;font-size:11px;margin-bottom:12px}
 @media(max-width:1000px){.archive-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.archive-analysis-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.archive-kpis{grid-template-columns:1fr 1fr}.archive-kpi b{font-size:14px}.archive-composition{grid-template-columns:105px 1fr}.archive-donut{width:100px;height:100px}.archive-donut:after{width:66px;height:66px}.archive-rank-row{grid-template-columns:minmax(95px,.9fr) minmax(70px,1fr);}.archive-rank-row strong{grid-column:1/-1;text-align:right;margin-top:-5px}}
@@ -4205,6 +4205,24 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .archive-analytics .archive-rank-row{grid-template-columns:1fr!important}
 .archive-analytics .archive-rank-row strong{text-align:left!important}
 }
+</style>
+<style id="archive-reading-enlarged-20261019">
+.archive-analytics .archive-kpi span{font-size:15px!important}
+.archive-analytics .archive-kpi b{font-size:28px!important}
+.archive-analytics .archive-kpi small{font-size:14px!important}
+.archive-analytics .archive-chart-head b{font-size:20px!important}
+.archive-analytics .archive-chart-head small{font-size:15px!important}
+.archive-analytics .archive-rank-label b{font-size:17px!important}
+.archive-analytics .archive-rank-label small{font-size:14px!important}
+.archive-analytics .archive-rank-row strong{font-size:16px!important}
+.archive-analytics .archive-month-value{font-size:15px!important}
+.archive-analytics .archive-month-col span{font-size:14px!important}
+.archive-analytics .archive-insight{font-size:16px!important}
+.archive-client-folder-head b{font-size:18px!important}
+.archive-client-folder-meta span{font-size:14px!important}
+.archive-client-folder-meta b{font-size:17px!important}
+.archive-analytics .archive-chart-card{min-height:230px}
+@media(max-width:700px){.archive-analytics .archive-kpis{grid-template-columns:1fr!important}}
 </style>
 </body>
 </html>
