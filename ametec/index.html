@@ -867,13 +867,18 @@ function pendencias(){
   const stages=['Elaborando orçamento','Aguardando aprovação','Orçamento aprovado','Em andamento','Pausada','Concluída'];
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">CENTRAL DE PENDÊNCIAS</div><h2>Atendimentos, orçamentos e recebimentos</h2><p>Organize tudo por etapa e saiba exatamente qual é a próxima ação.</p></div><button class="btn primary" id="newPending">+ Serviço</button></div></section>
-    <div class="metrics">
+    <div class="metrics pending-metrics">
       ${card('Elaborando orçamento',data.servicos.filter(x=>!x.arquivado&&x.atendimento_status==='Elaborando orçamento').length)}
       ${card('Aguardando aprovação',data.servicos.filter(x=>!x.arquivado&&x.atendimento_status==='Aguardando aprovação').length)}
       ${card('Prestações ativas',data.servicos.filter(x=>!x.arquivado&&x.tipo==='Prestação de serviço'&&x.atendimento_status!=='Concluída').length)}
       ${card('Serviços a receber',money(data.servicos.filter(x=>x.tipo!=='Prestação de serviço'&&isReceivableStage(x)).reduce((s,x)=>s+paySummary(x).serviceBalance,0)))}
       ${card('Prestação a receber',money(data.servicos.filter(x=>x.tipo==='Prestação de serviço'&&isReceivableStage(x)).reduce((s,x)=>s+paySummary(x).serviceBalance,0)))}
       ${card('Materiais a receber',money(data.servicos.filter(isReceivableStage).reduce((s,x)=>s+paySummary(x).materialBalance,0)))}
+      <div class="metric pending-received-metric">
+        <span>Valor já recebido</span>
+        <b>${money(data.servicos.filter(x=>!x.arquivado).reduce((total,x)=>total+paySummary(x).received,0))}</b>
+        <small>Pagamentos registrados nos serviços não arquivados</small>
+      </div>
     </div>
     <div class="pending-main-tabs">
       <button class="active" data-pending-view="ativos">📋 Pendências</button>
@@ -4247,6 +4252,13 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .archive-client-summary{grid-template-columns:1fr!important}
 .archive-client-summary>div{padding:12px 14px!important}
 }
+</style>
+<style id="ametec-pending-received-v1">
+.pending-metrics .pending-received-metric{grid-column:span 2;min-width:0;border-color:#23556d;background:linear-gradient(135deg,#0d2b3b,#0a1d2a)}
+.pending-metrics .pending-received-metric span{font-size:clamp(12px,1vw,15px);color:#a8cbd9}
+.pending-metrics .pending-received-metric b{font-size:clamp(22px,1.9vw,29px);line-height:1.25;overflow-wrap:anywhere}
+.pending-metrics .pending-received-metric small{font-size:12px;line-height:1.5}
+@media(max-width:700px){.pending-metrics .pending-received-metric{grid-column:1/-1}}
 </style>
 </body>
 </html>
