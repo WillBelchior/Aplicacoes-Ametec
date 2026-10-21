@@ -876,8 +876,8 @@ function pendencias(){
       ${card('Materiais a receber',money(data.servicos.filter(isReceivableStage).reduce((s,x)=>s+paySummary(x).materialBalance,0)))}
       <div class="metric pending-received-metric">
         <span>Valor já recebido</span>
-        <b>${money(data.servicos.filter(x=>!x.arquivado).reduce((total,x)=>total+paySummary(x).received,0))}</b>
-        <small>Pagamentos registrados nos serviços não arquivados</small>
+        <b>${money(data.pagamentos.reduce((total,p)=>total+(Number(p.valor)||0),0))}</b>
+        <small>Somente pagamentos registrados • quitações e pagamentos parciais</small>
       </div>
     </div>
     <div class="pending-main-tabs">
