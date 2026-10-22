@@ -29,6 +29,27 @@
     {id:"sol-002",pessoa:"ana",guia:"pedro",motivo:"Chegada após as 17h",status:"Atendimento não autorizado"}
   ];
   const state = {filter:"todos",search:"",profileTab:"dados",patientDraft:{nome:"",nascimento:"",telefone:"",cpf:"",foto:"",encaminhamento:""},patientFormError:"",duplicatePatientId:null,justRegisteredId:null,nextDemoId:0};
+
+  const PROJECT_TABS=[
+    {route:"/projetos/obras",key:"obras",label:"Minhas Obras"},
+    {route:"/projetos/financeiro",key:"financeiroGeral",label:"Financeiro"},
+    {route:"/projetos/estoque",key:"estoque",label:"Estoque"},
+    {route:"/projetos/cadastro",key:"cadastros",label:"Cadastro"},
+    {route:"/projetos/historico",key:"historico",label:"Histórico"},
+    {route:"/projetos/acessos",key:"acessos",label:"Acessos"}
+  ];
+  let projectFrameLoaded=false,projectFrameReady=false;
+  function projectTab(route){return PROJECT_TABS.find(t=>t.route===route)||PROJECT_TABS[0];}
+  function projectTabMarkup(route){
+    return '<nav class="platform-project-tabs" aria-label="Subabas Projetos Barquinha">'+
+      PROJECT_TABS.map(t=>'<button type="button" class="tab '+(projectTab(route).key===t.key?"active":"")+
+      '" data-go="'+t.route+'">'+t.label+'</button>').join("")+'</nav>';
+  }
+  function sendProjectTab(route){
+    const frame=document.getElementById("projects-frame");
+    if(frame?.contentWindow&&projectFrameLoaded&&projectFrameReady)
+      frame.contentWindow.postMessage({type:"barquinha:navigate-project",tab:projectTab(route).key},location.origin);
+  }
   const app = document.getElementById("app");
   if (!app) return;
   const esc = (value) => String(value === null || value === undefined ? "" : value)
@@ -61,21 +82,22 @@
   }
   function shell(route,body) {
     const home=route==="/inicio";
-    const projects=route==="/projetos";
+    const projects=route.startsWith("/projetos");
     const attend=route.startsWith("/atendimentos");
     const crumb=home?"Visão geral":projects?"Projetos Barquinha":"Atendimentos Barquinha";
     return '<div class="shell"><aside class="sidebar"><div class="logo-row"><div class="logo-icon" aria-hidden="true">⚓</div>' +
       '<div><div class="brand-name">Barquinha</div><span class="brand-caption">Plataforma de gestão</span></div></div>' +
       '<div class="side-label">Plataforma</div><nav class="nav-list" aria-label="Navegação principal">' +
-      sideButton("/inicio","⌂","Visão geral",home) + sideButton("/projetos","▤","Projetos Barquinha",projects) +
+      sideButton("/inicio","⌂","Visão Geral",home) + sideButton("/projetos/obras","▤","Projetos Barquinha",projects) +
       sideButton("/atendimentos/fila","☷","Atendimentos Barquinha",attend) + '</nav>' +
-      '<div class="sidebar-foot"><strong>Fundação V0.1</strong>Somente interface demonstrativa.<br>Sem banco e sem login compartilhado.</div></aside>' +
-      '<div class="content-shell"><header class="topbar"><div class="crumb">Barquinha / <strong>' + esc(crumb) +
-      '</strong></div><div class="top-status"><i class="status-dot" aria-hidden="true"></i>Modo demonstração</div></header>' +
+      '<div class="sidebar-foot"><strong>Conta conectada</strong>'+esc(window.PlatformAuth.profile?.display_name||window.PlatformAuth.user?.email||"Participante")+'<button class="platform-logout" type="button" data-platform-logout>Sair da conta ↪</button><small>Atendimentos: demonstração</small></div></aside>' +
+      '<div class="content-shell"><header class="topbar"><div class="crumb">Barquinha / <strong id="platform-crumb">' + esc(crumb) +
+      '</strong></div><div class="top-actions"><span class="top-account">'+esc(window.PlatformAuth.profile?.display_name||window.PlatformAuth.user?.email||"Participante")+'</span><button class="platform-logout-top" type="button" data-platform-logout>Sair</button></div></header>' +
       '<main class="main" id="main-content">' + body +
-      '<footer class="footer-note">Plataforma Barquinha • Etapa 1 • Nenhum dado de paciente é transmitido ou salvo nesta prévia.</footer></main></div>' +
+      '<footer class="footer-note">Plataforma Barquinha • Projetos conectado; Atendimentos demonstrativo.</footer></main>' +
+      '<section id="project-embed" class="project-embed" hidden><div class="project-embed-head"><div><strong>Projetos Barquinha</strong><small>Gestão integrada de obras</small></div><span class="project-live-mark">Registros reais de Obras</span></div><div id="project-subnav"></div><div class="project-iframe-wrap"><iframe title="Projetos Barquinha" id="projects-frame" loading="eager"></iframe></div></section></div>' +
       '<nav class="mobile-bottom" aria-label="Navegação para celular">' +
-      bottomButton("/inicio","⌂","Início",home) + bottomButton("/projetos","▤","Projetos",projects) +
+      bottomButton("/inicio","⌂","Visão Geral",home) + bottomButton("/projetos/obras","▤","Projetos",projects) +
       bottomButton("/atendimentos/fila","☷","Atendimentos",attend) + '</nav></div>';
   }
   function homePage() {
@@ -359,22 +381,51 @@
     else inner=queuePage();
     return moduleTabs(route)+inner;
   }
-  function render() {
-    const route=currentRoute();
-    const content=route==="/inicio" ? homePage() :
-      route==="/projetos" ? projectsPage() :
-      route.startsWith("/atendimentos") ? attendancePage(route) :
-      '<div class="note warn">Área não encontrada.</div><button class="button" data-go="/inicio">Ir ao início</button>';
-    app.innerHTML=shell(route,content);
-    document.title=(route==="/inicio"?"Plataforma Barquinha":route==="/projetos"?"Projetos Barquinha":"Atendimentos Barquinha")+" | Fundação V0.1";
+  function render(){
+    if(!window.PlatformAuth?.user){
+      app.innerHTML=window.PlatformAuth?.gateHTML()||'<div class="boot">Login indisponível</div>';
+      document.title="Entrar | Plataforma Barquinha";return;
+    }
+    const route=currentRoute(),projects=route.startsWith("/projetos");
+    if(!app.querySelector(".shell")){
+      app.innerHTML=shell(route,"");
+      const f=document.getElementById("projects-frame");
+      f?.addEventListener("load",()=>{projectFrameLoaded=true;projectFrameReady=false;});
+    }
+    const main=app.querySelector("#main-content"),embed=app.querySelector("#project-embed");
+    if(!main||!embed)return;
+    main.hidden=projects;embed.hidden=!projects;
+    if(projects){
+      app.querySelector("#project-subnav").innerHTML=projectTabMarkup(route);
+      const f=app.querySelector("#projects-frame");
+      if(f&&!f.getAttribute("src"))f.setAttribute("src","./projetos/index.html");
+      else sendProjectTab(route);
+    }else{
+      const content=route==="/inicio"?homePage():route.startsWith("/atendimentos")?attendancePage(route):
+        '<div class="note warn">Área não encontrada.</div><button class="button" data-go="/inicio">Ir ao início</button>';
+      main.innerHTML=content+'<footer class="footer-note">Projetos conectado ao Supabase • Atendimentos em demonstração.</footer>';
+    }
+    app.querySelectorAll(".nav-btn,.mobile-nav").forEach(btn=>{
+      const target=btn.getAttribute("data-go")||"";
+      const active=projects?target.startsWith("/projetos"):route.startsWith("/atendimentos")?
+        target.startsWith("/atendimentos"):target==="/inicio";
+      btn.classList.toggle("active",active);
+      if(active)btn.setAttribute("aria-current","page");else btn.removeAttribute("aria-current");
+    });
+    const crumb=app.querySelector("#platform-crumb");
+    if(crumb)crumb.textContent=projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":"Visão Geral";
+    document.title=(projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":"Visão Geral")+" | Plataforma Barquinha";
   }
-  app.addEventListener("click",function(event){
+    app.addEventListener("click",function(event){
+    const logout=event.target.closest("[data-platform-logout]");
+    if(logout){window.PlatformAuth?.logout();return;}
     const navigation=event.target.closest("[data-go]");
     if(navigation){navigate(navigation.getAttribute("data-go"));return;}
     const pTab=event.target.closest("[data-profile-tab]");
     if(pTab){state.profileTab=pTab.getAttribute("data-profile-tab");render();}
   });
   app.addEventListener("submit",function(event) {
+    if(event.target?.id==="platform-login-form"){event.preventDefault();window.PlatformAuth.login(event.target);return;}
     if(event.target && event.target.id==="new-patient-form"){
       event.preventDefault();
       submitPatientDraft();
@@ -396,7 +447,13 @@
     const next=document.getElementById("search-patient");
     if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
   });
+  window.addEventListener("message",event=>{
+    if(event.origin!==location.origin||event.source!==document.getElementById("projects-frame")?.contentWindow)return;
+    if(event.data?.type==="barquinha:project-ready"){projectFrameReady=true;sendProjectTab(currentRoute());}
+    if(event.data?.type==="barquinha:logout")window.PlatformAuth?.logout();
+  });
   window.addEventListener("hashchange",function(){state.profileTab="dados";render();window.scrollTo(0,0);});
   if(!location.hash)location.hash="#/inicio";
+  window.PlatformAuth.init(render);
   render();
 })();
