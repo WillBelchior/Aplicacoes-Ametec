@@ -50,3 +50,16 @@ Projeto Vercel independente: `plataforma-barquinha-preview`.
 - Nenhuma migração no Supabase; o login é compartilhado, mas ainda não existe banco de Atendimentos.
 
 **Privacidade:** Não cadastre CPF, fotografia, endereços ou relatórios verdadeiros de pacientes nessa versão. O módulo de Atendimentos não possui persistência/autorização em banco e não está pronto para uso real.
+
+
+## Expansão modular e domínio oficial
+
+- **Endereço principal após a migração:** `https://obra-facil-acompanhamento.vercel.app/`, agora exibindo a Plataforma Barquinha.
+- Cadastro e recuperação de senha: link interno `/projetos/index.html`, preservando o login original.
+- Catálogo: `modules.js`; adiciona menus e telas reservadas sem criar novas tabelas.
+- Futuros módulos: **Gestão da Igreja**, com **Financeiro da Igreja** e **Irmãos Oficiais**, marcados **Em planejamento**.
+- `build.mjs` gera `dist/` com a entrada principal, o Projetos Barquinha em `projetos/index.html` e recursos necessários para manter o acesso legado.
+- O antigo Service Worker do domínio de Obras é aposentado na raiz para que não continue apresentando a página antiga por cache. A rotina offline do módulo de Obras permanece isolada em `/projetos/`.
+- Para dados reais de outros módulos, ainda faltam esquema de dados, políticas RLS, permissões específicas, trilha de auditoria, política de privacidade e testes.
+
+Consulte `ARQUITETURA.md` para orientações detalhadas de ampliação. Não colocar dados de pacientes ou de irmãos oficiais nos módulos demonstrativos.
