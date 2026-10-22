@@ -256,3 +256,11 @@ small { font-size: 12px; }
  .project-live-mark{font-size:10px}
  .login-box{padding:25px 18px}
 }
+
+/* Catálogo de módulos expansível e navegação inferior com quatro módulos */
+@media(max-width:920px){.mobile-bottom{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.module-card{display:flex;flex-direction:column;min-height:215px}
+.module-card .actions{margin-top:auto}
+.module-card .card-top{margin-bottom:8px}
+.module-card .card-icon{margin:0}
+@media(max-width:420px){.module-card{min-height:0}.mobile-nav{font-size:10px;padding:7px 2px}}
