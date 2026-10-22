@@ -116,7 +116,7 @@
       '<div class="grid-3"><div class="card"><div class="card-icon">♧</div><h3>Identidade única</h3><p>Uma navegação e uma linguagem visual para todos os módulos.</p></div>' +
       '<div class="card"><div class="card-icon">◈</div><h3>Banco compartilhado</h3><p>O mesmo Supabase, com dados de Obras e Atendimentos separados por tabelas e permissões.</p></div>' +
       '<div class="card"><div class="card-icon">↻</div><h3>Offline futuro</h3><p>Sincronização por módulo com prevenção de duplicidades; ainda não implementada nesta etapa.</p></div></div>' +
-      '<div class="note warn" style="margin-top:20px">Atenção: nesta fase, os módulos compartilham apenas a entrada visual. Não há login único, acesso ao banco ou sincronização entre eles.</div>';
+      '<div class="note warn" style="margin-top:20px">Acesso integrado com a conta do Projetos Barquinha. Obras utiliza os dados existentes na nuvem; Atendimentos continua demonstrativo e não deve receber pacientes reais.</div>';
   }
   function projectsPage() {
     const legacyUrl=(location.pathname||"").startsWith("/plataforma-barquinha/") ? "../obra-facil/index.html" : "https://obra-facil-acompanhamento.vercel.app/";
@@ -450,6 +450,10 @@
   window.addEventListener("message",event=>{
     if(event.origin!==location.origin||event.source!==document.getElementById("projects-frame")?.contentWindow)return;
     if(event.data?.type==="barquinha:project-ready"){projectFrameReady=true;sendProjectTab(currentRoute());}
+    if(event.data?.type==="barquinha:project-tab"){
+      const found=PROJECT_TABS.find(t=>t.key===event.data.tab);
+      if(found&&currentRoute().startsWith("/projetos")&&currentRoute()!==found.route)navigate(found.route);
+    }
     if(event.data?.type==="barquinha:logout")window.PlatformAuth?.logout();
   });
   window.addEventListener("hashchange",function(){state.profileTab="dados";render();window.scrollTo(0,0);});
