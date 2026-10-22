@@ -30,14 +30,9 @@
   ];
   const state = {filter:"todos",search:"",profileTab:"dados",patientDraft:{nome:"",nascimento:"",telefone:"",cpf:"",foto:"",encaminhamento:""},patientFormError:"",duplicatePatientId:null,justRegisteredId:null,nextDemoId:0};
 
-  const PROJECT_TABS=[
-    {route:"/projetos/obras",key:"obras",label:"Minhas Obras"},
-    {route:"/projetos/financeiro",key:"financeiroGeral",label:"Financeiro"},
-    {route:"/projetos/estoque",key:"estoque",label:"Estoque"},
-    {route:"/projetos/cadastro",key:"cadastros",label:"Cadastro"},
-    {route:"/projetos/historico",key:"historico",label:"Histórico"},
-    {route:"/projetos/acessos",key:"acessos",label:"Acessos"}
-  ];
+  const PROJECT_TABS=window.BarquinhaRegistry.byId("projetos").sections.map(item=>({
+    route:item.route,key:item.legacyTab||item.id,label:item.title
+  }));
   let projectFrameLoaded=false,projectFrameReady=false;
   function projectTab(route){return PROJECT_TABS.find(t=>t.route===route)||PROJECT_TABS[0];}
   function projectTabMarkup(route){
@@ -88,8 +83,8 @@
     return '<div class="shell"><aside class="sidebar"><div class="logo-row"><div class="logo-icon" aria-hidden="true">⚓</div>' +
       '<div><div class="brand-name">Barquinha</div><span class="brand-caption">Plataforma de gestão</span></div></div>' +
       '<div class="side-label">Plataforma</div><nav class="nav-list" aria-label="Navegação principal">' +
-      sideButton("/inicio","⌂","Visão Geral",home) + sideButton("/projetos/obras","▤","Projetos Barquinha",projects) +
-      sideButton("/atendimentos/fila","☷","Atendimentos Barquinha",attend) + '</nav>' +
+      window.BarquinhaRegistry.modules.map(module=>sideButton(module.route,module.icon,module.name,
+        module.id==="inicio"?home:module.id==="projetos"?projects:module.id==="atendimentos"?attend:route.startsWith("/igreja"))).join("") + '</nav>' +
       '<div class="sidebar-foot"><strong>Conta conectada</strong>'+esc(window.PlatformAuth.profile?.display_name||window.PlatformAuth.user?.email||"Participante")+'<button class="platform-logout" type="button" data-platform-logout>Sair da conta ↪</button><small>Atendimentos: demonstração</small></div></aside>' +
       '<div class="content-shell"><header class="topbar"><div class="crumb">Barquinha / <strong id="platform-crumb">' + esc(crumb) +
       '</strong></div><div class="top-actions"><span class="top-account">'+esc(window.PlatformAuth.profile?.display_name||window.PlatformAuth.user?.email||"Participante")+'</span><button class="platform-logout-top" type="button" data-platform-logout>Sair</button></div></header>' +
@@ -97,26 +92,50 @@
       '<footer class="footer-note">Plataforma Barquinha • Projetos conectado; Atendimentos demonstrativo.</footer></main>' +
       '<section id="project-embed" class="project-embed" hidden><div class="project-embed-head"><div><strong>Projetos Barquinha</strong><small>Gestão integrada de obras</small></div><span class="project-live-mark">Registros reais de Obras</span></div><div id="project-subnav"></div><div class="project-iframe-wrap"><iframe title="Projetos Barquinha" id="projects-frame" loading="eager"></iframe></div></section></div>' +
       '<nav class="mobile-bottom" aria-label="Navegação para celular">' +
-      bottomButton("/inicio","⌂","Visão Geral",home) + bottomButton("/projetos/obras","▤","Projetos",projects) +
-      bottomButton("/atendimentos/fila","☷","Atendimentos",attend) + '</nav></div>';
+      window.BarquinhaRegistry.modules.map(module=>bottomButton(module.route,module.icon,module.shortName,
+        module.id==="inicio"?home:module.id==="projetos"?projects:module.id==="atendimentos"?attend:route.startsWith("/igreja"))).join("") + '</nav></div>';
   }
-  function homePage() {
-    return heading("Uma Barquinha, uma plataforma",
-      "Acesso central aos módulos da instituição. Os dados existentes de Obras permanecem preservados; Atendimentos está em fase de demonstração.","GESTÃO INTEGRADA") +
-      '<section class="banner"><div><h2>Bem-vindo à Plataforma Barquinha</h2><p>Organização das obras e dos atendimentos em um só ponto de entrada.</p></div><span class="banner-symbol" aria-hidden="true">⚓</span></section>' +
-      '<div class="grid-2"><article class="card"><div class="card-top"><div class="card-icon" aria-hidden="true">▤</div>' +
-      tag("Aplicativo existente","green") + '</div><h3>Projetos Barquinha</h3>' +
-      '<p>Obras, etapas, materiais, financeiro, diário e contatos. A versão atual permanece independente e inalterada.</p>' +
-      '<div class="actions"><button class="button" data-go="/projetos">Ver módulo de Projetos →</button></div></article>' +
-      '<article class="card"><div class="card-top"><div class="card-icon" aria-hidden="true">☷</div>' +
-      tag("Prévia visual","blue") + '</div><h3>Atendimentos Barquinha</h3>' +
-      '<p>Fila geral, pacientes, Guias por cor, solicitações de autorização e controle de expediente, com dados fictícios.</p>' +
-      '<div class="actions"><button class="button" data-go="/atendimentos/fila">Explorar Atendimentos →</button></div></article></div>' +
-      '<h2 class="section-title">Estrutura planejada</h2>' +
-      '<div class="grid-3"><div class="card"><div class="card-icon">♧</div><h3>Identidade única</h3><p>Uma navegação e uma linguagem visual para todos os módulos.</p></div>' +
-      '<div class="card"><div class="card-icon">◈</div><h3>Banco compartilhado</h3><p>O mesmo Supabase, com dados de Obras e Atendimentos separados por tabelas e permissões.</p></div>' +
-      '<div class="card"><div class="card-icon">↻</div><h3>Offline futuro</h3><p>Sincronização por módulo com prevenção de duplicidades; ainda não implementada nesta etapa.</p></div></div>' +
-      '<div class="note warn" style="margin-top:20px">Acesso integrado com a conta do Projetos Barquinha. Obras utiliza os dados existentes na nuvem; Atendimentos continua demonstrativo e não deve receber pacientes reais.</div>';
+  function moduleCard(module){
+    const status=module.status==="active"?tag("Em funcionamento","green"):
+      module.status==="demo"?tag("Demonstração","blue"):tag("Em planejamento","amber");
+    const button=module.status==="planned"?"Conhecer o planejamento →":"Acessar módulo →";
+    return '<article class="card module-card"><div class="card-top">'+
+      '<div class="card-icon" aria-hidden="true">'+module.icon+'</div>'+status+'</div>'+
+      '<h3>'+esc(module.name)+'</h3><p>'+esc(module.description)+'</p>'+
+      '<div class="actions"><button type="button" class="button '+(module.status==="planned"?"ghost":"")+
+      '" data-go="'+esc(module.route)+'">'+button+'</button></div></article>';
+  }
+  function homePage(){
+    const registry=window.BarquinhaRegistry.modules.filter(m=>m.id!=="inicio");
+    const enabled=registry.filter(m=>m.status!=="planned");
+    const future=registry.filter(m=>m.status==="planned");
+    return heading("Visão Geral","Todos os módulos de gestão da Barquinha em uma única plataforma. Cada área terá seus próprios cadastros e regras de acesso.","CENTRAL DE GESTÃO")+
+      '<section class="banner"><div><h2>Bem-vindo à Plataforma Barquinha</h2>'+
+      '<p>Obras, atendimentos e as próximas necessidades da instituição, organizadas em um só lugar.</p>'+
+      '</div><span class="banner-symbol" aria-hidden="true">⚓</span></section>'+
+      '<h2 class="section-title">Módulos disponíveis</h2><div class="grid-2">'+enabled.map(moduleCard).join("")+'</div>'+
+      '<h2 class="section-title">Ampliações planejadas</h2><div class="grid-2">'+future.map(moduleCard).join("")+'</div>'+
+      '<div class="note warn" style="margin-top:18px"><strong>Proteção de dados:</strong> Projetos utiliza o banco compartilhado existente. Atendimentos ainda é demonstração. O Financeiro da Igreja e os cadastros dos irmãos oficiais não armazenam dados nesta versão.</div>';
+  }
+  function churchPage(route){
+    const module=window.BarquinhaRegistry.byId("igreja");
+    const sections=module.sections;
+    const current=sections.find(section=>section.route===route);
+    if(current){
+      return '<button type="button" class="breadcrumb" data-go="/igreja">← Gestão da Igreja</button>'+
+        heading(current.title,current.description,"MÓDULO RESERVADO")+
+        '<div class="panel"><h3>Estrutura preparada para ampliação</h3>'+
+        '<p>Esta área está reservada no gerenciador. Cadastro, movimentações financeiras e relatórios ficarão indisponíveis até a criação das tabelas, validações e permissões próprias.</p></div>'+
+        '<div class="note warn">Ainda não é permitido armazenar dados pessoais, religiosos ou financeiros nesta seção.</div>';
+    }
+    return heading("Gestão da Igreja","Área preparada para incorporar funções administrativas e financeiras, com acesso separado por responsabilidade.","EM PLANEJAMENTO")+
+      '<div class="grid-2">'+sections.map(section=>
+        '<article class="card"><div class="card-top"><div class="card-icon" aria-hidden="true">'+
+        (section.id==="financeiro"?"＄":"♙")+'</div>'+tag("Em planejamento","amber")+'</div>'+
+        '<h3>'+esc(section.title)+'</h3><p>'+esc(section.description)+'</p>'+
+        '<div class="actions"><button type="button" class="button ghost" data-go="'+
+        esc(section.route)+'">Ver planejamento →</button></div></article>').join("")+'</div>'+
+      '<div class="note" style="margin-top:18px">O cadastro de irmãos oficiais será independente do cadastro de pacientes e dos contatos de Obras. Compartilhar login não dará acesso automático a estes dados futuramente.</div>';
   }
   function projectsPage() {
     const legacyUrl=(location.pathname||"").startsWith("/plataforma-barquinha/") ? "../obra-facil/index.html" : "https://obra-facil-acompanhamento.vercel.app/";
@@ -401,20 +420,20 @@
       if(f&&!f.getAttribute("src"))f.setAttribute("src","./projetos/index.html");
       else sendProjectTab(route);
     }else{
-      const content=route==="/inicio"?homePage():route.startsWith("/atendimentos")?attendancePage(route):
+      const content=route==="/inicio"?homePage():route.startsWith("/atendimentos")?attendancePage(route):route.startsWith("/igreja")?churchPage(route):
         '<div class="note warn">Área não encontrada.</div><button class="button" data-go="/inicio">Ir ao início</button>';
       main.innerHTML=content+'<footer class="footer-note">Projetos conectado ao Supabase • Atendimentos em demonstração.</footer>';
     }
     app.querySelectorAll(".nav-btn,.mobile-nav").forEach(btn=>{
       const target=btn.getAttribute("data-go")||"";
       const active=projects?target.startsWith("/projetos"):route.startsWith("/atendimentos")?
-        target.startsWith("/atendimentos"):target==="/inicio";
+        target.startsWith("/atendimentos"):route.startsWith("/igreja")?target==="/igreja":target==="/inicio";
       btn.classList.toggle("active",active);
       if(active)btn.setAttribute("aria-current","page");else btn.removeAttribute("aria-current");
     });
     const crumb=app.querySelector("#platform-crumb");
-    if(crumb)crumb.textContent=projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":"Visão Geral";
-    document.title=(projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":"Visão Geral")+" | Plataforma Barquinha";
+    if(crumb)crumb.textContent=projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":route.startsWith("/igreja")?"Gestão da Igreja":"Visão Geral";
+    document.title=(projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":route.startsWith("/igreja")?"Gestão da Igreja":"Visão Geral")+" | Plataforma Barquinha";
   }
     app.addEventListener("click",function(event){
     const logout=event.target.closest("[data-platform-logout]");
