@@ -21,7 +21,8 @@ function deviceTrusted(){`,
   "platform auth context");
 // Only the embedded copy hides its own sidebar; direct /projetos/index.html keeps its login/navigation.
 legacy=legacy.replace("let cloudPersistenceEnabled=false;",
-  "if(platformEmbedded())document.documentElement.classList.add('platform-embedded');\\nlet cloudPersistenceEnabled=false;".replace('\\\\n','\\n'));
+  `if(platformEmbedded())document.documentElement.classList.add('platform-embedded');
+let cloudPersistenceEnabled=false;`);
 legacy=replaceOnce(legacy,
   "function createCloudAuthClient(trusted){\n cloudPersistenceEnabled=!!trusted;\n return window.supabase.createClient(CLOUD_URL,CLOUD_KEY,{auth:{\n  persistSession:!!trusted,autoRefreshToken:true,detectSessionInUrl:false,storageKey:TRUSTED_AUTH_STORAGE_KEY\n }});\n}",
   `function createCloudAuthClient(trusted){
