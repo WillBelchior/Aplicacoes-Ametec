@@ -97,10 +97,11 @@
       '<div class="note warn" style="margin-top:20px">Atenção: nesta fase, os módulos compartilham apenas a entrada visual. Não há login único, acesso ao banco ou sincronização entre eles.</div>';
   }
   function projectsPage() {
+    const legacyUrl=(location.pathname||"").startsWith("/plataforma-barquinha/") ? "../obra-facil/index.html" : "https://obra-facil-acompanhamento.vercel.app/";
     return heading("Projetos Barquinha","A aplicação de Obras continua no local original, sem mudanças no código e sem migração dos registros.","MÓDULO 01") +
       '<section class="banner"><div><h2>Gestão de obras e projetos</h2><p>Continue utilizando o sistema de Obras atual enquanto construímos a plataforma unificada.</p></div><span class="banner-symbol" aria-hidden="true">▤</span></section>' +
-      '<div class="panel"><h3>Acesso ao módulo existente</h3><p>O botão abaixo abre o aplicativo original preservado no diretório <strong>obra-facil</strong> do mesmo repositório. Para testar localmente, sirva a raiz do repositório.</p>' +
-      '<div class="actions" style="margin-top:18px"><a class="button" href="../obra-facil/index.html">Abrir Projetos Barquinha ↗</a></div></div>' +
+      '<div class="panel"><h3>Acesso ao módulo existente</h3><p>O botão abaixo abre o sistema de Obras original. Em desenvolvimento local, utiliza o diretório <strong>obra-facil</strong>; quando publicado separadamente, abre o endereço já existente na Vercel.</p>' +
+      '<div class="actions" style="margin-top:18px"><a class="button" href="'+esc(legacyUrl)+'">Abrir Projetos Barquinha ↗</a></div></div>' +
       '<div class="note">Integração inicial por navegação. Não alteramos autenticação, contratos de dados, permissões ou funcionalidades do Projeto de Obras.</div>';
   }
   function moduleTabs(route) {
