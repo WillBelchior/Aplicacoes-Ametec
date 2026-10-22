@@ -28,7 +28,7 @@
     {id:"sol-001",pessoa:"jose",guia:"joao",motivo:"Atendimento à distância",status:"Aguardando autorização"},
     {id:"sol-002",pessoa:"ana",guia:"pedro",motivo:"Chegada após as 17h",status:"Atendimento não autorizado"}
   ];
-  const state = {filter:"todos",search:"",profileTab:"dados"};
+  const state = {filter:"todos",search:"",profileTab:"dados",patientDraft:{nome:"",nascimento:"",telefone:"",encaminhamento:""},patientFormError:"",duplicatePatientId:null,justRegisteredId:null,nextDemoId:0};
   const app = document.getElementById("app");
   if (!app) return;
   const esc = (value) => String(value === null || value === undefined ? "" : value)
@@ -155,7 +155,7 @@
       '<div class="metrics"><div class="metric"><strong>06</strong><span>Atendimentos</span></div>' +
       '<div class="metric"><strong>05</strong><span>Aguardando</span></div><div class="metric"><strong>01</strong><span>Chamado</span></div>' +
       '<div class="metric"><strong>02</strong><span>Autorizações na prévia</span></div></div>' +
-      '<div class="filters"><h3>Fila geral por Guia</h3><label>Visualizar: <select id="filter-guides" aria-label="Filtrar por Guia">' +
+      '<div class="filters"><div class="queue-actions"><h3>Fila geral por Guia</h3><button class="button" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button></div><label>Visualizar: <select id="filter-guides" aria-label="Filtrar por Guia">' +
       options + '</select></label></div>' +
       '<p class="queue-hint">Cada coluna reúne os atendimentos do Guia. No celular, deslize a tabela para os lados para ver os demais Guias.</p>' +
       '<div class="queue-board-scroll" role="region" aria-label="Filas dos Guias, com rolagem horizontal" tabindex="0">'+
@@ -163,7 +163,73 @@
       columns+'</div></div>' +
       '<div class="note" style="margin-top:17px">As faixas de 12 px e o número original do atendimento são preservados. Organizar por coluna não cria filas independentes nem libera solicitações pendentes: as regras de elegibilidade ainda serão implementadas na integração real.</div>';
   }
-    function patientsPage() {
+    function normalizeName(value) {
+    return String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z\s]/g," ").replace(/\s+/g," ").trim();
+  }
+  function normalizePhone(value) { return String(value||"").replace(/\D/g,""); }
+  function isoFromPt(value) {
+    const match=String(value||"").match(/^(\d\d)\/(\d\d)\/(\d{4})$/);
+    return match ? match[3]+"-"+match[2]+"-"+match[1] : "";
+  }
+  function ptFromIso(value) { return value.slice(8,10)+"/"+value.slice(5,7)+"/"+value.slice(0,4); }
+  function dateIsValid(iso) {
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return false;
+    const d=new Date(iso+"T12:00:00Z");
+    return !isNaN(d.getTime()) && d.toISOString().slice(0,10)===iso && d.getTime()<=Date.now();
+  }
+  function patientFormPage() {
+    const draft=state.patientDraft;
+    const field=(key,label,type,placeholder,required,extraClass)=>'<label class="'+(extraClass||"")+'">'+
+      esc(label)+(required?' *':'')+
+      '<input data-patient-field="'+key+'" name="'+key+'" type="'+type+'" '+(required?'required ':'')+
+      'maxlength="'+(key==="nome"?"160":key==="encaminhamento"?"250":"50")+'" autocomplete="off" '+
+      (placeholder?'placeholder="'+esc(placeholder)+'" ':'')+'value="'+esc(draft[key])+'"></label>';
+    return '<button class="breadcrumb" type="button" data-go="/atendimentos/fila">← Voltar à fila geral</button>'+
+      heading("Cadastrar novo paciente","Preencha os dados básicos. Nesta demonstração, o cadastro existe somente enquanto a página estiver aberta e não entra automaticamente na fila.","CADASTRO • MODO DEMONSTRAÇÃO")+
+      '<div class="patient-form"><div class="note warn" style="margin-bottom:16px"><strong>Utilize apenas informações fictícias.</strong> Este formulário ainda não possui autenticação e armazenamento adequado para dados de pacientes reais.</div>'+
+      '<form id="new-patient-form" class="panel" novalidate><fieldset><legend>Dados do paciente</legend><div class="patient-fields">'+
+      field("nome","Nome completo","text","Ex.: Maria de Teste",true,"wide")+
+      field("nascimento","Data de nascimento","date","",true,"")+
+      field("telefone","Telefone de contato","tel","(85) 99999-9999",false,"")+
+      field("encaminhamento","Encaminhamento / indicação (opcional)","text","Quem encaminhou o paciente?",false,"wide")+
+      '</div></fieldset>'+
+      (state.patientFormError?'<div class="form-error" role="alert">'+esc(state.patientFormError)+
+      (state.duplicatePatientId?' <button type="button" class="button ghost" data-go="/atendimentos/paciente/'+esc(state.duplicatePatientId)+'">Ver cadastro existente →</button>':'')+'</div>':'')+
+      '<div class="patient-form-actions"><button type="button" class="button ghost" data-go="/atendimentos/fila">Cancelar</button>'+
+      '<button type="submit" class="button">Cadastrar paciente</button></div></form>'+
+      '<div class="note">Cadastro de paciente e chegada para atendimento são operações diferentes. Após esta etapa, o registro aparece em Pacientes; a inclusão na fila exigirá uma ação própria no sistema real.</div></div>';
+  }
+  function submitPatientDraft() {
+    const draft=state.patientDraft;
+    const name=draft.nome.trim().replace(/\s+/g," ");
+    const dob=draft.nascimento;
+    const phone=draft.telefone.trim();
+    state.patientFormError="";
+    state.duplicatePatientId=null;
+    if(name.length<2 || name.length>160 || !dateIsValid(dob)) {
+      state.patientFormError="Informe um nome completo e uma data de nascimento válida, não futura.";
+      render();
+      return;
+    }
+    const normalized=normalizeName(name);
+    const digits=normalizePhone(phone);
+    const existing=PEOPLE.find((p)=>
+      (normalizeName(p.nome)===normalized && isoFromPt(p.nascimento)===dob) ||
+      (digits.length>=10 && normalizePhone(p.telefone)===digits));
+    if(existing) {
+      state.duplicatePatientId=existing.id;
+      state.patientFormError="Possível cadastro duplicado: "+existing.nome+". Confira a ficha existente antes de cadastrar novamente.";
+      render();
+      return;
+    }
+    const id="demo-paciente-"+(++state.nextDemoId);
+    PEOPLE.push({id,nome:name,nascimento:ptFromIso(dob),telefone:phone||"Não informado",
+      encaminhamento:draft.encaminhamento.trim(),material:"Nenhum ciclo registrado",pendencia:false,visitas:0});
+    state.patientDraft={nome:"",nascimento:"",telefone:"",encaminhamento:""};
+    state.justRegisteredId=id;
+    navigate("/atendimentos/paciente/"+id);
+  }
+  function patientsPage() {
     const matches=PEOPLE.filter((p)=>(p.nome+" "+p.telefone).toLowerCase().includes(state.search.toLowerCase()));
     return heading("Pacientes","Consulta demonstrativa. Cada paciente possui um identificador; múltiplos atendimentos não criam um segundo cadastro.","MÓDULO 02") +
       '<div class="filters"><label>Buscar paciente <input id="search-patient" class="filter-search" autocomplete="off" placeholder="Nome ou telefone" value="' +
@@ -216,6 +282,7 @@
       '<div class="list-box"><div class="list-item"><div><strong>08/10/2026</strong><small>Visita e atendimentos demonstrativos</small></div></div>'+
       '<div class="list-item"><div><strong>15/09/2026</strong><small>Registro histórico demonstrativo</small></div></div></div>';
     return '<button class="breadcrumb" data-go="/atendimentos/fila">← Voltar à fila geral</button>'+
+      (state.justRegisteredId===p.id?'<div class="note" role="status" style="margin-bottom:14px"><strong>Paciente cadastrado nesta demonstração.</strong> Este registro temporário será perdido ao atualizar a página; não foi enviado ao Supabase e ainda não entrou na fila.</div>':"")+
       '<div class="profile"><div class="profile-header"><div class="avatar" aria-hidden="true">♟</div><div><h2>'+
       esc(p.nome)+'</h2><div class="muted">Ficha individual • somente demonstração</div></div>'+
       tag("Ativo","green")+'</div>'+(g?'<div class="guide-highlight"><i style="background:'+esc(g.cor)+
@@ -228,7 +295,8 @@
   }
   function attendancePage(route) {
     let inner;
-    if(route.startsWith("/atendimentos/paciente/"))inner=patientPage(route);
+    if(route==="/atendimentos/novo-paciente")inner=patientFormPage();
+    else if(route.startsWith("/atendimentos/paciente/"))inner=patientPage(route);
     else if(route==="/atendimentos/pacientes")inner=patientsPage();
     else if(route==="/atendimentos/guias")inner=guidesPage();
     else if(route==="/atendimentos/autorizacoes")inner=approvalsPage();
@@ -251,10 +319,20 @@
     const pTab=event.target.closest("[data-profile-tab]");
     if(pTab){state.profileTab=pTab.getAttribute("data-profile-tab");render();}
   });
+  app.addEventListener("submit",function(event) {
+    if(event.target && event.target.id==="new-patient-form"){
+      event.preventDefault();
+      submitPatientDraft();
+    }
+  });
   app.addEventListener("change",function(event){
     if(event.target.id==="filter-guides"){state.filter=event.target.value;render();}
+    const patientField=event.target.dataset && event.target.dataset.patientField;
+    if(patientField && Object.hasOwn(state.patientDraft,patientField))state.patientDraft[patientField]=event.target.value;
   });
   app.addEventListener("input",function(event){
+    const patientField=event.target.dataset && event.target.dataset.patientField;
+    if(patientField && Object.hasOwn(state.patientDraft,patientField)){state.patientDraft[patientField]=event.target.value;return;}
     if(event.target.id!=="search-patient")return;
     const input=event.target, pos=input.selectionStart;
     state.search=input.value;
