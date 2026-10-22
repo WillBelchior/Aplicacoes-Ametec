@@ -28,7 +28,7 @@
     {id:"sol-001",pessoa:"jose",guia:"joao",motivo:"Atendimento à distância",status:"Aguardando autorização"},
     {id:"sol-002",pessoa:"ana",guia:"pedro",motivo:"Chegada após as 17h",status:"Atendimento não autorizado"}
   ];
-  const state = {filter:"todos",search:"",profileTab:"dados",patientDraft:{nome:"",nascimento:"",telefone:"",encaminhamento:""},patientFormError:"",duplicatePatientId:null,justRegisteredId:null,nextDemoId:0};
+  const state = {filter:"todos",search:"",profileTab:"dados",patientDraft:{nome:"",nascimento:"",telefone:"",cpf:"",foto:"",encaminhamento:""},patientFormError:"",duplicatePatientId:null,justRegisteredId:null,nextDemoId:0};
   const app = document.getElementById("app");
   if (!app) return;
   const esc = (value) => String(value === null || value === undefined ? "" : value)
@@ -177,6 +177,50 @@
     const d=new Date(iso+"T12:00:00Z");
     return !isNaN(d.getTime()) && d.toISOString().slice(0,10)===iso && d.getTime()<=Date.now();
   }
+  function cpfDigits(value) { return String(value||"").replace(/\D/g,""); }
+  function validCpf(value) {
+    const digits=cpfDigits(value);
+    if(!/^\d{11}$/.test(digits) || /^(\d)\1{10}$/.test(digits))return false;
+    for(const size of [9,10]){
+      const sum=digits.slice(0,size).split("").reduce((total, digit, index)=>total+Number(digit)*(size+1-index),0);
+      const remainder=(sum*10)%11;
+      if(Number(digits[size])!==(remainder===10?0:remainder))return false;
+    }
+    return true;
+  }
+  function formatCpf(value){
+    const digits=cpfDigits(value);
+    return digits.length===11?digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,"$1.$2.$3-$4"):digits;
+  }
+  function maskedCpf(value){
+    const digits=cpfDigits(value);
+    return digits.length===11?"***.***.***-"+digits.slice(-2):"Não informado";
+  }
+  function demoImage(src, className, alt) {
+    return typeof src==="string" && /^data:image\/(?:jpeg|png|webp);base64,[a-zA-Z0-9+/]+=*$/.test(src)
+      ? '<img class="'+className+'" src="'+src+'" alt="'+esc(alt)+'">'
+      : '<div class="'+className+' patient-no-photo" aria-label="Sem foto cadastrada">♙</div>';
+  }
+  function handlePhoto(file) {
+    if(!file){state.patientDraft.foto="";state.patientFormError="";render();return;}
+    if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>2*1024*1024||file.size===0){
+      state.patientFormError="Selecione uma foto JPG, PNG ou WebP de até 2 MB.";
+      state.patientDraft.foto="";
+      render();
+      return;
+    }
+    const reader=new FileReader();
+    reader.onerror=()=>{state.patientFormError="Não foi possível abrir a foto.";state.patientDraft.foto="";render();};
+    reader.onload=()=>{
+      const src=reader.result;
+      if(typeof src!=="string"||!/^data:image\/(?:jpeg|png|webp);base64,[a-zA-Z0-9+/]+=*$/.test(src)){
+        state.patientFormError="Formato de foto não reconhecido.";
+        state.patientDraft.foto="";
+      }else{state.patientFormError="";state.patientDraft.foto=src;}
+      render();
+    };
+    reader.readAsDataURL(file);
+  }
   function patientFormPage() {
     const draft=state.patientDraft;
     const field=(key,label,type,placeholder,required,extraClass)=>'<label class="'+(extraClass||"")+'">'+
@@ -191,7 +235,9 @@
       field("nome","Nome completo","text","Ex.: Maria de Teste",true,"wide")+
       field("nascimento","Data de nascimento","date","",true,"")+
       field("telefone","Telefone de contato","tel","(85) 99999-9999",false,"")+
+      '<label>CPF (opcional nesta demonstração)<input data-patient-field="cpf" name="cpf" inputmode="numeric" type="text" maxlength="14" autocomplete="off" placeholder="000.000.000-00" value="'+esc(draft.cpf)+'"><small>Validação dos dígitos verificadores e alerta de duplicidade.</small></label>'+
       field("encaminhamento","Encaminhamento / indicação (opcional)","text","Quem encaminhou o paciente?",false,"wide")+
+      '<div class="photo-field wide"><div class="photo-preview">'+demoImage(draft.foto,"photo-preview-img","Prévia da foto do paciente")+'</div><label class="photo-upload-label">Foto do paciente (opcional)<input id="patient-photo" name="foto" type="file" accept="image/jpeg,image/png,image/webp"><small>JPG, PNG ou WebP • Até 2 MB • Somente nesta sessão de teste</small></label></div>'+
       '</div></fieldset>'+
       (state.patientFormError?'<div class="form-error" role="alert">'+esc(state.patientFormError)+
       (state.duplicatePatientId?' <button type="button" class="button ghost" data-go="/atendimentos/paciente/'+esc(state.duplicatePatientId)+'">Ver cadastro existente →</button>':'')+'</div>':'')+
@@ -204,6 +250,7 @@
     const name=draft.nome.trim().replace(/\s+/g," ");
     const dob=draft.nascimento;
     const phone=draft.telefone.trim();
+    const cpf=cpfDigits(draft.cpf);
     state.patientFormError="";
     state.duplicatePatientId=null;
     if(name.length<2 || name.length>160 || !dateIsValid(dob)) {
@@ -211,11 +258,17 @@
       render();
       return;
     }
+    if(cpf.length && !validCpf(cpf)) {
+      state.patientFormError="CPF inválido. Confira os 11 dígitos e os verificadores.";
+      render();
+      return;
+    }
     const normalized=normalizeName(name);
     const digits=normalizePhone(phone);
     const existing=PEOPLE.find((p)=>
       (normalizeName(p.nome)===normalized && isoFromPt(p.nascimento)===dob) ||
-      (digits.length>=10 && normalizePhone(p.telefone)===digits));
+      (digits.length>=10 && normalizePhone(p.telefone)===digits) ||
+      (cpf.length===11 && cpfDigits(p.cpf)===cpf));
     if(existing) {
       state.duplicatePatientId=existing.id;
       state.patientFormError="Possível cadastro duplicado: "+existing.nome+". Confira a ficha existente antes de cadastrar novamente.";
@@ -224,8 +277,8 @@
     }
     const id="demo-paciente-"+(++state.nextDemoId);
     PEOPLE.push({id,nome:name,nascimento:ptFromIso(dob),telefone:phone||"Não informado",
-      encaminhamento:draft.encaminhamento.trim(),material:"Nenhum ciclo registrado",pendencia:false,visitas:0});
-    state.patientDraft={nome:"",nascimento:"",telefone:"",encaminhamento:""};
+      encaminhamento:draft.encaminhamento.trim(),cpf, foto:draft.foto,material:"Nenhum ciclo registrado",pendencia:false,visitas:0});
+    state.patientDraft={nome:"",nascimento:"",telefone:"",cpf:"",foto:"",encaminhamento:""};
     state.justRegisteredId=id;
     navigate("/atendimentos/paciente/"+id);
   }
@@ -235,8 +288,8 @@
       '<div class="filters"><label>Buscar paciente <input id="search-patient" class="filter-search" autocomplete="off" placeholder="Nome ou telefone" value="' +
       esc(state.search) + '"></label>' + tag(matches.length+" encontrados") + '</div>' +
       '<div class="list-box" id="patients-results">' +
-      matches.map((p)=>'<div class="list-item"><div><strong>'+esc(p.nome)+'</strong><small>'+esc(p.telefone)+
-      ' • '+esc(p.visitas)+' visitas</small></div><button class="button ghost" data-go="/atendimentos/paciente/'+
+      matches.map((p)=>'<div class="list-item"><div class="patient-directory-person">'+demoImage(p.foto,"patient-thumb","Foto de "+p.nome)+'<div><strong>'+esc(p.nome)+'</strong><small>'+esc(p.telefone)+
+      ' • '+esc(p.visitas)+' visitas</small></div></div><button class="button ghost" data-go="/atendimentos/paciente/'+
       esc(p.id)+'">Abrir ficha →</button></div>').join("") +
       (matches.length?"":'<div class="note">Nenhum paciente fictício corresponde à pesquisa.</div>')+'</div>';
   }
@@ -275,6 +328,7 @@
     const selected=state.profileTab;
     const body=selected==="dados"?
       '<dl><div><dt>Data de nascimento</dt><dd>'+esc(p.nascimento)+'</dd></div><div><dt>Telefone</dt><dd>'+esc(p.telefone)+
+      '</dd></div><div><dt>CPF</dt><dd>'+esc(maskedCpf(p.cpf))+
       '</dd></div><div><dt>Visitas registradas</dt><dd>'+p.visitas+'</dd></div><div><dt>Situação</dt><dd>Ativo (exemplo)</dd></div></dl>':
       selected==="materiais"?
       '<div class="list-item"><div><strong>Último ciclo</strong><small>'+esc(p.material)+'</small></div>'+
@@ -283,7 +337,7 @@
       '<div class="list-item"><div><strong>15/09/2026</strong><small>Registro histórico demonstrativo</small></div></div></div>';
     return '<button class="breadcrumb" data-go="/atendimentos/fila">← Voltar à fila geral</button>'+
       (state.justRegisteredId===p.id?'<div class="note" role="status" style="margin-bottom:14px"><strong>Paciente cadastrado nesta demonstração.</strong> Este registro temporário será perdido ao atualizar a página; não foi enviado ao Supabase e ainda não entrou na fila.</div>':"")+
-      '<div class="profile"><div class="profile-header"><div class="avatar" aria-hidden="true">♟</div><div><h2>'+
+      '<div class="profile"><div class="profile-header">'+demoImage(p.foto,"avatar patient-avatar","Foto de "+p.nome)+'<div><h2>'+
       esc(p.nome)+'</h2><div class="muted">Ficha individual • somente demonstração</div></div>'+
       tag("Ativo","green")+'</div>'+(g?'<div class="guide-highlight"><i style="background:'+esc(g.cor)+
       '"></i><div><strong>Atendimento selecionado</strong><div class="muted">Guia '+esc(g.nome)+
@@ -326,6 +380,7 @@
     }
   });
   app.addEventListener("change",function(event){
+    if(event.target.id==="patient-photo"){handlePhoto(event.target.files&&event.target.files[0]);return;}
     if(event.target.id==="filter-guides"){state.filter=event.target.value;render();}
     const patientField=event.target.dataset && event.target.dataset.patientField;
     if(patientField && Object.hasOwn(state.patientDraft,patientField))state.patientDraft[patientField]=event.target.value;
