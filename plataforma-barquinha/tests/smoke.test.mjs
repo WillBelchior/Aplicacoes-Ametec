@@ -18,7 +18,7 @@ function setup() {
     title: "",
     getElementById(id) { return id === "app" ? app : null; }
   };
-  const location = {hash: "#/inicio"};
+  const location = {hash: "#/inicio",pathname:"/plataforma-barquinha/"};
   const window = {
     addEventListener(name, fn) { windows[name] = fn; },
     scrollTo() {}
@@ -182,4 +182,13 @@ test("CPF duplicate prevents a second patient record", () => {
   submit("Paciente Dois","1995-06-12","52998224725");
   assert.match(ui.app.innerHTML,/Possível cadastro duplicado/);
   assert.equal(ui.location.hash,"#/atendimentos/novo-paciente");
+});
+
+
+test("published platform links to production Projects site without replacing it", () => {
+  const ui=setup();
+  ui.location.pathname="/";
+  ui.route("/projetos");
+  assert.match(ui.app.innerHTML,/https:\/\/obra-facil-acompanhamento\.vercel\.app\//);
+  assert.doesNotMatch(ui.app.innerHTML,/href="\.\.\/obra-facil\/index\.html"/);
 });
