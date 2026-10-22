@@ -34,7 +34,7 @@ legacy=replaceOnce(legacy,
   "  const trusted=deviceTrusted()||platformEmbedded();\n  cloudClient=createCloudAuthClient(trusted);",
   "restore embedded session");
 legacy=replaceOnce(legacy,
-  "async function signOutApp(){\n if(!confirm("Deseja sair da sua conta neste aparelho?"))return;",
+  'async function signOutApp(){\n if(!confirm("Deseja sair da sua conta neste aparelho?"))return;',
   `async function signOutApp(){
  if(platformEmbedded()){window.parent.postMessage({type:"barquinha:logout"},location.origin);return}
  if(!confirm("Deseja sair da sua conta neste aparelho?"))return;`,
