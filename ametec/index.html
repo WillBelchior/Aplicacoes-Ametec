@@ -864,6 +864,8 @@ function archivedServiceCard(x){
   '</article>';
 }
 function pendencias(){
+  const activeServiceIds=new Set(data.servicos.filter(x=>!x.arquivado).map(x=>String(x.id)));
+  const receivedFromPayments=data.pagamentos.reduce((sum,p)=>activeServiceIds.has(String(p.servico_id))?sum+(Number(p.valor)||0):sum,0);
   const stages=['Elaborando orçamento','Aguardando aprovação','Orçamento aprovado','Em andamento','Pausada','Concluída'];
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">CENTRAL DE PENDÊNCIAS</div><h2>Atendimentos, orçamentos e recebimentos</h2><p>Organize tudo por etapa e saiba exatamente qual é a próxima ação.</p></div><button class="btn primary" id="newPending">+ Serviço</button></div></section>
@@ -876,8 +878,8 @@ function pendencias(){
       ${card('Materiais a receber',money(data.servicos.filter(isReceivableStage).reduce((s,x)=>s+paySummary(x).materialBalance,0)))}
       <div class="metric pending-received-metric">
         <span>Valor já recebido</span>
-        <b>${money(data.pagamentos.reduce((total,p)=>total+(Number(p.valor)||0),0))}</b>
-        <small>Somente pagamentos registrados • quitações e pagamentos parciais</small>
+        <b>${money(receivedFromPayments)}</b>
+        <small>Somente valores registrados em Pagamento • serviços não arquivados</small>
       </div>
     </div>
     <div class="pending-main-tabs">
@@ -905,6 +907,12 @@ function pendencias(){
       (pendingAlerts.length?`<div class="management-alert warn"><span style="font-size:22px">⚠</span><div><strong>${pendingAlerts.length} serviço(s) concluído(s) aguardando pagamento</strong><small>Serviços: ${money(pendingAlerts.reduce((s,x)=>s+x.payment.serviceBalance,0))} • Materiais: ${money(pendingAlerts.reduce((s,x)=>s+x.payment.materialBalance,0))}</small></div><button class="btn secondary" data-finance-filter="pending">Ver</button></div>`:'');
   }
   let pendingClass='todos',pendingView='ativos',archiveClientId=null;
+  const mountPendingScroll=()=>{
+    const el=document.querySelector('#pendingBoard');
+    el.classList.add('is-stage-scroll');
+    el.scrollLeft=Number(sessionStorage.getItem('ametecPendingScrollX')||0);
+    el.addEventListener('scroll',()=>sessionStorage.setItem('ametecPendingScrollX',String(el.scrollLeft)),{passive:true});
+  };
   const draw=(query='')=>{
     const q=query.trim().toLowerCase();
     const rows=sortByPriority(data.servicos.filter(x=>{
@@ -915,6 +923,7 @@ function pendencias(){
       const c=data.clientes.find(a=>a.id===x.cliente_id);
       return !q||[x.titulo,x.tipo,x.responsavel,x.orcamento_status,x.proxima_acao,c?.nome_fantasia].filter(Boolean).join(' ').toLowerCase().includes(q);
     }));
+    document.querySelector('#pendingBoard').classList.toggle('is-stage-scroll',pendingView==='ativos');
     if(pendingView==='arquivados'){
       const archivedAll=data.servicos.filter(x=>x.arquivado);
       if(archiveClientId){
@@ -947,8 +956,9 @@ function pendencias(){
       }
       bindArchived();
     }else{
-      document.querySelector('#pendingBoard').innerHTML=`<div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
+      document.querySelector('#pendingBoard').innerHTML=`<div class="pending-swipe-hint">↔ Deslize para ver todas as etapas</div><div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>(x.atendimento_status||'Aguardando aprovação')===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
       bindPending();
+      mountPendingScroll();
       renderProfileAvatars();
     }
   };
@@ -1109,8 +1119,10 @@ function pendencias(){
   document.querySelectorAll('[data-finance-filter]').forEach(b=>b.onclick=()=>{
     const mode=b.dataset.financeFilter;
     const rows=sortByPriority(data.servicos.filter(s=>mode==='overdue'?closureState(s).key==='overdue':closureState(s).key==='payment_pending'));
-    document.querySelector('#pendingBoard').innerHTML=`<div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>x.atendimento_status===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>x.atendimento_status===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
+    document.querySelector('#pendingBoard').innerHTML=`<div class="pending-swipe-hint">↔ Deslize para ver todas as etapas</div><div class="pending-board">${stages.map(st=>`<div class="pending-col" data-stage="${st}"><h4><span>${st}</span><span data-stage-count="${st}">${rows.filter(x=>x.atendimento_status===st).length}</span></h4><div data-stage-list="${st}">${rows.filter(x=>x.atendimento_status===st).map(pendingCard).join('')||'<div class="empty">Sem itens</div>'}</div></div>`).join('')}</div>`;
     bindPending();
+    mountPendingScroll();
+    renderProfileAvatars();
   });
   document.querySelector('#pendingSearch').oninput=e=>draw(e.target.value);
   document.querySelectorAll('[data-pending-view]').forEach(b=>b.onclick=()=>{
@@ -4259,6 +4271,40 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .pending-metrics .pending-received-metric b{font-size:clamp(22px,1.9vw,29px);line-height:1.25;overflow-wrap:anywhere}
 .pending-metrics .pending-received-metric small{font-size:12px;line-height:1.5}
 @media(max-width:700px){.pending-metrics .pending-received-metric{grid-column:1/-1}}
+</style>
+<style id="ametec-pending-horizontal-20261021">
+/* Só o quadro ativo de etapas rola horizontalmente; Arquivados mantém o layout. */
+#pendingBoard .pending-swipe-hint{display:none}
+@media(max-width:1280px){
+ #pendingBoard.is-stage-scroll{
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  overflow-x:auto!important;overflow-y:hidden!important;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:#3182a5 #0a2331;
+  padding-bottom:12px!important;
+ }
+ #pendingBoard.is-stage-scroll .pending-swipe-hint{
+  display:block;position:sticky;left:0;width:max-content;max-width:100%;
+  margin:0 0 10px 3px;font-size:13px;color:#a2c8d9;font-weight:700;
+ }
+ #pendingBoard.is-stage-scroll .pending-board{
+  display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
+  grid-template-columns:none!important;align-items:flex-start!important;
+  width:max-content!important;min-width:100%!important;max-width:none!important;
+  overflow:visible!important;gap:12px!important;margin:0!important;padding:0 2px 6px!important;
+ }
+ #pendingBoard.is-stage-scroll .pending-col{
+  display:block!important;flex:0 0 clamp(310px,39vw,420px)!important;
+  width:clamp(310px,39vw,420px)!important;min-width:0!important;
+  max-width:none!important;scroll-snap-align:start;
+ }
+ #pendingBoard.is-stage-scroll .pending-card{min-width:0!important}
+}
+@media(max-width:700px){
+ #pendingBoard.is-stage-scroll .pending-col{
+  flex-basis:min(84vw,360px)!important;width:min(84vw,360px)!important;
+ }
+}
 </style>
 </body>
 </html>
