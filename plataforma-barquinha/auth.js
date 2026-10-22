@@ -79,7 +79,7 @@
       '<label class="login-trusted"><input name="trusted" type="checkbox"><span>Confiar neste aparelho e manter conectado</span></label>'+
       (error?'<div class="form-error" role="alert">'+escape(error)+'</div>':"")+
       '<button type="submit" class="button" '+(busy?"disabled":"")+'>'+(busy?"Verificando…":"Entrar na plataforma")+'</button>'+
-      '<p class="login-help">Para cadastrar um usuário ou recuperar a senha, utilize <a href="https://obra-facil-acompanhamento.vercel.app/" target="_blank" rel="noopener noreferrer">o Projetos Barquinha</a>.</p>'+
+      '<p class="login-help">Para criar uma conta ou recuperar a senha, abra <a href="/projetos/index.html">Cadastro de usuário e recuperação de senha</a>.</p>'+
       '<small>Atendimentos é demonstrativo. Não utilize dados reais de pacientes.</small></form></div>';
   }
   window.PlatformAuth={
