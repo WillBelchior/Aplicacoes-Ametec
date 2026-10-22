@@ -16,9 +16,9 @@
       description:"Obras, materiais, financeiro, estoque, contatos, histórico e acessos.",
       sections:[
         {id:"obras", route:"/projetos/obras", title:"Minhas Obras"},
-        {id:"financeiro", route:"/projetos/financeiro", title:"Financeiro"},
+        {id:"financeiro", legacyTab:"financeiroGeral", route:"/projetos/financeiro", title:"Financeiro"},
         {id:"estoque", route:"/projetos/estoque", title:"Estoque"},
-        {id:"cadastro", route:"/projetos/cadastro", title:"Cadastro"},
+        {id:"cadastro", legacyTab:"cadastros", route:"/projetos/cadastro", title:"Cadastro"},
         {id:"historico", route:"/projetos/historico", title:"Histórico"},
         {id:"acessos", route:"/projetos/acessos", title:"Acessos"}
       ]
