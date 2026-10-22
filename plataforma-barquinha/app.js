@@ -132,21 +132,38 @@
   function queuePage() {
     const options='<option value="todos">Todos os Guias</option>' +
       GUIDES.map((g)=>'<option value="'+g.id+'" '+(state.filter===g.id?'selected':'')+'>'+esc(g.nome)+'</option>').join("");
-    const filtered=ATTENDANCES.filter((a)=>state.filter==="todos"||a.guia===state.filter);
     const kinds=[["presencial","Presenciais"],["distancia","À distância"],["trabalhador","Trabalhadores da casa"]];
-    const groups=kinds.map((k)=>{
-      const rows=filtered.filter((a)=>a.tipo===k[0]);
-      return rows.length?'<div class="queue-group"><span>'+k[1]+'</span><span>'+rows.length+' registros</span></div><div class="queue">'+rows.map(queueCard).join("")+'</div>':"";
+    const selectedGuides=GUIDES.filter((g)=>state.filter==="todos"||state.filter===g.id);
+    const columns=selectedGuides.map((g)=>{
+      const visits=ATTENDANCES.filter((a)=>a.guia===g.id).sort((a,b)=>a.ordem-b.ordem);
+      const sections=kinds.map((kind)=>{
+        const rows=visits.filter((a)=>a.tipo===kind[0]);
+        if(!rows.length)return "";
+        return '<section class="queue-guide-section" aria-label="'+esc(kind[1])+' de Guia '+esc(g.nome)+'">'+
+          '<div class="queue-group"><span>'+kind[1]+'</span><span>'+rows.length+'</span></div>'+
+          '<div class="queue">'+rows.map(queueCard).join("")+'</div></section>';
+      }).join("");
+      return '<section class="queue-guide-column" aria-label="Fila do Guia '+esc(g.nome)+'">'+
+        '<div class="queue-guide-header" style="border-top-color:'+esc(g.cor)+'">'+
+        '<div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span>'+
+        '<h3>Guia '+esc(g.nome)+'</h3></div>'+
+        '<span class="pill blue">'+visits.length+' '+(visits.length===1?'atendimento':'atendimentos')+'</span></div>'+
+        '<div class="queue-guide-body">'+
+        (sections||'<div class="queue-empty">Nenhum paciente nesta fila.</div>')+'</div></section>';
     }).join("");
-    return heading("Atendimento do Dia","Fila geral com identificação por Guia, modalidades distintas e cartões clicáveis. Todos os dados abaixo são fictícios.","MÓDULO 02") +
+    return heading("Atendimento do Dia","Fila geral apresentada em colunas, uma para cada Guia. A numeração permanece a mesma em toda a sessão; dados fictícios.","MÓDULO 02") +
       '<div class="metrics"><div class="metric"><strong>06</strong><span>Atendimentos</span></div>' +
       '<div class="metric"><strong>05</strong><span>Aguardando</span></div><div class="metric"><strong>01</strong><span>Chamado</span></div>' +
       '<div class="metric"><strong>02</strong><span>Autorizações na prévia</span></div></div>' +
-      '<div class="filters"><h3>Fila geral</h3><label>Guia: <select id="filter-guides" aria-label="Filtrar por Guia">' +
-      options + '</select></label></div>' + (groups||'<div class="note">Nenhum atendimento neste filtro.</div>') +
-      '<div class="note" style="margin-top:17px">As faixas de 12 px representam os Guias; modalidade e prioridade são exibidas por texto. A fila verdadeira terá controle de elegibilidade, horário e sincronização.</div>';
+      '<div class="filters"><h3>Fila geral por Guia</h3><label>Visualizar: <select id="filter-guides" aria-label="Filtrar por Guia">' +
+      options + '</select></label></div>' +
+      '<p class="queue-hint">Cada coluna reúne os atendimentos do Guia. No celular, deslize a tabela para os lados para ver os demais Guias.</p>' +
+      '<div class="queue-board-scroll" role="region" aria-label="Filas dos Guias, com rolagem horizontal" tabindex="0">'+
+      '<div class="queue-board'+(selectedGuides.length===1?' single':'')+'" style="--guide-count:'+selectedGuides.length+'">'+
+      columns+'</div></div>' +
+      '<div class="note" style="margin-top:17px">As faixas de 12 px e o número original do atendimento são preservados. Organizar por coluna não cria filas independentes nem libera solicitações pendentes: as regras de elegibilidade ainda serão implementadas na integração real.</div>';
   }
-  function patientsPage() {
+    function patientsPage() {
     const matches=PEOPLE.filter((p)=>(p.nome+" "+p.telefone).toLowerCase().includes(state.search.toLowerCase()));
     return heading("Pacientes","Consulta demonstrativa. Cada paciente possui um identificador; múltiplos atendimentos não criam um segundo cadastro.","MÓDULO 02") +
       '<div class="filters"><label>Buscar paciente <input id="search-patient" class="filter-search" autocomplete="off" placeholder="Nome ou telefone" value="' +
