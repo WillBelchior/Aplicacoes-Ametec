@@ -34,6 +34,16 @@ No celular conectado à mesma rede, o endereço será `http://IP-DO-COMPUTADOR:8
 
 Não cadastrar pacientes reais aqui. O módulo existente de Obras continua como antes e mantém sua própria autenticação.
 
+## Testes automatizados (Node.js 18+)
+
+Na raiz do repositório:
+
+```bash
+node --test plataforma-barquinha/tests/smoke.test.mjs
+```
+
+O arquivo cobre navegação, cartões de pacientes, filtro de Guias, central de autorizações e ausência de gravações externas nesta etapa.
+
 ## Testes mínimos
 
 1. Abra a página inicial e selecione Atendimentos.
