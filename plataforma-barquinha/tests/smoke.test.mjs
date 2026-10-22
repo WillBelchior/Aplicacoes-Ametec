@@ -85,3 +85,57 @@ test("existing Projects module is linked without changing its code", () => {
   ui.route("/projetos");
   assert.match(ui.app.innerHTML, /\.\.\/obra-facil\/index\.html/);
 });
+
+test("daily queue is arranged as one column per Guide", () => {
+  const ui=setup();
+  ui.route("/atendimentos/fila");
+  assert.equal((ui.app.innerHTML.match(/class="queue-guide-column"/g)||[]).length,3);
+  assert.match(ui.app.innerHTML,/Fila do Guia João/);
+  assert.match(ui.app.innerHTML,/Fila do Guia Pedro/);
+  assert.match(ui.app.innerHTML,/Fila do Guia Antônio/);
+  assert.match(style,/queue-board-scroll\s*\{[^}]*overflow-x:auto/);
+  ui.events.change({target:{id:"filter-guides",value:"joao"}});
+  assert.equal((ui.app.innerHTML.match(/class="queue-guide-column"/g)||[]).length,1);
+});
+
+test("daily queue offers a patient registration form", () => {
+  const ui=setup();
+  ui.route("/atendimentos/fila");
+  assert.match(ui.app.innerHTML,/data-go="\/atendimentos\/novo-paciente"/);
+  ui.click("/atendimentos/novo-paciente");
+  assert.match(ui.app.innerHTML,/id="new-patient-form"/);
+  assert.match(ui.app.innerHTML,/name="nome"/);
+  assert.match(ui.app.innerHTML,/name="nascimento"/);
+  assert.match(ui.app.innerHTML,/name="telefone"/);
+});
+
+test("demo registration creates a patient but no queue attendance", () => {
+  const ui=setup();
+  ui.route("/atendimentos/novo-paciente");
+  for(const [field,value] of Object.entries({
+    nome:"Pessoa Demonstrativa",nascimento:"2000-01-05",telefone:"(85) 95555-1010",encaminhamento:"Teste"
+  }))ui.events.input({target:{id:"",dataset:{patientField:field},value}});
+  let prevented=false;
+  ui.events.submit({target:{id:"new-patient-form"},preventDefault(){prevented=true;}});
+  assert.equal(prevented,true);
+  assert.equal(ui.location.hash,"#/atendimentos/paciente/demo-paciente-1");
+  ui.route("/atendimentos/paciente/demo-paciente-1");
+  assert.match(ui.app.innerHTML,/Pessoa Demonstrativa/);
+  assert.match(ui.app.innerHTML,/Paciente cadastrado nesta demonstração/);
+  ui.route("/atendimentos/fila");
+  assert.equal((ui.app.innerHTML.match(/class="queue-card"/g)||[]).length,6);
+  ui.route("/atendimentos/pacientes");
+  assert.match(ui.app.innerHTML,/Pessoa Demonstrativa/);
+});
+
+test("duplicate patient warning prevents another demo record", () => {
+  const ui=setup();
+  ui.route("/atendimentos/novo-paciente");
+  for(const [field,value] of Object.entries({
+    nome:"Maria Silva",nascimento:"1959-03-14",telefone:"(85) 97777-5555"
+  }))ui.events.input({target:{id:"",dataset:{patientField:field},value}});
+  ui.events.submit({target:{id:"new-patient-form"},preventDefault(){}});
+  assert.match(ui.app.innerHTML,/Possível cadastro duplicado/);
+  assert.match(ui.app.innerHTML,/Ver cadastro existente/);
+  assert.equal(ui.location.hash,"#/atendimentos/novo-paciente");
+});
