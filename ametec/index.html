@@ -864,8 +864,13 @@ function archivedServiceCard(x){
   '</article>';
 }
 function pendencias(){
-  const activeServiceIds=new Set(data.servicos.filter(x=>!x.arquivado).map(x=>String(x.id)));
-  const receivedFromPayments=data.pagamentos.reduce((sum,p)=>activeServiceIds.has(String(p.servico_id))?sum+(Number(p.valor)||0):sum,0);
+  // Usa exatamente os valores "Recebido" de cada serviço, sem somar orçamentos ou previsões.
+  const servicePaymentSummaries=data.servicos.filter(x=>!x.arquivado).map(paySummary);
+  const receivedFromServices=servicePaymentSummaries.reduce((sum,p)=>sum+p.received,0);
+  const receivedServicePart=servicePaymentSummaries.reduce((sum,p)=>sum+p.serviceReceived,0);
+  const receivedMaterialPart=servicePaymentSummaries.reduce((sum,p)=>sum+p.materialReceived,0);
+  // Pagamentos legados/valores excedentes podem não estar totalmente classificados.
+  const receivedWithoutCategory=Math.max(0,Math.round((receivedFromServices-receivedServicePart-receivedMaterialPart)*100)/100);
   const stages=['Elaborando orçamento','Aguardando aprovação','Orçamento aprovado','Em andamento','Pausada','Concluída'];
   document.querySelector('#app').innerHTML=`
     <section class="hero"><div class="hero-grid"><div><div class="eyebrow">CENTRAL DE PENDÊNCIAS</div><h2>Atendimentos, orçamentos e recebimentos</h2><p>Organize tudo por etapa e saiba exatamente qual é a próxima ação.</p></div><button class="btn primary" id="newPending">+ Serviço</button></div></section>
@@ -878,8 +883,13 @@ function pendencias(){
       ${card('Materiais a receber',money(data.servicos.filter(isReceivableStage).reduce((s,x)=>s+paySummary(x).materialBalance,0)))}
       <div class="metric pending-received-metric">
         <span>Valor já recebido</span>
-        <b>${money(receivedFromPayments)}</b>
-        <small>Somente valores registrados em Pagamento • serviços não arquivados</small>
+        <b>${money(receivedFromServices)}</b>
+        <div class="pending-received-breakdown">
+          <div><span>Serviços recebidos</span><strong>${money(receivedServicePart)}</strong></div>
+          <div><span>Materiais recebidos</span><strong>${money(receivedMaterialPart)}</strong></div>
+        </div>
+        ${receivedWithoutCategory>=0.01?`<small class="pending-received-unclassified">Sem classificação: ${money(receivedWithoutCategory)}</small>`:''}
+        <small>Soma do campo Recebido de cada serviço não arquivado • inclui pagamentos parciais</small>
       </div>
     </div>
     <div class="pending-main-tabs">
@@ -4304,6 +4314,28 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
  #pendingBoard.is-stage-scroll .pending-col{
   flex-basis:min(84vw,360px)!important;width:min(84vw,360px)!important;
  }
+}
+</style>
+<style id="ametec-pending-received-breakdown-20261021">
+.pending-received-metric .pending-received-breakdown{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:13px 0 10px;
+}
+.pending-received-metric .pending-received-breakdown>div{
+ display:flex;flex-direction:column;gap:5px;padding:12px 14px;
+ background:#061b28;border:1px solid #25526a;border-radius:11px;min-width:0;
+}
+.pending-received-metric .pending-received-breakdown span{
+ display:block;font-size:13px;color:#b3d3e1;font-weight:700;line-height:1.4;
+}
+.pending-received-metric .pending-received-breakdown strong{
+ display:block;color:#f3fbff;font-size:clamp(17px,1.5vw,21px);line-height:1.3;
+ overflow-wrap:anywhere;font-variant-numeric:tabular-nums;
+}
+.pending-received-metric .pending-received-unclassified{
+ display:block;color:#f3cb83;font-size:12px;padding:0 2px 8px;
+}
+@media(max-width:420px){
+ .pending-received-metric .pending-received-breakdown{grid-template-columns:1fr}
 }
 </style>
 </body>
