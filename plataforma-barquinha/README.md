@@ -1,82 +1,52 @@
-# Plataforma Barquinha — Etapa 1 (fundação visual)
+# Plataforma Barquinha — Login integrado e navegação por módulos
 
-**Branch de desenvolvimento:** `feature/plataforma-barquinha-fundacao`.
+**Branch:** `feature/plataforma-barquinha-login-navegacao`
 
-Esta pasta contém uma **entrada visual isolada** para os módulos **Projetos Barquinha** e **Atendimentos Barquinha**. Todo conteúdo de Atendimentos é demonstrativo, fictício e fica somente na memória da página.
+## Funcionalidades desta versão
 
-## Ver no computador, sem instalar dependências
+- Login com o mesmo **Supabase Auth** do Projetos Barquinha (mesmo projeto `tvhvwpyuobdonkqctogh`).
+- Verificação da tabela `barquinha_members`, exigindo associação com status **active**.
+- Opção de dispositivo confiável. Sem essa opção, a sessão usa `sessionStorage`.
+- Três áreas principais: **Visão Geral**, **Projetos Barquinha** e **Atendimentos Barquinha**.
+- Projetos possui subabas: **Minhas Obras, Financeiro, Estoque, Cadastro, Histórico e Acessos**.
+- Projetos roda dentro da Plataforma, sob a **mesma origem**, com sessão compartilhada entre o aplicativo e o módulo de Obras.
+- O arquivo original `obra-facil/index.html` **não sofre transformação ou alteração** em produção: `build.mjs` cria uma cópia adaptada somente no diretório gerado para a Plataforma.
+- Os dados já registrados nas obras são recuperados pelo módulo existente, com suas políticas de acesso.
+- Atendimentos continua com pacientes fictícios, fila por colunas por Guia, foto/CPF e tela de autorizações **apenas para testes**.
 
-Abra um terminal **na raiz do repositório** e execute:
-
-```bash
-python -m http.server 8080
-```
-
-Abra `http://localhost:8080/plataforma-barquinha/`.
-
-No celular conectado à mesma rede, o endereço será `http://IP-DO-COMPUTADOR:8080/plataforma-barquinha/`, desde que o firewall permita conexões ao servidor local. Essa visualização via rede ainda **não** é uma PWA offline.
-
-## O que existe
-
-- Painel inicial unificado com módulos Projetos e Atendimentos.
-- Link relativo ao módulo legado `../obra-facil/index.html` (funciona quando a raiz completa do repositório é servida).
-- Fila geral organizada **em colunas por Guia**, com faixas coloridas de 12 px, filtros e cartões clicáveis. Em celulares, as colunas rolam horizontalmente na própria área da fila.
-- Botão **+ Cadastrar paciente** no Atendimento do Dia. O formulário de cadastro é demonstrativo e apenas na memória, com verificação de nome/data de nascimento, telefone e CPF (quando informado) para possíveis duplicidades.
-- Campo **Foto do paciente** com pré-visualização de JPG, PNG ou WebP até 2 MB e **CPF** com validação de dígitos verificadores. O CPF fica mascarado na ficha; nunca aparece na fila.
-- Área de colunas com largura mínima e espaço adicional à direita, permitindo rolagem horizontal em telas pequenas.
-- O cadastro de paciente é separado do registro da chegada e **não** cria atendimento automaticamente.
-- Ficha demonstrativa por paciente e destaque para o atendimento selecionado.
-- Telas de pacientes, Guias, autorizações e expediente, com dados fictícios.
-- Navegação mobile e desktop, sem bibliotecas externas e sem build.
-
-## O que NÃO existe ainda
-
-- Login único; autenticação, armazenamento/sincronização offline, gravação **persistente**, autorização, encerramento do dia e banco de Atendimentos.
-- Integração de cadastros entre Projetos e Atendimentos.
-- Migrações, tabelas ou mudanças no Supabase.
-- Publicação em Vercel ou merge com main.
-
-Não cadastrar pacientes reais aqui. O módulo existente de Obras continua como antes e mantém sua própria autenticação.
-
-## Testes automatizados (Node.js 18+)
+## Executar localmente
 
 Na raiz do repositório:
 
 ```bash
-node --test plataforma-barquinha/tests/smoke.test.mjs
+node plataforma-barquinha/build.mjs
+cd plataforma-barquinha/dist
+py -m http.server 8080
 ```
 
-O arquivo cobre 15 cenários de navegação, cartões de pacientes, colunas/filtro de Guias, cadastro temporário, prevenção de duplicidade, central de autorizações e ausência de gravações externas nesta etapa.
+Abra `http://localhost:8080/`. Para entrar, utilize uma **conta de teste autorizada** na tabela de membros do Projetos Barquinha. O módulo Projetos é servido de `/projetos/index.html`.
 
-## Testes mínimos
+Não abra diretamente os arquivos pelo protocolo `file://`; o compartilhamento da sessão exige a mesma origem HTTP(S).
 
-1. Abra a página inicial e selecione Atendimentos.
-2. Verifique as três colunas de Guias, rolando horizontalmente no celular, e teste o filtro de Guia.
-3. Clique em **+ Cadastrar paciente**, inclua apenas dados fictícios, foto fictícia e um CPF de teste matematicamente válido. Confira a foto e o CPF mascarado na ficha e a aba Pacientes. Atualizar a página descarta o registro.
-4. Tente cadastrar novamente o mesmo nome e nascimento: deve mostrar alerta de possível duplicidade.
-5. Abra um cartão da fila e alterne Dados / Materiais / Histórico.
-6. Volte para a fila, abra Pacientes e pesquise por nome.
-7. Abra Guias, Autorizações e Expediente.
-8. Abra Projetos e siga o link para `obra-facil/index.html`.
-9. Repita em tela estreita de celular; confirme que só a área das colunas role horizontalmente.
-10. Verifique que o Supabase continua sem tabelas de Atendimentos.
+## Testes
 
-### Próxima fase
+Na raiz do repositório:
 
-Desenvolver autenticação e autorização por módulo, banco de Atendimentos com RLS e integração gradual após validação. Criar ambiente de testes antes de qualquer migração em produção.
+```bash
+node --test plataforma-barquinha/tests/integration.test.mjs
+```
 
+O teste verifica a montagem do projeto, autenticação e associação aos membros, presença das seis subabas e isolamento do arquivo legado. Após publicar a prévia, valide o login, a navegação, o Financeiro de uma obra, a troca de módulos e o logout **sem salvar dados fictícios nas obras reais**.
 
-## Preparação para publicação de demonstração na Vercel (ainda não publicada)
+## Publicação
 
-**Não alterar o projeto atual** `obra-facil-acompanhamento`. Crie um novo projeto separado com as seguintes configurações:
+Projeto Vercel independente: `plataforma-barquinha-preview`.
 
-- Equipe: a mesma proprietária de Projetos Barquinha, `ametecind-2456`, após conceder acesso ao conector.
 - Repositório: `WillBelchior/Aplicacoes-Ametec`.
-- Branch para implantação de teste: `feature/plataforma-barquinha-fundacao`.
-- Diretório raiz (Root Directory): `plataforma-barquinha`.
-- Framework: `Other` (aplicação estática); sem instalação e sem build.
-- Ambiente: Preview. Manter a proteção de acesso da Vercel habilitada.
-- Não configurar chave do Supabase: as funcionalidades de Atendimentos são somente demonstrativas.
-- O botão de Projetos, quando hospedado separadamente, abre `https://obra-facil-acompanhamento.vercel.app/`.
+- Raiz: repositório inteiro, para permitir a cópia da aplicação `obra-facil`.
+- Comando de build: `node plataforma-barquinha/build.mjs`.
+- Output Directory: `plataforma-barquinha/dist`.
+- Branch de desenvolvimento: `feature/plataforma-barquinha-login-navegacao`.
+- Nenhuma migração no Supabase; o login é compartilhado, mas ainda não existe banco de Atendimentos.
 
-**Atenção:** CPF, foto e relatos reais de pacientes são dados pessoais. Antes do uso real serão necessários autenticação, políticas de acesso por módulo, isolamento, armazenamento privado de imagens, backups e auditoria. Não registre dados reais na prévia.
+**Privacidade:** Não cadastre CPF, fotografia, endereços ou relatórios verdadeiros de pacientes nessa versão. O módulo de Atendimentos não possui persistência/autorização em banco e não está pronto para uso real.
