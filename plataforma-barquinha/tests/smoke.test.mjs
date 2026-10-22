@@ -139,3 +139,47 @@ test("duplicate patient warning prevents another demo record", () => {
   assert.match(ui.app.innerHTML,/Ver cadastro existente/);
   assert.equal(ui.location.hash,"#/atendimentos/novo-paciente");
 });
+
+
+test("form offers photo upload and CPF with required format", () => {
+  const ui=setup();
+  ui.route("/atendimentos/novo-paciente");
+  assert.match(ui.app.innerHTML,/name="cpf"/);
+  assert.match(ui.app.innerHTML,/id="patient-photo"/);
+  assert.match(ui.app.innerHTML,/accept="image\/jpeg,image\/png,image\/webp"/);
+  assert.match(style,/queue-board-scroll\s*\{[^}]*overflow-x:auto/);
+  assert.match(style,/padding:3px 24px 12px 2px/);
+});
+
+test("rejects invalid CPF and accepts valid demo CPF", () => {
+  const ui=setup();
+  ui.route("/atendimentos/novo-paciente");
+  const feed=(key,value)=>ui.events.input({target:{id:"",dataset:{patientField:key},value}});
+  feed("nome","Pessoa Exemplo CPF");
+  feed("nascimento","2000-01-02");
+  feed("cpf","123.456.789-00");
+  ui.events.submit({target:{id:"new-patient-form"},preventDefault(){}});
+  assert.match(ui.app.innerHTML,/CPF inválido/);
+  feed("cpf","529.982.247-25");
+  ui.events.submit({target:{id:"new-patient-form"},preventDefault(){}});
+  assert.equal(ui.location.hash,"#/atendimentos/paciente/demo-paciente-1");
+  ui.route("/atendimentos/paciente/demo-paciente-1");
+  assert.match(ui.app.innerHTML,/\*\*\*\.\*\*\*\.\*\*\*-25/);
+  assert.doesNotMatch(ui.app.innerHTML,/529\.982\.247-25/);
+});
+
+test("CPF duplicate prevents a second patient record", () => {
+  const ui=setup();
+  ui.route("/atendimentos/novo-paciente");
+  const submit=(name,dob,cpf)=>{
+    for(const [key,value] of Object.entries({nome:name,nascimento:dob,cpf})){
+      ui.events.input({target:{id:"",dataset:{patientField:key},value}});
+    }
+    ui.events.submit({target:{id:"new-patient-form"},preventDefault(){}});
+  };
+  submit("Paciente Um","1990-05-01","52998224725");
+  ui.route("/atendimentos/novo-paciente");
+  submit("Paciente Dois","1995-06-12","52998224725");
+  assert.match(ui.app.innerHTML,/Possível cadastro duplicado/);
+  assert.equal(ui.location.hash,"#/atendimentos/novo-paciente");
+});
