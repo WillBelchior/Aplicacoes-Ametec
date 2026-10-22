@@ -21,7 +21,9 @@ No celular conectado à mesma rede, o endereço será `http://IP-DO-COMPUTADOR:8
 - Painel inicial unificado com módulos Projetos e Atendimentos.
 - Link relativo ao módulo legado `../obra-facil/index.html` (funciona quando a raiz completa do repositório é servida).
 - Fila geral organizada **em colunas por Guia**, com faixas coloridas de 12 px, filtros e cartões clicáveis. Em celulares, as colunas rolam horizontalmente na própria área da fila.
-- Botão **+ Cadastrar paciente** no Atendimento do Dia. O formulário de cadastro é demonstrativo e apenas na memória, com verificação de nome/data de nascimento e telefone para possíveis duplicidades.
+- Botão **+ Cadastrar paciente** no Atendimento do Dia. O formulário de cadastro é demonstrativo e apenas na memória, com verificação de nome/data de nascimento, telefone e CPF (quando informado) para possíveis duplicidades.
+- Campo **Foto do paciente** com pré-visualização de JPG, PNG ou WebP até 2 MB e **CPF** com validação de dígitos verificadores. O CPF fica mascarado na ficha; nunca aparece na fila.
+- Área de colunas com largura mínima e espaço adicional à direita, permitindo rolagem horizontal em telas pequenas.
 - O cadastro de paciente é separado do registro da chegada e **não** cria atendimento automaticamente.
 - Ficha demonstrativa por paciente e destaque para o atendimento selecionado.
 - Telas de pacientes, Guias, autorizações e expediente, com dados fictícios.
@@ -44,13 +46,13 @@ Na raiz do repositório:
 node --test plataforma-barquinha/tests/smoke.test.mjs
 ```
 
-O arquivo cobre 11 cenários de navegação, cartões de pacientes, colunas/filtro de Guias, cadastro temporário, prevenção de duplicidade, central de autorizações e ausência de gravações externas nesta etapa.
+O arquivo cobre 15 cenários de navegação, cartões de pacientes, colunas/filtro de Guias, cadastro temporário, prevenção de duplicidade, central de autorizações e ausência de gravações externas nesta etapa.
 
 ## Testes mínimos
 
 1. Abra a página inicial e selecione Atendimentos.
 2. Verifique as três colunas de Guias, rolando horizontalmente no celular, e teste o filtro de Guia.
-3. Clique em **+ Cadastrar paciente**, inclua apenas dados fictícios e confira a ficha recém-criada e a aba Pacientes. Atualizar a página descarta o registro.
+3. Clique em **+ Cadastrar paciente**, inclua apenas dados fictícios, foto fictícia e um CPF de teste matematicamente válido. Confira a foto e o CPF mascarado na ficha e a aba Pacientes. Atualizar a página descarta o registro.
 4. Tente cadastrar novamente o mesmo nome e nascimento: deve mostrar alerta de possível duplicidade.
 5. Abra um cartão da fila e alterne Dados / Materiais / Histórico.
 6. Volte para a fila, abra Pacientes e pesquise por nome.
@@ -62,3 +64,19 @@ O arquivo cobre 11 cenários de navegação, cartões de pacientes, colunas/filt
 ### Próxima fase
 
 Desenvolver autenticação e autorização por módulo, banco de Atendimentos com RLS e integração gradual após validação. Criar ambiente de testes antes de qualquer migração em produção.
+
+
+## Preparação para publicação de demonstração na Vercel (ainda não publicada)
+
+**Não alterar o projeto atual** `obra-facil-acompanhamento`. Crie um novo projeto separado com as seguintes configurações:
+
+- Equipe: a mesma proprietária de Projetos Barquinha, `ametecind-2456`, após conceder acesso ao conector.
+- Repositório: `WillBelchior/Aplicacoes-Ametec`.
+- Branch para implantação de teste: `feature/plataforma-barquinha-fundacao`.
+- Diretório raiz (Root Directory): `plataforma-barquinha`.
+- Framework: `Other` (aplicação estática); sem instalação e sem build.
+- Ambiente: Preview. Manter a proteção de acesso da Vercel habilitada.
+- Não configurar chave do Supabase: as funcionalidades de Atendimentos são somente demonstrativas.
+- O botão de Projetos, quando hospedado separadamente, abre `https://obra-facil-acompanhamento.vercel.app/`.
+
+**Atenção:** CPF, foto e relatos reais de pacientes são dados pessoais. Antes do uso real serão necessários autenticação, políticas de acesso por módulo, isolamento, armazenamento privado de imagens, backups e auditoria. Não registre dados reais na prévia.
