@@ -19,6 +19,9 @@ legacy=replaceOnce(legacy,
 let cloudPersistenceEnabled=false;
 function deviceTrusted(){`,
   "platform auth context");
+// Only the embedded copy hides its own sidebar; direct /projetos/index.html keeps its login/navigation.
+legacy=legacy.replace("let cloudPersistenceEnabled=false;",
+  "if(platformEmbedded())document.documentElement.classList.add('platform-embedded');\\nlet cloudPersistenceEnabled=false;".replace('\\\\n','\\n'));
 legacy=replaceOnce(legacy,
   "function createCloudAuthClient(trusted){\n cloudPersistenceEnabled=!!trusted;\n return window.supabase.createClient(CLOUD_URL,CLOUD_KEY,{auth:{\n  persistSession:!!trusted,autoRefreshToken:true,detectSessionInUrl:false,storageKey:TRUSTED_AUTH_STORAGE_KEY\n }});\n}",
   `function createCloudAuthClient(trusted){
@@ -66,18 +69,37 @@ window.addEventListener("message",event=>{
 legacy=legacy.replace("</style>",
 `
 html,body{background:#f5f8fd!important}
-body:has(.app:not([inert])) .app{display:block!important}
-body:has(.app:not([inert])) .app>aside{display:none!important}
-body:has(.app:not([inert])) .app>main{width:100%!important;max-width:none!important;min-width:0!important;margin:0!important;padding:12px 18px!important}
-body:has(.app:not([inert])) .topbar{display:none!important}
-body:has(.app:not([inert])) .app>main>header{display:none!important}
-body:has(.app:not([inert])) #technicalNotice{display:none!important}
-body:has(.app:not([inert])) .app>main>footer{display:none!important}
-body:has(.app:not([inert])) .app{grid-template-columns:1fr!important}
-@media(max-width:650px){body:has(.app:not([inert])) .app>main{padding:8px!important}}
+html.platform-embedded body:has(.app:not([inert])) .app{display:block!important}
+html.platform-embedded body:has(.app:not([inert])) .app>aside{display:none!important}
+html.platform-embedded body:has(.app:not([inert])) .app>main{width:100%!important;max-width:none!important;min-width:0!important;margin:0!important;padding:12px 18px!important}
+html.platform-embedded body:has(.app:not([inert])) .topbar{display:none!important}
+html.platform-embedded body:has(.app:not([inert])) .app>main>header{display:none!important}
+html.platform-embedded body:has(.app:not([inert])) #technicalNotice{display:none!important}
+html.platform-embedded body:has(.app:not([inert])) .app>main>footer{display:none!important}
+html.platform-embedded body:has(.app:not([inert])) .app{grid-template-columns:1fr!important}
+@media(max-width:650px){html.platform-embedded body:has(.app:not([inert])) .app>main{padding:8px!important}}
 </style>`);
 await rm(dist,{recursive:true,force:true});
 await mkdir(join(dist,"projetos"),{recursive:true});
-for(const file of ["index.html","styles.css","auth.js","app.js"])await copyFile(join(here,file),join(dist,file));
+for(const file of ["index.html","styles.css","modules.js","auth.js","app.js"])await copyFile(join(here,file),join(dist,file));
 await writeFile(join(dist,"projetos/index.html"),legacy,"utf8");
+for(const file of ["manifest.webmanifest","sw.js"]){
+  await copyFile(resolve(here,"../obra-facil",file),join(dist,"projetos",file));
+}
+// Supersede the old root-scoped Service Worker on the original Obras domain.
+// Its old caches can otherwise keep serving the legacy homepage instead of the new platform.
+const retireRootSW=`self.addEventListener("install",e=>e.waitUntil(self.skipWaiting()));
+self.addEventListener("activate",e=>e.waitUntil((async()=>{
+ const keys=await caches.keys();
+ await Promise.all(keys.filter(k=>k.startsWith("barquinha-shell-")).map(k=>caches.delete(k)));
+ await self.clients.claim();
+ await self.registration.unregister();
+})()));`;
+await writeFile(join(dist,"sw.js"),retireRootSW,"utf8");
+await writeFile(join(dist,"manifest.webmanifest"),JSON.stringify({
+  name:"Plataforma Barquinha",short_name:"Barquinha",
+  description:"Gestão integrada da Barquinha",start_url:"/",scope:"/",
+  display:"standalone",background_color:"#f5f8fd",theme_color:"#24466B",lang:"pt-BR"
+},null,2),"utf8");
+
 console.log("Plataforma Barquinha: built with a same-origin copy of Projects (source untouched).");
