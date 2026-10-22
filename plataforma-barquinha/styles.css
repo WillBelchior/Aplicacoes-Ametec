@@ -214,3 +214,45 @@ small { font-size: 12px; }
 .patient-directory-person {display:flex; gap:11px; align-items:center; min-width:0;}
 .patient-thumb {display:block; width:43px; height:43px; flex:0 0 43px; border-radius:50%; object-fit:cover; background:#e6eef9; font-size:22px;}
 @media(max-width:540px){.photo-field {align-items:flex-start;} .photo-preview,.photo-preview-img {width:76px;height:76px;} .patient-directory-person{gap:7px;} }
+
+
+/* Entrada integrada, acesso compartilhado e módulos navegáveis */
+.platform-login {min-height:100dvh;display:flex;justify-content:center;align-items:center;padding:22px 15px;background:linear-gradient(145deg,#142e4a,#254d74)}
+.login-box {width:min(470px,100%);background:white;padding:32px 28px;border-radius:21px;box-shadow:0 18px 64px #09243d66;display:grid;gap:13px}
+.login-box h1 {font-size:28px;color:var(--navy)}
+.login-box>p,.login-help {color:var(--muted);font-size:13px;line-height:1.55}
+.login-box>small {color:#718599}
+.login-symbol{width:55px;height:55px;background:#2d597e;color:#fff;display:grid;place-items:center;border-radius:15px;font-size:28px}
+.login-box>label:not(.login-trusted){display:grid;gap:6px;font-size:13px;color:var(--navy);font-weight:650}
+.login-box input[type="email"],.login-box input[type="password"]{padding:11px 12px;min-height:46px;border:1px solid #cedbe9;border-radius:10px;width:100%;font-size:16px;color:var(--navy)}
+.login-trusted{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);cursor:pointer}
+.login-trusted input{width:17px;height:17px;accent-color:var(--royal)}
+.login-box>.button{width:100%;margin-top:5px;min-height:47px}
+.login-help a{color:var(--royal);font-weight:650;text-decoration:underline}
+.platform-logout{display:block;margin-top:14px;width:100%;text-align:left;background:#365c80;color:white;padding:10px 12px;border-radius:9px;font-weight:700}
+.platform-logout-top{background:#edf3f9;color:var(--navy);padding:9px 13px;border-radius:9px;font-weight:700}
+.top-actions{display:flex;align-items:center;gap:13px}
+.top-account{color:#456480;font-size:12px;font-weight:650;overflow:hidden;text-overflow:ellipsis;max-width:210px;white-space:nowrap}
+.project-embed{padding:18px 22px 30px;min-width:0}
+.project-embed[hidden],.main[hidden]{display:none!important}
+.project-embed-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.project-embed-head strong{display:block;color:var(--navy);font-size:21px}
+.project-embed-head small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.project-live-mark{color:#1d6452;background:#e1f5ed;border-radius:99px;padding:6px 10px;font-size:11px;font-weight:650}
+.platform-project-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;background:white;border:1px solid #dce6f1;border-radius:13px;padding:11px}
+.platform-project-tabs .tab{border-radius:9px}
+.project-iframe-wrap{border:1px solid #d7e4ee;background:#fff;border-radius:15px;overflow:hidden;box-shadow:0 6px 22px #193d5a10}
+#projects-frame{display:block;border:0;width:100%;height:calc(100dvh - 205px);min-height:580px;background:#fff}
+.sidebar-foot small{display:block;margin-top:10px}
+@media(max-width:920px){
+ .project-embed{padding:13px 12px 93px}
+ .platform-project-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ .platform-project-tabs .tab{white-space:nowrap;flex:0 0 auto}
+ #projects-frame{height:calc(100dvh - 235px);min-height:460px}
+}
+@media(max-width:600px){
+ .top-account{max-width:125px}
+ .project-embed-head strong{font-size:18px}
+ .project-live-mark{font-size:10px}
+ .login-box{padding:25px 18px}
+}
