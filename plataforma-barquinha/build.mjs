@@ -78,6 +78,6 @@ body:has(.app:not([inert])) .app{grid-template-columns:1fr!important}
 </style></style>\`);
 await rm(dist,{recursive:true,force:true});
 await mkdir(join(dist,"projetos"),{recursive:true});
-for(const file of ["index.html","styles.css","app.js"])await copyFile(join(here,file),join(dist,file));
+for(const file of ["index.html","styles.css","auth.js","app.js"])await copyFile(join(here,file),join(dist,file));
 await writeFile(join(dist,"projetos/index.html"),legacy,"utf8");
 console.log("Plataforma Barquinha: built with a same-origin copy of Projects (source untouched).");
