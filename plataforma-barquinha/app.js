@@ -390,7 +390,7 @@
     if(!app.querySelector(".shell")){
       app.innerHTML=shell(route,"");
       const f=document.getElementById("projects-frame");
-      f?.addEventListener("load",()=>{projectFrameLoaded=true;projectFrameReady=false;});
+      f?.addEventListener("load",()=>{projectFrameLoaded=true;sendProjectTab(currentRoute());});
     }
     const main=app.querySelector("#main-content"),embed=app.querySelector("#project-embed");
     if(!main||!embed)return;
