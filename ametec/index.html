@@ -1585,7 +1585,7 @@ function renderServiceDetail(id){
       <div class="service-detail-columns">
         <div style="display:grid;gap:12px">
           <section class="service-detail-section"><h3>Descrição e operação</h3>
-            <div class="service-detail-text">${esc(x.descricao||'Nenhuma descrição cadastrada.')}</div>
+            <div class="service-detail-text">${esc(x.descricao||(Array.isArray(x.descricao_planilha)&&x.descricao_planilha.length?'Itens detalhados na planilha abaixo.':'Nenhuma descrição cadastrada.'))}</div>
             ${descriptionSheetDetail(x.descricao_planilha)}
             <div class="service-detail-lines">
               ${detailLine('Responsável',esc(x.responsavel||'—'))}
@@ -2290,7 +2290,7 @@ function descriptionSheetRowMarkup(row={}){
   '<td><input type="text" data-sheet-key="qty" inputmode="decimal" aria-label="Quantidade ou fórmula" placeholder="1" value="'+esc(row.qty==null?'1':row.qty)+'"></td>'+
   '<td><input type="text" data-sheet-key="unit" aria-label="Unidade" placeholder="un" maxlength="12" value="'+esc(row.unit||'un')+'"></td>'+
   '<td><input type="text" data-sheet-key="price" inputmode="decimal" aria-label="Preço unitário ou fórmula" placeholder="0,00" value="'+esc(row.price||'')+'"></td>'+
-  '<td class="description-sheet-total"><output data-sheet-line-total>R$ 0,00</output><button type="button" data-sheet-remove aria-label="Remover linha" title="Remover linha">×</button></td>'+
+  '<td class="description-sheet-total"><div class="description-sheet-total-inner"><output data-sheet-line-total>R$ 0,00</output><button type="button" data-sheet-remove aria-label="Remover linha" title="Remover linha">×</button></div></td>'+
  '</tr>';
 }
 function descriptionSheetMarkup(rows=[]){
@@ -2320,6 +2320,12 @@ function descriptionSheetRead(form){
  return rows;
 }
 function descriptionSheetMount(block){
+ const description=block.querySelector('textarea[name="descricao"]');
+ block.querySelectorAll('[data-desc-height]').forEach(button=>button.onclick=()=>{
+  if(!description)return;
+  const next=Math.max(160,Math.min(1000,(description.offsetHeight||230)+Number(button.dataset.descHeight)));
+  description.style.height=next+'px';
+ });
  const sheet=block.querySelector('[data-description-sheet]');
  if(!sheet)return;
  const tbody=sheet.querySelector('tbody');
@@ -2439,7 +2445,7 @@ function editService(id){
     additional_value:{title:'➕ Valor adicional',html:`<label class="field full"><span>Descrição do valor adicional</span><input name="descricao_valor_adicional" type="text" value="${esc(x.descricao_valor_adicional||'')}" placeholder="Ex.: Material extra, deslocamento, ajuste adicional..."></label><label class="field"><span>Valor adicional</span><input name="valor_adicional" type="number" min="0" step="0.01" value="${+x.valor_adicional||0}"></label><label class="field"><span>Somar em</span><select name="tipo_valor_adicional"><option value="Serviço" ${(x.tipo_valor_adicional||'Serviço')==='Serviço'?'selected':''}>Serviço</option><option value="Material" ${x.tipo_valor_adicional==='Material'?'selected':''}>Material</option></select></label>`},
     finance:{title:'💳 Financeiro',html:`<label class="field full"><span>Vencimento financeiro</span><input name="vencimento_pagamento" type="date" value="${esc(x.vencimento_pagamento||'')}"></label>`},
     next_action:{title:'✅ Próxima ação',html:`<label class="field"><span>Próxima ação</span><input name="proxima_acao" type="text" value="${esc(x.proxima_acao||'')}"></label><label class="field"><span>Prazo</span><input name="proxima_acao_data" type="date" value="${esc(x.proxima_acao_data||'')}"></label>`},
-    description:{title:'📝 Descrição',html:`<label class="field full"><span>Descrição livre (arraste o canto inferior para ajustar a altura)</span><textarea name="descricao" rows="8" class="service-description-textarea">${esc(x.descricao||'')}</textarea></label>${descriptionSheetMarkup(x.descricao_planilha)}`}
+    description:{title:'📝 Descrição',html:`<label class="field full"><span>Descrição livre (arraste o canto inferior para ajustar a altura)</span><div class="description-height-tools"><button type="button" data-desc-height="-80">− Menor</button><button type="button" data-desc-height="80">+ Maior</button></div><textarea name="descricao" rows="8" class="service-description-textarea">${esc(x.descricao||'')}</textarea></label>${descriptionSheetMarkup(x.descricao_planilha)}`}
   };
 
   const added=new Set(),container=form.querySelector('#optionalServiceFields'),select=form.querySelector('#extraInfoType');
@@ -2590,7 +2596,7 @@ function newService(){
     },
     description:{
       title:'📝 Descrição',
-      html:`<label class="field full"><span>Descrição livre (arraste o canto inferior para ajustar a altura)</span><textarea name="descricao" rows="8" class="service-description-textarea" placeholder="Diagnóstico, necessidade do cliente ou observação..."></textarea></label>${descriptionSheetMarkup([])}`
+      html:`<label class="field full"><span>Descrição livre (arraste o canto inferior para ajustar a altura)</span><div class="description-height-tools"><button type="button" data-desc-height="-80">− Menor</button><button type="button" data-desc-height="80">+ Maior</button></div><textarea name="descricao" rows="8" class="service-description-textarea" placeholder="Diagnóstico, necessidade do cliente ou observação..."></textarea></label>${descriptionSheetMarkup([])}`
     }
   };
 
@@ -4466,7 +4472,7 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 <style id="ametec-description-mini-spreadsheet">
 /* Área de texto redimensionável verticalmente e planilha em cinco colunas. */
 .modal .service-description-textarea{
- min-height:230px!important;height:230px;max-height:75vh!important;resize:vertical!important;
+ min-height:160px!important;height:230px;max-height:none!important;resize:vertical!important;
  overflow:auto!important;white-space:pre-wrap;font-size:15px!important;line-height:1.6!important;
 }
 .modal:has(.description-sheet){width:min(980px,calc(100vw - 24px))!important}
@@ -4492,7 +4498,8 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
  font-size:14px!important;min-height:40px;background:#051722;color:#fff;border:1px solid #315c70;border-radius:7px;padding:8px}
 .description-sheet-table input:focus{border-color:#26b7df;outline:2px solid #26b7df44}
 .description-sheet-table input.sheet-invalid{border-color:#ee7878!important;outline:1px solid #ee7878}
-.description-sheet-total{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:57px}
+.description-sheet-total{vertical-align:middle!important}
+.description-sheet-total-inner{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:42px}
 .description-sheet-total output{font-size:13px;font-weight:800;white-space:nowrap}
 .description-sheet-total button{background:transparent;color:#fda8a8;border:0;font-size:23px;cursor:pointer;padding:0 5px}
 .description-sheet-table tfoot td{background:#0d3449;font-size:14px;font-weight:900}
@@ -4502,6 +4509,9 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .description-sheet-detail .description-sheet-table{min-width:620px}
 .description-sheet-detail .description-sheet-table td{font-size:13px;overflow-wrap:anywhere}
 @media(max-width:700px){.modal .service-description-textarea{min-height:220px!important;font-size:16px!important}}
+.description-height-tools{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
+.description-height-tools button{border:1px solid #2c627b;border-radius:8px;background:#0d3447;color:#d8f2ff;cursor:pointer;padding:7px 12px;font-size:13px;font-weight:700;min-height:35px}
+.description-height-tools button:hover{background:#15516a}
 </style>
 </body>
 </html>
