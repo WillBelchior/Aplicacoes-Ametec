@@ -1809,7 +1809,7 @@ async function openProposal(id){
   const c=data.clientes.find(x=>x.id===s.cliente_id);
   const equipment=data.equipamentos.find(x=>x.id===s.equipamento_id);
   const serviceTotals=serviceValues(s);
-  const scopeFromService=String(s.descricao||'').trim();
+  const scopeFromService=String(s.descricao||'').trim()||(Array.isArray(s.descricao_planilha)?s.descricao_planilha.map(r=>String(r.item||'').trim()).filter(Boolean).join('\n'):'');
   const proposalFromService=()=>{
     const entries=[];
     if((+s.valor_servico||0)>0)entries.push({categoria:'Serviço',descricao:'Mão de obra — '+(s.titulo||'serviço'),quantidade:1,valor_unitario:+s.valor_servico});
@@ -1843,6 +1843,11 @@ async function openProposal(id){
     if(error)return toast(error.message,true);
     o=newO;data.orcamentos.unshift(newO);
   }
+
+  // Substitui apenas textos padronizados antigos; nunca sobrescreve texto personalizado.
+  if(o.objetivo==='Descreva o objetivo principal do serviço.')o={...o,objetivo:s.titulo||''};
+  const genericScope='Desmontagem e avaliação geral\nRevisão dos principais componentes\nExecução dos ajustes e substituições necessárias\nMontagem final\nTestes de funcionamento e segurança';
+  if(o.escopo===genericScope)o={...o,escopo:scopeFromService};
 
   const modal=document.querySelector('#modal'),form=document.querySelector('#modalForm');
   document.querySelector('#modalTitle').textContent='Proposta — '+s.titulo;
@@ -1909,7 +1914,6 @@ async function openProposal(id){
     </div>`;
 
   let items=data.orcamentoItens.filter(x=>x.orcamento_id===o.id).map(x=>({...x}));
-  const itemsWereStored=items.length>0;
   if(!items.length)items=proposalFromService();
   const list=form.querySelector('#proposalItems');
   const calc=()=>{
