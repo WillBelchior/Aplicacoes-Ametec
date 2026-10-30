@@ -1586,6 +1586,7 @@ function renderServiceDetail(id){
         <div style="display:grid;gap:12px">
           <section class="service-detail-section"><h3>Descrição e operação</h3>
             <div class="service-detail-text">${esc(x.descricao||'Nenhuma descrição cadastrada.')}</div>
+            ${descriptionSheetDetail(x.descricao_planilha)}
             <div class="service-detail-lines">
               ${detailLine('Responsável',esc(x.responsavel||'—'))}
               ${detailLine('Próxima ação',esc(x.proxima_acao||'—'))}
@@ -2252,6 +2253,126 @@ function mountEquipmentPicker(form,currentEquipmentId=null){
   draw();
 }
 
+
+// Mini-planilha de descrição: 5 colunas; os valores são informativos e não alteram o financeiro.
+function descriptionSheetCalculate(value){
+ let expression=String(value??'').trim().replace(/^=/,'').replace(/\s+/g,'').replace(/[×x]/g,'*').replace(/÷/g,'/');
+ if(!expression)return 0;
+ expression=expression.replace(/\d{1,3}(?:\.\d{3})+(?:,\d+)?/g,t=>t.replace(/\./g,'')).replace(/,/g,'.');
+ if(expression.length>120||!/^[0-9.+\-*/()]+$/.test(expression))throw Error('Use apenas números e +, -, *, / ou parênteses.');
+ const tokens=expression.match(/\d+(?:\.\d+)?|[()+*/-]/g)||[];
+ if(tokens.join('')!==expression)throw Error('Expressão inválida.');
+ let i=0;
+ function primary(){
+  const token=tokens[i++];
+  if(token==='+'||token==='-')return (token==='-'?-1:1)*primary();
+  if(token==='('){const n=addition();if(tokens[i++]!==')')throw Error('Confira os parênteses.');return n}
+  if(token===undefined||! /^\d+(?:\.\d+)?$/.test(token))throw Error('Expressão incompleta.');
+  return Number(token);
+ }
+ function multiplication(){
+  let n=primary();
+  while(tokens[i]==='*'||tokens[i]==='/'){const op=tokens[i++],b=primary();if(op==='/'&&b===0)throw Error('Divisão por zero.');n=op==='*'?n*b:n/b}
+  return n;
+ }
+ function addition(){
+  let n=multiplication();
+  while(tokens[i]==='+'||tokens[i]==='-'){const op=tokens[i++],b=multiplication();n=op==='+'?n+b:n-b}
+  return n;
+ }
+ const number=addition();
+ if(i!==tokens.length||!Number.isFinite(number)||Math.abs(number)>1e10)throw Error('Resultado inválido ou muito elevado.');
+ return number;
+}
+function descriptionSheetRowMarkup(row={}){
+ return '<tr class="description-sheet-row">'+
+  '<td><input type="text" data-sheet-key="item" aria-label="Descrição do item" placeholder="Ex.: Bloco de contato" maxlength="240" value="'+esc(row.item||'')+'"></td>'+
+  '<td><input type="text" data-sheet-key="qty" inputmode="decimal" aria-label="Quantidade ou fórmula" placeholder="1" value="'+esc(row.qty==null?'1':row.qty)+'"></td>'+
+  '<td><input type="text" data-sheet-key="unit" aria-label="Unidade" placeholder="un" maxlength="12" value="'+esc(row.unit||'un')+'"></td>'+
+  '<td><input type="text" data-sheet-key="price" inputmode="decimal" aria-label="Preço unitário ou fórmula" placeholder="0,00" value="'+esc(row.price||'')+'"></td>'+
+  '<td class="description-sheet-total"><output data-sheet-line-total>R$ 0,00</output><button type="button" data-sheet-remove aria-label="Remover linha" title="Remover linha">×</button></td>'+
+ '</tr>';
+}
+function descriptionSheetMarkup(rows=[]){
+ const safeRows=Array.isArray(rows)&&rows.length?rows:[{item:'',qty:'1',unit:'un',price:''}];
+ return '<div class="description-sheet" data-description-sheet>'+
+  '<div class="description-sheet-toolbar"><div><b>Planilha de itens</b><small>5 colunas • use +, -, *, / e parênteses nos valores. O total é automático.</small></div><button type="button" class="btn secondary" data-sheet-import>Importar itens da descrição</button></div>'+
+  '<div class="description-sheet-scroller" role="region" aria-label="Planilha de itens do serviço" tabindex="0">'+
+  '<table class="description-sheet-table"><thead><tr><th>Descrição</th><th>Qtd.</th><th>Unid.</th><th>Valor unit. (R$)</th><th>Total (R$)</th></tr></thead><tbody>'+
+  safeRows.map(descriptionSheetRowMarkup).join('')+'</tbody><tfoot><tr><td colspan="4">TOTAL DA PLANILHA</td><td><strong data-sheet-grand-total>R$ 0,00</strong></td></tr></tfoot></table></div>'+
+  '<div class="description-sheet-actions"><button type="button" class="btn secondary" data-sheet-add>+ Adicionar linha</button><small>Cálculo auxiliar; não modifica automaticamente o valor do orçamento ou do serviço.</small></div>'+
+ '</div>';
+}
+function descriptionSheetRead(form){
+ const sheet=form.querySelector('[data-description-sheet]');
+ if(!sheet)return [];
+ const rows=[];
+ for(const row of sheet.querySelectorAll('.description-sheet-row')){
+  const get=key=>row.querySelector('[data-sheet-key="'+key+'"]').value.trim();
+  const item=get('item'),qty=get('qty'),unit=get('unit'),price=get('price');
+  if(!item&&!price)continue;
+  if(!item)throw Error('Preencha a descrição dos itens da planilha.');
+  if(!qty||!price)throw Error('Preencha quantidade e preço de todos os itens da planilha.');
+  const n=descriptionSheetCalculate(qty),v=descriptionSheetCalculate(price);
+  if(n<0||v<0)throw Error('Quantidade e valor unitário não podem ser negativos.');
+  rows.push({item,qty,unit:unit||'un',price});
+ }
+ return rows;
+}
+function descriptionSheetMount(block){
+ const sheet=block.querySelector('[data-description-sheet]');
+ if(!sheet)return;
+ const tbody=sheet.querySelector('tbody');
+ const refresh=()=>{
+  let total=0;
+  tbody.querySelectorAll('tr').forEach(row=>{
+   const qty=row.querySelector('[data-sheet-key="qty"]'),price=row.querySelector('[data-sheet-key="price"]'),out=row.querySelector('[data-sheet-line-total]');
+   qty.classList.remove('sheet-invalid');price.classList.remove('sheet-invalid');
+   let q=0,v=0,invalid=false;
+   try{q=descriptionSheetCalculate(qty.value);if(q<0)throw Error('Quantidade negativa');qty.title=''}catch(err){invalid=true;qty.classList.add('sheet-invalid');qty.title=err.message}
+   try{v=descriptionSheetCalculate(price.value);if(v<0)throw Error('Preço negativo');price.title=''}catch(err){invalid=true;price.classList.add('sheet-invalid');price.title=err.message}
+   if(invalid){out.textContent='Verificar';out.title='Confira a fórmula.'}
+   else {const subtotal=Math.round(q*v*100)/100;out.textContent=money(subtotal);total+=subtotal}
+  });
+  sheet.querySelector('[data-sheet-grand-total]').textContent=money(Math.round(total*100)/100);
+ };
+ const append=row=>{tbody.insertAdjacentHTML('beforeend',descriptionSheetRowMarkup(row));refresh()};
+ sheet.addEventListener('input',e=>{if(e.target.matches('[data-sheet-key]'))refresh()});
+ sheet.addEventListener('click',e=>{
+  const add=e.target.closest('[data-sheet-add]'),remove=e.target.closest('[data-sheet-remove]'),importBtn=e.target.closest('[data-sheet-import]');
+  if(add){if(tbody.rows.length>=100)return toast('Limite de 100 linhas por planilha.',true);append({qty:'1',unit:'un'});tbody.lastElementChild.querySelector('[data-sheet-key="item"]').focus()}
+  if(remove){remove.closest('tr').remove();if(!tbody.rows.length)append({qty:'1',unit:'un'});refresh()}
+  if(importBtn){
+   const text=block.querySelector('textarea[name="descricao"]')?.value||'';
+   const lines=text.split(/\r?\n/),found=[];
+   for(const line of lines){
+    if(/^\s*total\b/i.test(line))continue;
+    const match=line.match(/R\$\s*([\d.,]+)\s*$/i);
+    if(!match)continue;
+    const item=line.slice(0,match.index).replace(/^\s*[-•]\s*/,'').replace(/[.\s]+$/,'').trim();
+    if(item)found.push({item,qty:'1',unit:'un',price:match[1]});
+   }
+   if(!found.length)return toast('Não encontrei linhas com valores R$ ao final da descrição.',true);
+   if(tbody.rows.length+found.length>100)return toast('Limite de 100 linhas.',true);
+   const onlyBlank=tbody.rows.length===1&&!tbody.rows[0].querySelector('[data-sheet-key="item"]').value.trim()&&!tbody.rows[0].querySelector('[data-sheet-key="price"]').value.trim();
+   if(onlyBlank)tbody.innerHTML='';
+   found.forEach(append);
+   toast(found.length+' item(ns) importado(s). Texto original preservado.');
+  }
+ });
+ refresh();
+}
+function descriptionSheetDetail(rows){
+ if(!Array.isArray(rows)||!rows.length)return '';
+ let grand=0;
+ const body=rows.map(r=>{
+  let q=0,p=0;try{q=descriptionSheetCalculate(r.qty);p=descriptionSheetCalculate(r.price)}catch(err){}
+  const line=Math.round(q*p*100)/100;grand+=line;
+  return '<tr><td>'+esc(r.item||'')+'</td><td>'+esc(r.qty||'')+'</td><td>'+esc(r.unit||'un')+'</td><td>'+esc(r.price||'')+'</td><td>'+money(line)+'</td></tr>';
+ }).join('');
+ return '<div class="description-sheet-detail"><b>Planilha de itens</b><div class="description-sheet-scroller"><table class="description-sheet-table"><thead><tr><th>Descrição</th><th>Qtd.</th><th>Unid.</th><th>Valor unit. (R$)</th><th>Total (R$)</th></tr></thead><tbody>'+body+'</tbody><tfoot><tr><td colspan="4">TOTAL</td><td>'+money(grand)+'</td></tr></tfoot></table></div></div>';
+}
+
 function editService(id){
   const x=data.servicos.find(s=>s.id===id);if(!x)return;
   const modal=document.querySelector('#modal');
@@ -2318,7 +2439,7 @@ function editService(id){
     additional_value:{title:'➕ Valor adicional',html:`<label class="field full"><span>Descrição do valor adicional</span><input name="descricao_valor_adicional" type="text" value="${esc(x.descricao_valor_adicional||'')}" placeholder="Ex.: Material extra, deslocamento, ajuste adicional..."></label><label class="field"><span>Valor adicional</span><input name="valor_adicional" type="number" min="0" step="0.01" value="${+x.valor_adicional||0}"></label><label class="field"><span>Somar em</span><select name="tipo_valor_adicional"><option value="Serviço" ${(x.tipo_valor_adicional||'Serviço')==='Serviço'?'selected':''}>Serviço</option><option value="Material" ${x.tipo_valor_adicional==='Material'?'selected':''}>Material</option></select></label>`},
     finance:{title:'💳 Financeiro',html:`<label class="field full"><span>Vencimento financeiro</span><input name="vencimento_pagamento" type="date" value="${esc(x.vencimento_pagamento||'')}"></label>`},
     next_action:{title:'✅ Próxima ação',html:`<label class="field"><span>Próxima ação</span><input name="proxima_acao" type="text" value="${esc(x.proxima_acao||'')}"></label><label class="field"><span>Prazo</span><input name="proxima_acao_data" type="date" value="${esc(x.proxima_acao_data||'')}"></label>`},
-    description:{title:'📝 Descrição',html:`<label class="field full"><span>Descrição</span><textarea name="descricao" rows="8" class="service-description-textarea">${esc(x.descricao||'')}</textarea></label>`}
+    description:{title:'📝 Descrição',html:`<label class="field full"><span>Descrição livre (arraste o canto inferior para ajustar a altura)</span><textarea name="descricao" rows="8" class="service-description-textarea">${esc(x.descricao||'')}</textarea></label>${descriptionSheetMarkup(x.descricao_planilha)}`}
   };
 
   const added=new Set(),container=form.querySelector('#optionalServiceFields'),select=form.querySelector('#extraInfoType');
@@ -2329,6 +2450,7 @@ function editService(id){
     const box=document.createElement('section');box.className='optional-block';box.dataset.optionalBlock=key;
     box.innerHTML=`<div class="optional-block-head"><b>${blocks[key].title}</b><button type="button" data-remove-block="${key}">✕</button></div>${blocks[key].html}`;
     container.appendChild(box);
+    if(key==='description')descriptionSheetMount(box);
     box.querySelector('[data-remove-block]').onclick=()=>{added.delete(key);box.remove();sync()};
     select.value='';sync();
   };
@@ -2343,7 +2465,7 @@ function editService(id){
 
   if(has('vencimento_pagamento'))addBlock('finance');
   if(has('proxima_acao','proxima_acao_data'))addBlock('next_action');
-  if(has('descricao'))addBlock('description');
+  if(has('descricao')||(Array.isArray(x.descricao_planilha)&&x.descricao_planilha.length))addBlock('description');
 
   form.querySelector('#addExtraInfo').onclick=()=>addBlock(select.value);
 
@@ -2362,6 +2484,7 @@ function editService(id){
       if(v.atendimento_status==='Concluída'){v.progresso=100;v.data_conclusao=x.data_conclusao||today}
       else if(x.data_conclusao)v.data_conclusao=null;
 
+      v.descricao_planilha=descriptionSheetRead(form);
       sanitizeServicePayload(v);const {error}=await supabase.from('ametec_servicos').update(v).eq('id',id);if(error)throw error;
       await saveServiceComposition(form,id);
       closeModal();await load();toast('Serviço atualizado!');
@@ -2467,7 +2590,7 @@ function newService(){
     },
     description:{
       title:'📝 Descrição',
-      html:`<label class="field full"><span>Descrição</span><textarea name="descricao" rows="3" placeholder="Diagnóstico, necessidade do cliente ou observação..."></textarea></label>`
+      html:`<label class="field full"><span>Descrição livre (arraste o canto inferior para ajustar a altura)</span><textarea name="descricao" rows="8" class="service-description-textarea" placeholder="Diagnóstico, necessidade do cliente ou observação..."></textarea></label>${descriptionSheetMarkup([])}`
     }
   };
 
@@ -2488,6 +2611,7 @@ function newService(){
     box.dataset.optionalBlock=key;
     box.innerHTML=`<div class="optional-block-head"><b>${blocks[key].title}</b><button type="button" data-remove-block="${key}" title="Remover bloco">✕</button></div>${blocks[key].html}`;
     container.appendChild(box);
+    if(key==='description')descriptionSheetMount(box);
     box.querySelector('[data-remove-block]').onclick=()=>{
       added.delete(key);
       box.remove();
@@ -2516,6 +2640,7 @@ function newService(){
       if(v.atendimento_status==='Aguardando aprovação'&&!['Enviado','Aguardando resposta'].includes(v.orcamento_status))v.orcamento_status='Aguardando resposta';
       if(v.atendimento_status==='Concluída'){v.progresso=100;v.data_conclusao=today}
 
+      v.descricao_planilha=descriptionSheetRead(form);
       sanitizeServicePayload(v);const {data:created,error}=await supabase.from('ametec_servicos').insert(v).select().single();
       if(error)throw error;
       await saveServiceComposition(form,created.id);
@@ -4337,6 +4462,46 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 @media(max-width:420px){
  .pending-received-metric .pending-received-breakdown{grid-template-columns:1fr}
 }
+</style>
+<style id="ametec-description-mini-spreadsheet">
+/* Área de texto redimensionável verticalmente e planilha em cinco colunas. */
+.modal .service-description-textarea{
+ min-height:230px!important;height:230px;max-height:75vh!important;resize:vertical!important;
+ overflow:auto!important;white-space:pre-wrap;font-size:15px!important;line-height:1.6!important;
+}
+.modal:has(.description-sheet){width:min(980px,calc(100vw - 24px))!important}
+.optional-block:has(.description-sheet){grid-template-columns:minmax(0,1fr)!important;min-width:0!important}
+.description-sheet{grid-column:1/-1;display:grid;gap:10px;min-width:0;margin-top:3px}
+.description-sheet-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px}
+.description-sheet-toolbar>div{display:grid;gap:3px}
+.description-sheet-toolbar b,.description-sheet-detail>b{font-size:16px;color:#eafaff}
+.description-sheet-toolbar small,.description-sheet-actions small{font-size:12px;color:#a6c3d2;line-height:1.4}
+.description-sheet-toolbar .btn{font-size:12px;white-space:normal}
+.description-sheet-scroller{width:100%;min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;border:1px solid #2a5870;border-radius:11px}
+.description-sheet-table{border-collapse:separate;border-spacing:0;table-layout:fixed;min-width:740px;width:100%;background:#071d2b;color:#effaff}
+.description-sheet-table th,.description-sheet-table td{border-right:1px solid #214557;border-bottom:1px solid #214557;padding:8px;vertical-align:middle}
+.description-sheet-table th{font-size:12px;text-align:left;color:#d4eaf5;background:#103043;font-weight:800;white-space:nowrap}
+.description-sheet-table th:nth-child(1){width:34%}
+.description-sheet-table th:nth-child(2){width:10%}
+.description-sheet-table th:nth-child(3){width:10%}
+.description-sheet-table th:nth-child(4){width:20%}
+.description-sheet-table th:nth-child(5){width:26%}
+.description-sheet-table td:last-child,.description-sheet-table th:last-child{border-right:0}
+.description-sheet-table tbody tr:last-child td{border-bottom:1px solid #214557}
+.description-sheet-table input{display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;
+ font-size:14px!important;min-height:40px;background:#051722;color:#fff;border:1px solid #315c70;border-radius:7px;padding:8px}
+.description-sheet-table input:focus{border-color:#26b7df;outline:2px solid #26b7df44}
+.description-sheet-table input.sheet-invalid{border-color:#ee7878!important;outline:1px solid #ee7878}
+.description-sheet-total{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:57px}
+.description-sheet-total output{font-size:13px;font-weight:800;white-space:nowrap}
+.description-sheet-total button{background:transparent;color:#fda8a8;border:0;font-size:23px;cursor:pointer;padding:0 5px}
+.description-sheet-table tfoot td{background:#0d3449;font-size:14px;font-weight:900}
+.description-sheet-table tfoot td:last-child{color:#f5fcff;white-space:nowrap}
+.description-sheet-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.description-sheet-detail{display:grid;gap:8px;margin:13px 0;min-width:0}
+.description-sheet-detail .description-sheet-table{min-width:620px}
+.description-sheet-detail .description-sheet-table td{font-size:13px;overflow-wrap:anywhere}
+@media(max-width:700px){.modal .service-description-textarea{min-height:220px!important;font-size:16px!important}}
 </style>
 </body>
 </html>
