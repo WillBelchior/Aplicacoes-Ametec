@@ -1848,24 +1848,30 @@ async async function openProposal(id){
   document.querySelector('#modalTitle').textContent='Proposta — '+s.titulo;
   form.innerHTML=`
     <div class="proposal-shell" style="grid-column:1/-1">
-      <div class="service-form-intro"><b>${esc(c?.nome_fantasia||'Sem cliente')}</b> • ${esc(s.tipo||'Serviço')}<br>Monte a proposta em blocos e mantenha os valores organizados.</div>
+      <div class="proposal-compact-hero">
+        <div class="proposal-compact-heading"><div><small>PROPOSTA AMETEC • DADOS DO SERVIÇO</small><h4>${esc(c?.nome_fantasia||'Sem cliente')}</h4><p>${esc(s.titulo||'Serviço')}${equipment?' • '+esc([equipment.nome,equipment.modelo].filter(Boolean).join(' / ')):''}</p></div><button type="button" class="btn secondary" id="reloadProposalService">↻ Reaproveitar dados do serviço</button></div>
+        <div class="proposal-compact-stats">
+          <div><span>Serviços cadastrados</span><b>${money(serviceTotals.service)}</b></div>
+          <div><span>Materiais cobrados</span><b>${money(serviceTotals.material)}</b></div>
+          <div><span>Valor cadastrado</span><b>${money(serviceTotals.total)}</b></div>
+        </div>
+        ${serviceTotals.materialMode==='Cliente compra'?'<small class="proposal-note">Materiais fornecidos pelo cliente: não incluídos na cobrança.</small>':''}
+      </div>
 
       <section class="proposal-section">
-        <h4>Objetivo do serviço</h4>
-        <textarea name="objetivo" rows="3">${esc(o.objetivo||'')}</textarea>
+        <h4>Descrição da proposta</h4>
+        <label class="proposal-field-label">Objetivo <textarea name="objetivo" rows="2" placeholder="Objetivo principal do serviço">${esc(o.objetivo||'')}</textarea></label>
+        <label class="proposal-field-label">O que será executado <textarea name="escopo" rows="4" placeholder="Escopo e detalhes já cadastrados no serviço">${esc(o.escopo||'')}</textarea></label>
       </section>
 
       <section class="proposal-section">
-        <h4>Escopo</h4>
-        <textarea name="escopo" rows="8" placeholder="Um item por linha">${esc(o.escopo||'')}</textarea>
-      </section>
-
-      <section class="proposal-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h4>Itens e valores</h4><button type="button" class="btn secondary" id="addProposalItem">+ Item</button></div>
+        <div class="proposal-section-toolbar"><div><h4>Valores da proposta</h4><small>Preenchidos com os valores e materiais cadastrados no serviço.</small></div><button type="button" class="btn secondary" id="addProposalItem">+ Item</button></div>
         <div class="proposal-items" id="proposalItems"></div>
         <div class="proposal-total"><span>Total da proposta</span><b id="proposalTotal">${money(0)}</b></div>
       </section>
 
+      <details class="proposal-optional">
+        <summary>Condições, prazo e garantia <small>Opcional • editar quando necessário</small></summary>
       <section class="proposal-section">
         <h4>Condições de pagamento</h4>
         <div class="proposal-grid">
@@ -1880,21 +1886,26 @@ async async function openProposal(id){
           <label class="field"><span>Prazo estimado</span><textarea name="prazo_estimado" rows="3">${esc(o.prazo_estimado||'')}</textarea></label>
           <label class="field"><span>Garantia</span><textarea name="garantia" rows="3">${esc(o.garantia||'')}</textarea></label>
         </div>
-        <label class="field full"><span>Observações</span><textarea name="observacoes" rows="4">${esc(o.observacoes||'')}</textarea></label>
+        <label class="field full"><span>Observações</span><textarea name="observacoes" rows="2">${esc(o.observacoes||'')}</textarea></label>
       </section>
+      </details>
 
+      <details class="proposal-optional proposal-whatsapp-fold">
+        <summary>Prévia da mensagem para WhatsApp <small>Veja como o cliente receberá a proposta</small></summary>
       <section class="proposal-section">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <h4>Mensagem pronta para WhatsApp</h4>
           <div class="proposal-whatsapp-actions">
             <button type="button" class="btn secondary" id="refreshWhatsappProposal">↻ Atualizar texto</button>
-            <button type="button" class="btn primary" id="copyWhatsappProposal">📋 Copiar para WhatsApp</button>
           </div>
         </div>
         <div id="proposalWhatsapp" class="proposal-whatsapp"></div>
       </section>
-
-      <button class="btn primary">Salvar proposta</button>
+      </details>
+      <div class="proposal-action-bar">
+        <button type="button" class="btn secondary" id="copyWhatsappProposal">📋 Copiar para WhatsApp</button>
+        <button class="btn primary" type="submit">Salvar proposta</button>
+      </div>
     </div>`;
 
   let items=data.orcamentoItens.filter(x=>x.orcamento_id===o.id).map(x=>({...x}));
@@ -1992,6 +2003,14 @@ async async function openProposal(id){
     calc();
   };
   form.querySelector('#addProposalItem').onclick=()=>{items.push({categoria:'Material',descricao:'',quantidade:1,valor_unitario:0});drawItems();updateWhatsappProposal()};
+  form.querySelector('#reloadProposalService').onclick=()=>{
+    if(!confirm('Substituir objetivo, escopo e itens da proposta pelos dados atuais do serviço? As alterações anteriores nesses campos serão substituídas ao salvar.'))return;
+    form.elements.objetivo.value=s.titulo||'';
+    form.elements.escopo.value=scopeFromService;
+    if(s.previsao_entrega)form.elements.prazo_estimado.value='Até '+date(s.previsao_entrega);
+    items=proposalFromService();drawItems();calc();updateWhatsappProposal();
+    toast('Informações do serviço carregadas. Revise e salve a proposta.');
+  };
   drawItems();
   form.querySelectorAll('textarea,input,select').forEach(el=>{if(!el.dataset.pi)el.addEventListener('input',updateWhatsappProposal)});
   form.querySelector('#refreshWhatsappProposal').onclick=updateWhatsappProposal;
@@ -4534,6 +4553,44 @@ supabase.auth.onAuthStateChange(async(_,s)=>{session=s;if(session){showApp();awa
 .description-height-tools{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
 .description-height-tools button{border:1px solid #2c627b;border-radius:8px;background:#0d3447;color:#d8f2ff;cursor:pointer;padding:7px 12px;font-size:13px;font-weight:700;min-height:35px}
 .description-height-tools button:hover{background:#15516a}
+</style>
+<style id="ametec-proposal-concise-20261029">
+.proposal-compact-hero{display:grid;gap:12px;background:#0b2635;border:1px solid #2b5d75;border-radius:13px;padding:15px}
+.proposal-compact-heading{display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap}
+.proposal-compact-heading>div{min-width:0;flex:1}
+.proposal-compact-heading small{font-size:11px;color:#a0c3d3;letter-spacing:.04em}
+.proposal-compact-heading h4{margin:4px 0;font-size:20px;color:#fff;line-height:1.3}
+.proposal-compact-heading p{margin:0;font-size:14px;color:#d4e9f3;line-height:1.5}
+.proposal-compact-heading .btn{font-size:13px;white-space:normal}
+.proposal-compact-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.proposal-compact-stats>div{border-radius:9px;padding:12px;background:#071824;border:1px solid #24485a;min-width:0;display:grid;gap:6px}
+.proposal-compact-stats span{font-size:12px;color:#a8cbd9}
+.proposal-compact-stats b{font-size:clamp(16px,1.6vw,21px);color:#fff;overflow-wrap:anywhere}
+.proposal-compact-hero .proposal-note{font-size:12px;color:#e5c18e}
+.proposal-shell .proposal-section{gap:10px;padding:14px}
+.proposal-shell .proposal-section h4{font-size:16px}
+.proposal-field-label{display:grid;gap:6px;font-size:13px;font-weight:700;color:#b8d9e9}
+.proposal-shell textarea{font-size:15px!important;line-height:1.5;resize:vertical;min-height:55px}
+.proposal-shell textarea[name="escopo"]{min-height:110px}
+.proposal-section-toolbar{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.proposal-section-toolbar>div{display:grid;gap:3px}
+.proposal-section-toolbar small{font-size:12px;color:#94b6c8}
+.proposal-shell .proposal-item input,.proposal-shell .proposal-item select{font-size:14px;min-height:42px}
+.proposal-optional{border:1px solid #24536a;border-radius:12px;background:#071b29;overflow:hidden}
+.proposal-optional summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;font-size:15px;font-weight:800;color:#f0faff;cursor:pointer;list-style:none}
+.proposal-optional summary::-webkit-details-marker{display:none}
+.proposal-optional summary:after{content:"+";font-size:22px;color:#87ccdf}
+.proposal-optional[open] summary:after{content:"−"}
+.proposal-optional summary small{font-size:11px;font-weight:500;color:#a1bac8}
+.proposal-optional>.proposal-section{border:0;border-top:1px solid #24536a;border-radius:0}
+.proposal-action-bar{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;z-index:2;padding:12px 0;background:linear-gradient(transparent,#071923 20%)}
+.proposal-action-bar .btn{min-height:43px;font-size:14px}
+@media(max-width:700px){
+ .proposal-compact-stats{grid-template-columns:1fr 1fr}
+ .proposal-compact-stats>div:last-child{grid-column:1/-1}
+ .proposal-action-bar{display:grid;grid-template-columns:1fr 1fr}
+ .proposal-optional summary{flex-wrap:wrap}
+}
 </style>
 </body>
 </html>
