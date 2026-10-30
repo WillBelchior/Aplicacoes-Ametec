@@ -1804,21 +1804,40 @@ async function openServiceReminders(id,afterChange){
   modal.classList.add('open');
 }
 
-async function openProposal(id){
+async async function openProposal(id){
   const s=data.servicos.find(x=>x.id===id);if(!s)return;
   const c=data.clientes.find(x=>x.id===s.cliente_id);
+  const equipment=data.equipamentos.find(x=>x.id===s.equipamento_id);
+  const serviceTotals=serviceValues(s);
+  const scopeFromService=String(s.descricao||'').trim();
+  const proposalFromService=()=>{
+    const entries=[];
+    if((+s.valor_servico||0)>0)entries.push({categoria:'Serviço',descricao:'Mão de obra — '+(s.titulo||'serviço'),quantidade:1,valor_unitario:+s.valor_servico});
+    if(serviceTotals.materialMode!=='Cliente compra'){
+      if((+s.valor_material||0)>0)entries.push({categoria:'Material',descricao:'Materiais previstos para o serviço',quantidade:1,valor_unitario:+s.valor_material});
+      data.servicoMateriais.filter(x=>String(x.servico_id)===String(s.id)&&!x.adicional_id).forEach(x=>{
+        const m=data.materiais.find(v=>String(v.id)===String(x.material_id));
+        if((+x.quantidade||0)>0)entries.push({categoria:'Material',descricao:m?.descricao||'Material cadastrado',quantidade:+x.quantidade,valor_unitario:+x.valor_unitario||0});
+      });
+    }
+    data.adicionais.filter(x=>String(x.servico_id)===String(s.id)).forEach(x=>{
+      if((+x.valor_servico||0)>0)entries.push({categoria:'Serviço',descricao:x.descricao||'Serviço adicional',quantidade:1,valor_unitario:+x.valor_servico});
+      if(serviceTotals.materialMode!=='Cliente compra'&&(+x.valor_material||0)>0)entries.push({categoria:'Material',descricao:(x.descricao||'Material adicional'),quantidade:1,valor_unitario:+x.valor_material});
+    });
+    return entries;
+  };
   let o=data.orcamentos.find(x=>x.servico_id===id);
 
   if(!o){
     const defaults={
       servico_id:id,
-      objetivo:'Descreva o objetivo principal do serviço.',
-      escopo:'Desmontagem e avaliação geral\nRevisão dos principais componentes\nExecução dos ajustes e substituições necessárias\nMontagem final\nTestes de funcionamento e segurança',
-      prazo_estimado:'A definir conforme disponibilidade dos materiais e escopo final.',
-      garantia:'Garantia sobre os serviços executados. Componentes novos seguem as condições do fabricante.',
-      observacoes:'Qualquer serviço ou material não previsto será informado ao cliente antes da execução.',
-      condicao_inicio:(+s.valor_material||0)>0?money(s.valor_material)+' referente aos materiais para iniciar.':'A definir.',
-      condicao_conclusao:(+s.valor_servico||0)>0?money(s.valor_servico)+' referente à mão de obra na conclusão.':'A definir.'
+      objetivo:s.titulo||'',
+      escopo:scopeFromService,
+      prazo_estimado:s.previsao_entrega?'Até '+date(s.previsao_entrega):'',
+      garantia:'Garantia dos serviços executados; componentes seguem condições do fabricante.',
+      observacoes:'Serviços e materiais não previstos serão previamente orçados.',
+      condicao_inicio:'',
+      condicao_conclusao:''
     };
     const {data:newO,error}=await supabase.from('ametec_orcamentos').insert(defaults).select().single();
     if(error)return toast(error.message,true);
@@ -1879,6 +1898,8 @@ async function openProposal(id){
     </div>`;
 
   let items=data.orcamentoItens.filter(x=>x.orcamento_id===o.id).map(x=>({...x}));
+  const itemsWereStored=items.length>0;
+  if(!items.length)items=proposalFromService();
   const list=form.querySelector('#proposalItems');
   const calc=()=>{
     const total=items.reduce((sum,x)=>sum+(+x.quantidade||0)*(+x.valor_unitario||0),0);
@@ -1899,6 +1920,7 @@ async function openProposal(id){
     lines.push('*Cliente:* '+(c?.nome_fantasia||'—'));
     lines.push('*Serviço:* '+(s.titulo||'—'));
     if(s.tipo)lines.push('*Tipo:* '+s.tipo);
+    if(equipment)lines.push('*Equipamento:* '+[equipment.nome,equipment.fabricante,equipment.modelo].filter(Boolean).join(' • '));
     lines.push('');
     if(vals.objetivo){
       lines.push('*Objetivo*');
@@ -1944,8 +1966,8 @@ async function openProposal(id){
       lines.push(vals.observacoes.trim());
       lines.push('');
     }
-    lines.push('Fico à disposição para qualquer dúvida ou ajuste na proposta.');
-    lines.push('');
+    if(s.orcamento_validade)lines.push('*Validade da proposta:* '+date(s.orcamento_validade));
+    if(serviceTotals.materialMode==='Cliente compra')lines.push('*Materiais:* fornecimento pelo cliente, não incluídos no valor desta proposta.');
     lines.push('*AMETEC | Manutenção Industrial e Elétrica*');
     return lines.join('\n');
   };
