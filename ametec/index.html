@@ -1804,7 +1804,7 @@ async function openServiceReminders(id,afterChange){
   modal.classList.add('open');
 }
 
-async async function openProposal(id){
+async function openProposal(id){
   const s=data.servicos.find(x=>x.id===id);if(!s)return;
   const c=data.clientes.find(x=>x.id===s.cliente_id);
   const equipment=data.equipamentos.find(x=>x.id===s.equipamento_id);
