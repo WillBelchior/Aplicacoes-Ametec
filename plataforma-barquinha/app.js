@@ -1,7 +1,6 @@
 "use strict";
-/* Plataforma Barquinha, etapa 1.
- * Interface estática de demonstração: sem acesso ao Supabase, sem coleta e sem gravação de pacientes.
- * O módulo de Obras permanece independente em ../obra-facil/index.html.
+/* Plataforma Barquinha: portal modular com Projetos legado e Atendimentos isolado no Supabase.
+ * Os dados fictícios abaixo pertencem ao protótipo legado e não são mais apresentados em Atendimentos.
  */
 (function () {
   const GUIDES = [
@@ -85,11 +84,11 @@
       '<div class="side-label">Plataforma</div><nav class="nav-list" aria-label="Navegação principal">' +
       window.BarquinhaRegistry.modules.map(module=>sideButton(module.route,module.icon,module.name,
         module.id==="inicio"?home:module.id==="projetos"?projects:module.id==="atendimentos"?attend:route.startsWith("/igreja"))).join("") + '</nav>' +
-      '<div class="sidebar-foot"><strong>Conta conectada</strong>'+esc(window.PlatformAuth.profile?.display_name||window.PlatformAuth.user?.email||"Participante")+'<button class="platform-logout" type="button" data-platform-logout>Sair da conta ↪</button><small>Atendimentos: demonstração</small></div></aside>' +
+      '<div class="sidebar-foot"><strong>Conta conectada</strong>'+esc(window.PlatformAuth.profile?.display_name||window.PlatformAuth.user?.email||"Participante")+'<button class="platform-logout" type="button" data-platform-logout>Sair da conta ↪</button><small>Atendimentos: acesso restrito</small></div></aside>' +
       '<div class="content-shell"><header class="topbar"><div class="crumb">Barquinha / <strong id="platform-crumb">' + esc(crumb) +
       '</strong></div><div class="top-actions"><span class="top-account">'+esc(window.PlatformAuth.profile?.display_name||window.PlatformAuth.user?.email||"Participante")+'</span><button class="platform-logout-top" type="button" data-platform-logout>Sair</button></div></header>' +
       '<main class="main" id="main-content">' + body +
-      '<footer class="footer-note">Plataforma Barquinha • Projetos conectado; Atendimentos demonstrativo.</footer></main>' +
+      '<footer class="footer-note">Plataforma Barquinha • Projetos e Atendimentos em áreas protegidas.</footer></main>' +
       '<section id="project-embed" class="project-embed" hidden><div class="project-embed-head"><div><strong>Projetos Barquinha</strong><small>Gestão integrada de obras</small></div><span class="project-live-mark">Registros reais de Obras</span></div><div id="project-subnav"></div><div class="project-iframe-wrap"><iframe title="Projetos Barquinha" id="projects-frame" loading="eager"></iframe></div></section></div>' +
       '<nav class="mobile-bottom" aria-label="Navegação para celular">' +
       window.BarquinhaRegistry.modules.map(module=>bottomButton(module.route,module.icon,module.shortName,
@@ -115,7 +114,7 @@
       '</div><span class="banner-symbol" aria-hidden="true">⚓</span></section>'+
       '<h2 class="section-title">Módulos disponíveis</h2><div class="grid-2">'+enabled.map(moduleCard).join("")+'</div>'+
       '<h2 class="section-title">Ampliações planejadas</h2><div class="grid-2">'+future.map(moduleCard).join("")+'</div>'+
-      '<div class="note warn" style="margin-top:18px"><strong>Proteção de dados:</strong> Projetos utiliza o banco compartilhado existente. Atendimentos ainda é demonstração. O Financeiro da Igreja e os cadastros dos irmãos oficiais não armazenam dados nesta versão.</div>';
+      '<div class="note warn" style="margin-top:18px"><strong>Proteção de dados:</strong> Projetos utiliza o banco compartilhado existente. Atendimentos usa tabelas próprias e acesso restrito. O Financeiro da Igreja e os cadastros dos irmãos oficiais não armazenam dados nesta versão.</div>';
   }
   function churchPage(route){
     const module=window.BarquinhaRegistry.byId("igreja");
