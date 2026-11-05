@@ -6,6 +6,8 @@
   const KEY="sb_publishable_itdqm8sjFzvPl4YJzlbe1g_Md2JKZ_U";
   const STORAGE_KEY="barquinha-auth-v1";
   const TRUSTED_KEY="barquinha-device-trusted-v1";
+  // Este domínio contém dados de pacientes: a sessão termina ao encerrar a aba.
+  const attendanceStandalone=!["obra-facil-acompanhamento.vercel.app","localhost","127.0.0.1"].includes(location.hostname);
   let client=null,user=null,profile=null,kind=null,error="",busy=false;
   let renderCallback=()=>{};
   const escape=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -31,7 +33,11 @@
   async function init(cb){
     renderCallback=cb;
     try {
-      client=makeClient(localStorage.getItem(TRUSTED_KEY)==="yes"?"local":"session");
+      if(attendanceStandalone){
+        localStorage.removeItem(TRUSTED_KEY);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      client=makeClient(!attendanceStandalone&&localStorage.getItem(TRUSTED_KEY)==="yes"?"local":"session");
       const {data,error:authError}=await client.auth.getUser();
       if(!authError&&data?.user){try{await verify(data.user);}catch(e){error=e.message;}}
     }catch(e){error="Não foi possível verificar a sessão: "+e.message;}
@@ -42,7 +48,7 @@
     const data=new FormData(form);
     const email=String(data.get("email")||"").trim();
     const password=String(data.get("password")||"");
-    const trusted=data.get("trusted")==="on";
+    const trusted=!attendanceStandalone&&data.get("trusted")==="on";
     if(!email||!password){error="Informe e-mail e senha.";notify();return;}
     busy=true;error="";notify();
     try{
@@ -76,7 +82,8 @@
       '<h1>Plataforma Barquinha</h1><p>Entre com o mesmo e-mail e senha do Projetos Barquinha.</p>'+
       '<label>E-mail<input name="email" type="email" required autocomplete="username" maxlength="255" placeholder="seu@email.com"></label>'+
       '<label>Senha<input name="password" type="password" required minlength="6" autocomplete="current-password"></label>'+
-      '<label class="login-trusted"><input name="trusted" type="checkbox"><span>Confiar neste aparelho e manter conectado</span></label>'+
+      (attendanceStandalone?'<small>Por segurança, a sessão de Atendimentos será encerrada ao fechar esta aba.</small>':
+      '<label class="login-trusted"><input name="trusted" type="checkbox"><span>Confiar neste aparelho e manter conectado</span></label>')+
       (error?'<div class="form-error" role="alert">'+escape(error)+'</div>':"")+
       '<button type="submit" class="button" '+(busy?"disabled":"")+'>'+(busy?"Verificando…":"Entrar na plataforma")+'</button>'+
       '<p class="login-help">Para criar uma conta ou recuperar a senha, abra <a href="'+(location.hostname==="obra-facil-acompanhamento.vercel.app"?"/projetos/index.html":"https://obra-facil-acompanhamento.vercel.app/")+'">Cadastro de usuário e recuperação de senha</a>.</p>'+
