@@ -367,5 +367,5 @@
     if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
     return true;
   }
-  window.AttendanceLive={connect,page,handleClick,handleSubmit,handleChange,handleInput};
+  window.AttendanceLive={connect,page,handleClick,handleSubmit,handleChange,handleInput,clear:()=>resetFor(null)};
 })();
