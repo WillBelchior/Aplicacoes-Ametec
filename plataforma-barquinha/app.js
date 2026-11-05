@@ -420,9 +420,9 @@
       if(f&&!f.getAttribute("src"))f.setAttribute("src","./projetos/index.html");
       else sendProjectTab(route);
     }else{
-      const content=route==="/inicio"?homePage():route.startsWith("/atendimentos")?attendancePage(route):route.startsWith("/igreja")?churchPage(route):
+      const content=route==="/inicio"?homePage():route.startsWith("/atendimentos")?(window.AttendanceLive?window.AttendanceLive.page(route,moduleTabs(route)):"<div class=\"note warn\">Módulo indisponível nesta versão.</div>"):route.startsWith("/igreja")?churchPage(route):
         '<div class="note warn">Área não encontrada.</div><button class="button" data-go="/inicio">Ir ao início</button>';
-      main.innerHTML=content+'<footer class="footer-note">Projetos conectado ao Supabase • Atendimentos em demonstração.</footer>';
+      main.innerHTML=content+'<footer class="footer-note">Projetos e Atendimentos com dados separados no Supabase • Acesso protegido.</footer>';
     }
     app.querySelectorAll(".nav-btn,.mobile-nav").forEach(btn=>{
       const target=btn.getAttribute("data-go")||"";
@@ -438,12 +438,14 @@
     app.addEventListener("click",function(event){
     const logout=event.target.closest("[data-platform-logout]");
     if(logout){window.PlatformAuth?.logout();return;}
+    if(window.AttendanceLive?.handleClick(event))return;
     const navigation=event.target.closest("[data-go]");
     if(navigation){navigate(navigation.getAttribute("data-go"));return;}
     const pTab=event.target.closest("[data-profile-tab]");
     if(pTab){state.profileTab=pTab.getAttribute("data-profile-tab");render();}
   });
   app.addEventListener("submit",function(event) {
+    if(window.AttendanceLive?.handleSubmit(event))return;
     if(event.target?.id==="platform-login-form"){event.preventDefault();window.PlatformAuth.login(event.target);return;}
     if(event.target && event.target.id==="new-patient-form"){
       event.preventDefault();
@@ -451,12 +453,14 @@
     }
   });
   app.addEventListener("change",function(event){
+    if(window.AttendanceLive?.handleChange(event))return;
     if(event.target.id==="patient-photo"){handlePhoto(event.target.files&&event.target.files[0]);return;}
     if(event.target.id==="filter-guides"){state.filter=event.target.value;render();}
     const patientField=event.target.dataset && event.target.dataset.patientField;
     if(patientField && Object.hasOwn(state.patientDraft,patientField))state.patientDraft[patientField]=event.target.value;
   });
   app.addEventListener("input",function(event){
+    if(window.AttendanceLive?.handleInput(event))return;
     const patientField=event.target.dataset && event.target.dataset.patientField;
     if(patientField && Object.hasOwn(state.patientDraft,patientField)){state.patientDraft[patientField]=event.target.value;return;}
     if(event.target.id!=="search-patient")return;
@@ -477,6 +481,7 @@
   });
   window.addEventListener("hashchange",function(){state.profileTab="dados";render();window.scrollTo(0,0);});
   if(!location.hash)location.hash="#/inicio";
+  window.AttendanceLive?.connect(render,navigate);
   window.PlatformAuth.init(render);
   render();
 })();
