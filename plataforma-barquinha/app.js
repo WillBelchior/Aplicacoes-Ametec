@@ -412,7 +412,8 @@
     }
     const main=app.querySelector("#main-content"),embed=app.querySelector("#project-embed");
     if(!main||!embed)return;
-    const isolatedPreview=projects&&location.hostname?.startsWith("plataforma-barquinha-preview");
+    const officialHost=location.hostname==="obra-facil-acompanhamento.vercel.app"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
+    const isolatedPreview=projects&&!officialHost;
     main.hidden=projects&&!isolatedPreview;embed.hidden=!projects||isolatedPreview;
     if(isolatedPreview){
       main.innerHTML="<section class=\"panel\"><h3>Projetos Barquinha preservado</h3><p>Esta prévia serve para testar Atendimentos. Para usar as obras reais, abra o aplicativo oficial em outra aba.</p><a class=\"button\" href=\"https://obra-facil-acompanhamento.vercel.app/\" target=\"_blank\" rel=\"noopener noreferrer\">Abrir Projetos Barquinha oficial ↗</a></section>";
@@ -484,6 +485,12 @@
   window.addEventListener("hashchange",function(){state.profileTab="dados";render();window.scrollTo(0,0);});
   if(!location.hash)location.hash="#/inicio";
   window.AttendanceLive?.connect(render,navigate);
+  // Sincroniza automaticamente a fila quando esta tela estiver em uso.
+  window.setInterval(()=>{
+    if(document.visibilityState==="hidden"||!window.PlatformAuth?.user)return;
+    if(["/atendimentos/fila","/atendimentos/pacientes","/atendimentos/guias"].includes(currentRoute()))
+      window.AttendanceLive?.syncQuietly();
+  },45000);
   window.PlatformAuth.init(render);
   render();
 })();
