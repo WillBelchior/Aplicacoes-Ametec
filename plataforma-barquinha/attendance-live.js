@@ -368,5 +368,8 @@
     if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
     return true;
   }
-  window.AttendanceLive={connect,page,handleClick,handleSubmit,handleChange,handleInput,clear:()=>resetFor(null)};
+  function syncQuietly(){
+    if(state.loaded&&state.access&&!state.loading&&!state.busy)void load();
+  }
+  window.AttendanceLive={connect,page,handleClick,handleSubmit,handleChange,handleInput,syncQuietly,clear:()=>resetFor(null)};
 })();
