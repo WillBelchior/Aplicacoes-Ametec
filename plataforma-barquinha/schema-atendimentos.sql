@@ -117,24 +117,34 @@ grant select on public.barquinha_attendance_events to authenticated;
 create policy attendance_events_read on public.barquinha_attendance_events for select to authenticated
  using ((select private.barquinha_attendance_permitted(array['administrador','recepcao','guia'])));
 
--- Trilha de auditoria gerada no banco, não alterável pelo navegador.
+-- Atualização do instante e auditoria imutável, AFTER INSERT para respeitar a FK.
+create or replace function private.barquinha_attendance_touch_status()
+returns trigger language plpgsql set search_path=''
+as $
+begin
+ if new.status is distinct from old.status then new.status_changed_at=now(); end if;
+ return new;
+end
+$;
+create trigger attendance_status_touch before update of status on public.barquinha_attendance_visits
+ for each row execute function private.barquinha_attendance_touch_status();
+
 create or replace function private.barquinha_attendance_audit_status()
 returns trigger language plpgsql security definer set search_path=''
-as $$
+as $
 begin
  if tg_op='INSERT' then
   insert into public.barquinha_attendance_events(visit_id,previous_status,next_status,actor_id)
    values(new.id,null,new.status,auth.uid());
  elsif new.status is distinct from old.status then
-  new.status_changed_at=now();
   insert into public.barquinha_attendance_events(visit_id,previous_status,next_status,actor_id)
    values(new.id,old.status,new.status,auth.uid());
  end if;
  return new;
 end
-$$;
+$;
 revoke all on function private.barquinha_attendance_audit_status() from public,anon,authenticated;
-create trigger attendance_status_audit before insert or update of status on public.barquinha_attendance_visits
+create trigger attendance_status_audit after insert or update of status on public.barquinha_attendance_visits
  for each row execute function private.barquinha_attendance_audit_status();
 
 -- Fotografias privadas dos pacientes (2 MB, somente JPG, sem exclusão/upsert via cliente).
