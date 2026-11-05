@@ -22,6 +22,10 @@ test("A entrada de Projetos em domínio independente abre somente o endereço of
   assert.match(app,/const isolatedPreview=projects&&!officialHost/);
   assert.match(app,/main\.hidden=projects&&!isolatedPreview;embed\.hidden=!projects\|\|isolatedPreview/);
   assert.match(app,/https:\/\/obra-facil-acompanhamento\.vercel\.app\//);
+  assert.match(app,/if\(route\.startsWith\("\/projetos"\)\&\&onIndependentDomain\(\)\)/);
+  assert.match(app,/location\.assign\(PROJECTS_OFFICIAL_URL\)/);
+  assert.match(app,/if\(projects\&\&onIndependentDomain\(\)\)/);
+  assert.match(app,/location\.replace\(PROJECTS_OFFICIAL_URL\)/);
   assert.match(auth,/location\.hostname==="obra-facil-acompanhamento\.vercel\.app"/);
 });
 test("Fila real atualiza periodicamente apenas quando aberta e visível",()=>{
