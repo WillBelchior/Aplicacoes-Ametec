@@ -67,6 +67,7 @@
     try{await client?.auth.signOut({scope:"local"});}catch(e){}
     try{localStorage.removeItem(TRUSTED_KEY);localStorage.removeItem(STORAGE_KEY);sessionStorage.removeItem(STORAGE_KEY);}catch(e){}
     user=null;profile=null;kind=null;window.__barquinhaPlatformAuthKind=null;
+    window.AttendanceLive?.clear();
     error="";notify();
   }
   function gateHTML(){
