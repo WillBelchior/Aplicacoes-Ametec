@@ -1,65 +1,55 @@
-# Plataforma Barquinha — Login integrado e navegação por módulos
+# Plataforma Barquinha — Atendimentos (MVP de homologação)
 
-**Branch:** `feature/plataforma-barquinha-login-navegacao`
+**Branch de desenvolvimento:** `feature/barquinha-plataforma-modular-portal`  
+**Publicação:** projeto Vercel separado `plataforma-barquinha-preview`; o endereço oficial de Projetos não é alterado.
 
-## Funcionalidades desta versão
+## Fluxo funcional preparado
 
-- Login com o mesmo **Supabase Auth** do Projetos Barquinha (mesmo projeto `tvhvwpyuobdonkqctogh`).
-- Verificação da tabela `barquinha_members`, exigindo associação com status **active**.
-- Opção de dispositivo confiável. Sem essa opção, a sessão usa `sessionStorage`.
-- Três áreas principais: **Visão Geral**, **Projetos Barquinha** e **Atendimentos Barquinha**.
-- Projetos possui subabas: **Minhas Obras, Financeiro, Estoque, Cadastro, Histórico e Acessos**.
-- Projetos roda dentro da Plataforma, sob a **mesma origem**, com sessão compartilhada entre o aplicativo e o módulo de Obras.
-- O arquivo original `obra-facil/index.html` **não sofre transformação ou alteração** em produção: `build.mjs` cria uma cópia adaptada somente no diretório gerado para a Plataforma.
-- Os dados já registrados nas obras são recuperados pelo módulo existente, com suas políticas de acesso.
-- Atendimentos continua com pacientes fictícios, fila por colunas por Guia, foto/CPF e tela de autorizações **apenas para testes**.
+1. Entrar com a conta existente da Plataforma Barquinha.
+2. Abrir **Atendimentos → Guias** e cadastrar o primeiro Guia (nome e cor).
+3. Abrir **Pacientes → Cadastrar paciente**: nome e nascimento obrigatórios; telefone, CPF, encaminhamento e fotografia opcionais.
+4. Abrir **Fila geral → Registrar chegada**, escolher paciente, Guia, modalidade e prioridade.
+5. Abrir o cartão do atendimento e alterar a situação: Aguardando, Chamado, Em atendimento, Concluído, Não compareceu ou Cancelado.
+6. Abrir **Pacientes → Ficha → Histórico** para conferir os atendimentos anteriores e as alterações de situação.
 
-## Executar localmente
+O mesmo paciente pode ter atendimentos em Guias diferentes no mesmo dia. Os atendimentos encerrados saem da fila do dia e permanecem no histórico. As filas são apresentadas em colunas por Guia, com rolagem horizontal em celulares.
 
-Na raiz do repositório:
+## Estrutura do banco
 
-```bash
-node plataforma-barquinha/build.mjs
-cd plataforma-barquinha/dist
-py -m http.server 8080
-```
+O arquivo `schema-atendimentos.sql` foi aplicado ao Supabase existente com o nome de migração `barquinha_attendance_mvp_isolated_access_rls_audit`.
 
-Abra `http://localhost:8080/`. Para entrar, utilize uma **conta de teste autorizada** na tabela de membros do Projetos Barquinha. O módulo Projetos é servido de `/projetos/index.html`.
+Tabelas novas:
+- `barquinha_attendance_access`: permissão de acesso ao módulo, separada da autorização geral;
+- `barquinha_attendance_patients`: cadastro único, incluindo CPF opcional e caminho privado da foto;
+- `barquinha_attendance_guides`: Guias;
+- `barquinha_attendance_visits`: atendimentos por data, Guia, prioridade e situação;
+- `barquinha_attendance_events`: auditoria de criação e alterações de situação.
 
-Não abra diretamente os arquivos pelo protocolo `file://`; o compartilhamento da sessão exige a mesma origem HTTP(S).
+O bucket privado `barquinha-attendance-photos` aceita apenas JPG de até 2 MB. O armazenamento de Fotos e as tabelas das obras não foram alterados.
+
+**Segurança:** RLS está habilitada para todas as tabelas de Atendimentos. Somente contas autorizadas em `barquinha_attendance_access`, que também sejam membros ativos da Plataforma, podem consultar dados. Os dois usuários que já estavam ativos foram autorizados inicialmente com papel `recepcao`. Novos usuários **não** recebem acesso automaticamente. Permissões de visualização por Guia poderão ser implementadas futuramente, como definido.
+
+A interface **não armazena dados pessoais no localStorage**, não carrega dados fictícios como registros reais e usa URLs temporárias para fotografias.
 
 ## Testes
 
-Na raiz do repositório:
-
 ```bash
-node --test plataforma-barquinha/tests/integration.test.mjs
+node --test plataforma-barquinha/tests/*.test.mjs
+node plataforma-barquinha/build.mjs
 ```
 
-O teste verifica a montagem do projeto, autenticação e associação aos membros, presença das seis subabas e isolamento do arquivo legado. Após publicar a prévia, valide o login, a navegação, o Financeiro de uma obra, a troca de módulos e o logout **sem salvar dados fictícios nas obras reais**.
+A implantação de teste da Vercel executa os testes e o build antes de publicar. Um teste do Supabase com transação temporária verificou: criação de Guia, paciente, atendimento, mudança de situação e dois eventos de auditoria; todas as alterações foram revertidas com `ROLLBACK`.
 
-## Publicação
+## Cuidados da homologação
 
-Projeto Vercel independente: `plataforma-barquinha-preview`.
+A versão ainda **não deve receber dados pessoais reais** sem validação da organização e documentação de finalidade, base legal, retenção, acesso e consentimentos/canais de informação compatíveis com a LGPD.
 
-- Repositório: `WillBelchior/Aplicacoes-Ametec`.
-- Raiz: repositório inteiro, para permitir a cópia da aplicação `obra-facil`.
-- Comando de build: `node plataforma-barquinha/build.mjs`.
-- Output Directory: `plataforma-barquinha/dist`.
-- Branch de desenvolvimento: `feature/plataforma-barquinha-login-navegacao`.
-- Nenhuma migração no Supabase; o login é compartilhado, mas ainda não existe banco de Atendimentos.
+Pendências de próximas etapas:
+- Autorizações especiais, expediente, materiais e devoluções;
+- Criação/remoção de permissões de usuários pela interface;
+- Restrição opcional da visualização a Guias específicos;
+- Edição de cadastros, exclusão/retenção e gestão de fotografias;
+- Consulta paginada, atualização colaborativa em tempo real, notificações e contingência offline;
+- Testes completos com navegador e dispositivos móveis, recuperação de conta e revisão LGPD.
 
-**Privacidade:** Não cadastre CPF, fotografia, endereços ou relatórios verdadeiros de pacientes nessa versão. O módulo de Atendimentos não possui persistência/autorização em banco e não está pronto para uso real.
-
-
-## Expansão modular e domínio oficial
-
-- **Endereço principal após a migração:** `https://obra-facil-acompanhamento.vercel.app/`, agora exibindo a Plataforma Barquinha.
-- Cadastro e recuperação de senha: link interno `/projetos/index.html`, preservando o login original.
-- Catálogo: `modules.js`; adiciona menus e telas reservadas sem criar novas tabelas.
-- Futuros módulos: **Gestão da Igreja**, com **Financeiro da Igreja** e **Irmãos Oficiais**, marcados **Em planejamento**.
-- `build.mjs` gera `dist/` com a entrada principal, o Projetos Barquinha em `projetos/index.html` e recursos necessários para manter o acesso legado.
-- O antigo Service Worker do domínio de Obras é aposentado na raiz para que não continue apresentando a página antiga por cache. A rotina offline do módulo de Obras permanece isolada em `/projetos/`.
-- Para dados reais de outros módulos, ainda faltam esquema de dados, políticas RLS, permissões específicas, trilha de auditoria, política de privacidade e testes.
-
-Consulte `ARQUITETURA.md` para orientações detalhadas de ampliação. Não colocar dados de pacientes ou de irmãos oficiais nos módulos demonstrativos.
+**Preservação de Projetos:** dentro da prévia, a navegação de Projetos fica somente com link para o site oficial, evitando editar obras reais por uma versão de desenvolvimento antiga. Nenhum deploy do domínio principal é realizado nesta fase.
