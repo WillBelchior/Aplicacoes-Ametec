@@ -120,18 +120,18 @@ create policy attendance_events_read on public.barquinha_attendance_events for s
 -- Atualização do instante e auditoria imutável, AFTER INSERT para respeitar a FK.
 create or replace function private.barquinha_attendance_touch_status()
 returns trigger language plpgsql set search_path=''
-as $
+as $$
 begin
  if new.status is distinct from old.status then new.status_changed_at=now(); end if;
  return new;
 end
-$;
+$$;
 create trigger attendance_status_touch before update of status on public.barquinha_attendance_visits
  for each row execute function private.barquinha_attendance_touch_status();
 
 create or replace function private.barquinha_attendance_audit_status()
 returns trigger language plpgsql security definer set search_path=''
-as $
+as $$
 begin
  if tg_op='INSERT' then
   insert into public.barquinha_attendance_events(visit_id,previous_status,next_status,actor_id)
@@ -142,7 +142,7 @@ begin
  end if;
  return new;
 end
-$;
+$$;
 revoke all on function private.barquinha_attendance_audit_status() from public,anon,authenticated;
 create trigger attendance_status_audit after insert or update of status on public.barquinha_attendance_visits
  for each row execute function private.barquinha_attendance_audit_status();
