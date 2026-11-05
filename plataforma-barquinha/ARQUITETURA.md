@@ -7,7 +7,7 @@ A Plataforma Barquinha é a **porta de entrada comum** da instituição. O catá
 | Módulo | Estado | Armazenamento |
 | --- | --- | --- |
 | Projetos Barquinha | Em funcionamento | Tabelas existentes `barquinha_*` no Supabase |
-| Atendimentos Barquinha | Demonstração | Dados fictícios, somente em memória |
+| Atendimentos Barquinha | MVP de homologação | Tabelas isoladas `barquinha_attendance_*` com RLS; não usar dados reais até aceite |
 | Gestão da Igreja | Planejamento | Nenhum dado/tabela criado |
 | Financeiro da Igreja | Planejamento (subárea) | Nenhum dado/tabela criado |
 | Irmãos Oficiais | Planejamento (subárea) | Nenhum dado/tabela criado |
@@ -32,7 +32,7 @@ Separações recomendadas para fase futura:
 - **Irmãos Oficiais**: cadastro institucional, restrito à administração autorizada.
 - **Usuários de login**: `auth.users` identifica conta. Pertencer ao sistema não significa acesso a todos os módulos.
 
-Acesso único (SSO) não equivale a permissão única. Atualmente Projetos utiliza sua autorização legada `barquinha_members`. Antes de colocar Atendimentos ou Igreja em produção, criar `platform_module_memberships` (nome ilustrativo), roles por módulo, políticas RLS e testes de autorização. **Essa tabela ainda NÃO existe.**
+Acesso único (SSO) não equivale a permissão única. Projetos continua utilizando `barquinha_members`. Atendimentos utiliza adicionalmente a tabela `barquinha_attendance_access`, associada a membros ativos, com RLS para pacientes, Guias, atendimentos, eventos e fotos privadas. Nenhum usuário novo recebe acesso a Atendimentos automaticamente. A futura Gestão da Igreja exigirá suas próprias permissões e políticas.
 
 ### Financeiro da Igreja — proposta de domínio futuro
 
@@ -40,10 +40,10 @@ Projetar **categorias, contas/caixa, lançamentos de receita/despesa, competênc
 
 ### Continuidade dos endereços e dos dados locais
 
-- Endereço principal: `https://obra-facil-acompanhamento.vercel.app/`, agora abrindo a Plataforma Barquinha.
-- O legado de Obras permanece integrado na mesma origem em `/projetos/index.html`.
-- A aplicação separada `plataforma-barquinha-preview.vercel.app` continua disponível como ambiente de teste.
-- O login e o armazenamento anterior da origem `obra-facil-acompanhamento.vercel.app` são preservados pela troca **de conteúdo do mesmo domínio**, sem redirecionamento entre domínios.
+- Endereço principal atual: `https://obra-facil-acompanhamento.vercel.app/`, preservado para Projetos. A migração definitiva para o portal ainda não foi realizada.
+- O portal possui uma cópia incorporada de Projetos na build, mas na prévia de Atendimentos esse acesso é substituído por um link para o aplicativo oficial, evitando alterações por código desatualizado.
+- O projeto Vercel independente `plataforma-barquinha-preview` é o ambiente de homologação, com deployments separados e testes automáticos.
+- A migração planejada do domínio oficial, quando aprovada, preservará a origem e o armazenamento anterior; essa substituição ainda não foi executada.
 - Um service worker antigo da raiz é substituído por um script que desativa o cache antigo. O service worker legado da área `/projetos/` permanece isolado naquela pasta.
 - Links antigos de recuperação `/?recovery=1` e com fragmento `type=recovery` são encaminhados no navegador para `/projetos/index.html` mantendo os parâmetros; a recuperação permanece no módulo legado.
 - O formulário antigo de cadastro/recuperação está disponível pelo link interno `/projetos/index.html` a partir do login central.
@@ -51,4 +51,4 @@ Projetar **categorias, contas/caixa, lançamentos de receita/despesa, competênc
 
 ### Cuidados antes de incorporar outros módulos
 
-Nenhuma nova tabela, RLS, bucket ou migração de dados foi executada nesta etapa. Só `Projetos` usa registros verdadeiros. Ações de `Atendimentos` e `Igreja` não devem receber dados reais até a preparação da segurança e da persistência.
+Atendimentos já possui schema isolado, RLS, bucket privado e testes de banco. A aplicação está em **homologação**, não em produção: use somente pacientes fictícios até a revisão de LGPD, retenção, rotinas de backup e testes completos em navegadores. Gestão da Igreja permanece apenas planejada.
