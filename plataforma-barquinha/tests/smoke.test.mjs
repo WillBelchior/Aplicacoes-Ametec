@@ -15,7 +15,7 @@ test("registry contains canonical modules with unique ids and paths",()=>{
   assert.equal(new Set(ids).size,ids.length);
   assert.equal(new Set(routes).size,routes.length);
   assert.equal(catalog.byId("projetos").status,"active");
-  assert.equal(catalog.byId("atendimentos").status,"demo");
+  assert.equal(catalog.byId("atendimentos").status,"active");
   assert.equal(catalog.byId("igreja").status,"planned");
 });
 test("existing Projects tabs are preserved by the registry",()=>{
@@ -50,9 +50,11 @@ test("old root password-recovery callbacks survive migration",()=>{
   assert.match(html,/get\("recovery"\)==="1"/);
   assert.match(html,/location\.replace\("\/projetos\/index\.html"\+location\.search\+location\.hash\)/);
 });
-test("attendance remains clearly demo-only",()=>{
-  assert.doesNotMatch(app,/\bfetch\s*\(|XMLHttpRequest|indexedDB|\.from\(["'](?:patients|pacientes|atendimentos)["']\)/);
-  assert.match(app,/name="cpf"/);
-  assert.match(app,/id="patient-photo"/);
+test("attendance routes are connected to the isolated RLS-backed module",()=>{
+  const live=read("attendance-live.js"),schema=read("schema-atendimentos.sql");
+  assert.match(app,/AttendanceLive\.page\(route,moduleTabs\(route\)\)/);
+  assert.match(live,/barquinha_attendance_patients/);
+  assert.match(live,/barquinha_attendance_access/);
+  assert.match(schema,/enable row level security/);
   assert.match(styles,/queue-board-scroll\s*\{[^}]*overflow-x:auto/);
 });
