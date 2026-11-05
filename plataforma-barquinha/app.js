@@ -55,7 +55,15 @@
     const route = decodeURIComponent((location.hash || "#/inicio").slice(1));
     return route.startsWith("/") ? route : "/inicio";
   };
+  const PROJECTS_OFFICIAL_URL="https://obra-facil-acompanhamento.vercel.app/";
+  const onIndependentDomain=()=>location.hostname!=="obra-facil-acompanhamento.vercel.app" &&
+    location.hostname!=="localhost" && location.hostname!=="127.0.0.1";
   function navigate(route) {
+    // Projetos mantém aplicação e origem oficiais: não carregar cópia legada nesta plataforma.
+    if(route.startsWith("/projetos")&&onIndependentDomain()){
+      location.assign(PROJECTS_OFFICIAL_URL);
+      return;
+    }
     if (location.hash === "#" + route) render();
     else location.hash = "#" + route;
   }
@@ -405,6 +413,11 @@
       document.title="Entrar | Plataforma Barquinha";return;
     }
     const route=currentRoute(),projects=route.startsWith("/projetos");
+    // Favoritos e links antigos de Projetos também devem abrir a aplicação real.
+    if(projects&&onIndependentDomain()){
+      location.replace(PROJECTS_OFFICIAL_URL);
+      return;
+    }
     if(!app.querySelector(".shell")){
       app.innerHTML=shell(route,"");
       const f=document.getElementById("projects-frame");
