@@ -129,6 +129,7 @@
     if(!canWrite())return alertBox("Sua função não permite cadastrar pacientes.");
     return '<button class="breadcrumb" type="button" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
       title("Cadastrar paciente","O cadastro é único; a chegada para atendimento é registrada separadamente.")+
+      '<div class="note warn" role="note"><strong>Privacidade:</strong> Antes de registrar pessoas reais, a instituição deve informar a finalidade do cadastro, definir a base legal e a conservação dos dados e garantir cópias de segurança. O plano gratuito atual não oferece backups automáticos.</div>'+
       '<form id="live-patient-form" class="panel attendance-form"><div class="patient-fields">'+
       field("nome","Nome completo","text",true,'maxlength="160" autocomplete="name"')+
       field("nascimento","Data de nascimento","date",true,'max="'+currentDay()+'"')+
