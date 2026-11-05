@@ -80,11 +80,102 @@
     else if(route==="/atendimentos/pacientes")inner=patientsPage();
     else if(route==="/atendimentos/guias")inner=guidesPage();
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
-    else if(route==="/atendimentos/expediente")inner=deferred("Expediente","A abertura e o encerramento do expediente serão implementados em uma etapa posterior.");
+    else if(route==="/atendimentos/expediente")inner=operationsPage();
     else inner=queuePage();
     const previewNotice=location.hostname?.startsWith("plataforma-barquinha-preview")?"<div class=\"note warn\"><strong>Ambiente de homologação.</strong> Utilize cadastros fictícios até concluir a validação do atendimento e a revisão de proteção de dados.</div>":"";
     return nav(tabs)+previewNotice+info()+inner;
   }
+
+  /* Cópia manual criptografada: não substitui o backup completo PostgreSQL.
+     Fotografias privadas entram na cópia para permitir restauração assistida em caso de incidente. */
+  function operationsPage(){
+    const active=state.visits.filter(v=>v.service_date===currentDay()&&!CLOSED.has(v.status)).length;
+    const total=state.visits.filter(v=>v.service_date===currentDay()).length;
+    return title("Expediente e segurança","Painel de preparação para dias de atendimento. A abertura/fechamento formal do expediente virá em outra etapa.")+
+      '<div class="metrics"><div class="metric"><strong>'+state.guides.filter(g=>g.ativo).length+'</strong><span>Guias ativos</span></div>'+
+      '<div class="metric"><strong>'+total+'</strong><span>Atendimentos hoje</span></div>'+
+      '<div class="metric"><strong>'+active+'</strong><span>Em aberto</span></div></div>'+
+      '<section class="panel attendance-operations"><h3>Preparação do expediente</h3>'+
+      '<p>Antes do dia de atendimento, confirme que a fila consegue consultar o banco e que os Guias estão cadastrados. O Supabase Free pode pausar após períodos de inatividade.</p>'+
+      '<button class="button ghost" type="button" data-live-refresh>↻ Testar conexão e atualizar dados</button>'+
+      '<h3>Cópia de segurança dos Atendimentos</h3>'+
+      '<p>Faça uma cópia criptografada <strong>antes e depois de cada dia de atendimento</strong>. Ela inclui cadastros, Guias, atendimentos, histórico e fotos, sem incluir informações do Projetos Barquinha.</p>'+
+      (canWrite()?'<form id="live-backup-form" class="attendance-backup-form">'+
+      '<label>Senha de proteção do arquivo (mínimo de 14 caracteres)<input name="backup_pass" type="password" minlength="14" required autocomplete="new-password" placeholder="Crie uma senha exclusiva"></label>'+
+      '<label>Confirmar senha<input name="backup_confirm" type="password" minlength="14" required autocomplete="new-password" placeholder="Repita a senha"></label>'+
+      '<button type="submit" class="button">Baixar cópia criptografada</button>'+
+      '<div class="attendance-form-error" role="alert" hidden></div></form>':
+      '<div class="note warn">Apenas usuários autorizados a registrar atendimentos podem criar a cópia.</div>')+
+      '<p class="muted attendance-backup-note">Guarde o arquivo fora deste dispositivo, em local institucional protegido. A senha não é armazenada nem recuperável. A exportação não é um backup integral do Supabase: a restauração deve ser realizada de modo assistido e o banco principal precisa de cópias externas próprias.</p>'+
+      '<h3>Se a conexão cair</h3><p>Pare os lançamentos digitais, use a lista manual mínima em papel sob guarda restrita e registre no aplicativo apenas quando a conexão voltar, conferindo possíveis duplicidades.</p></section>';
+  }
+  function b64Bytes(bytes){
+    let str="";
+    for(let i=0;i<bytes.length;i+=16384)str+=String.fromCharCode(...bytes.subarray(i,i+16384));
+    return btoa(str);
+  }
+  async function completeTable(table){
+    const items=[];
+    for(let offset=0;offset<=20000;offset+=500){
+      const {data,error}=await client().from(table).select("*").order("id",{ascending:true}).range(offset,offset+499);
+      if(error)throw error;
+      items.push(...(data||[]));
+      if(!data||data.length<500)return items;
+    }
+    throw Error("Quantidade de registros acima do limite desta exportação. Utilize um backup completo pelo Supabase.");
+  }
+  async function encryptedBackup(form){
+    if(state.busy||!canWrite())return;
+    const pass=String(new FormData(form).get("backup_pass")||"");
+    const confirmPass=String(new FormData(form).get("backup_confirm")||"");
+    if(pass.length<14)return fail(form,"Utilize uma senha com pelo menos 14 caracteres.");
+    if(pass!==confirmPass)return fail(form,"A confirmação da senha não coincide.");
+    if(!crypto?.subtle||!window.isSecureContext)return fail(form,"A cópia protegida exige navegador atualizado e conexão HTTPS.");
+    const userId=auth()?.user?.id;
+    const submit=form.querySelector('button[type="submit"]');
+    state.busy=true;if(submit){submit.disabled=true;submit.textContent="Preparando cópia segura…";}
+    try{
+      const tableNames=["barquinha_attendance_guides","barquinha_attendance_patients","barquinha_attendance_visits","barquinha_attendance_events"];
+      const tables={};
+      for(const name of tableNames)tables[name]=await completeTable(name);
+      if(auth()?.user?.id!==userId)throw Error("A sessão foi alterada durante a exportação.");
+      const paths=[...new Set(tables.barquinha_attendance_patients.map(p=>p.foto_path).filter(Boolean))];
+      const photos=[];
+      let totalPhotoBytes=0;
+      for(const path of paths){
+        const {data,error}=await client().storage.from(PHOTO_BUCKET).download(path);
+        if(error||!data)throw Error("Não foi possível incluir uma foto privada na cópia. Nenhum backup incompleto será gerado.");
+        const bytes=new Uint8Array(await data.arrayBuffer());
+        totalPhotoBytes+=bytes.byteLength;
+        if(totalPhotoBytes>75*1024*1024)throw Error("As fotos ultrapassaram 75 MB. Use o backup completo do Supabase para volumes maiores.");
+        photos.push({path,content_type:"image/jpeg",base64:b64Bytes(bytes)});
+      }
+      const exportedAt=new Date().toISOString();
+      const payload={kind:"barquinha-attendance-module-snapshot",schema:1,exported_at:exportedAt,tables,photos};
+      const raw=new TextEncoder().encode(JSON.stringify(payload));
+      const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+      const baseKey=await crypto.subtle.importKey("raw",new TextEncoder().encode(pass),"PBKDF2",false,["deriveKey"]);
+      const iterations=310000;
+      const aesKey=await crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations,hash:"SHA-256"},baseKey,
+        {name:"AES-GCM",length:256},false,["encrypt"]);
+      const encrypted=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},aesKey,raw));
+      if(auth()?.user?.id!==userId)throw Error("Sessão encerrada durante a exportação.");
+      const artifact={kind:"barquinha-attendance-encrypted-backup",version:1,exported_at:exportedAt,
+        cipher:"AES-256-GCM",key_derivation:"PBKDF2-SHA256",iterations,
+        salt:b64Bytes(salt),iv:b64Bytes(iv),data:b64Bytes(encrypted)};
+      const blob=new Blob([JSON.stringify(artifact)],{type:"application/json"});
+      const url=URL.createObjectURL(blob);
+      const anchor=document.createElement("a");
+      anchor.href=url;anchor.download="barquinha-atendimentos-backup-"+currentDay()+".json";
+      document.body.appendChild(anchor);anchor.click();anchor.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      form.reset();
+      state.notice="Exportação criptografada preparada. Confirme o download e guarde o arquivo e a senha em locais seguros e separados.";
+      renderCallback();
+    }catch(error){fail(form,"Falha ao gerar cópia: "+(error.message||error));}
+    finally{state.busy=false;if(submit?.isConnected){submit.disabled=false;submit.textContent="Baixar cópia criptografada";}}
+  }
+
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
   function title(t,description){return '<section class="intro"><div class="eyebrow">ATENDIMENTOS BARQUINHA</div><h1>'+esc(t)+'</h1><p>'+esc(description)+'</p></section>';}
   function queuePage(){
@@ -353,6 +444,7 @@
     if(form?.id==="live-patient-form"){event.preventDefault();void patientSubmit(form);return true;}
     if(form?.id==="live-guide-form"){event.preventDefault();void guideSubmit(form);return true;}
     if(form?.id==="live-arrival-form"){event.preventDefault();void arrivalSubmit(form);return true;}
+    if(form?.id==="live-backup-form"){event.preventDefault();void encryptedBackup(form);return true;}
     return false;
   }
   function handleChange(event){
