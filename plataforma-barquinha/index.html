@@ -9,7 +9,11 @@
   <script>
     /* Links antigos de recuperação do mesmo domínio continuam válidos após a migração. */
     if(new URLSearchParams(location.search).get("recovery")==="1" || /(?:^|[&#])type=recovery(?:&|$)/.test(location.hash)){
-      location.replace("/projetos/index.html"+location.search+location.hash);
+      if(location.hostname==="obra-facil-acompanhamento.vercel.app"){
+        location.replace("/projetos/index.html"+location.search+location.hash);
+      }else{
+        location.replace("https://obra-facil-acompanhamento.vercel.app/"+location.search+location.hash);
+      }
     }
   </script>
   <link rel="manifest" href="./manifest.webmanifest">
