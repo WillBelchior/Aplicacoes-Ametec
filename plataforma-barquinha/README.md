@@ -1,4 +1,36 @@
-# Plataforma Barquinha — Atendimentos (MVP de homologação)
+# Atendimentos Barquinha — Operação oficial
+
+**Endereço oficial:** https://atendimentos-barquinha.vercel.app/  
+**Projetos Barquinha permanece independente:** https://obra-facil-acompanhamento.vercel.app/
+
+A aplicação do Atendimentos foi publicada em projeto próprio na Vercel, com login institucional, tabelas próprias no Supabase, RLS, filas por Guia, cadastro de pacientes, chegadas e histórico. Não possui arquivos da aplicação Projetos dentro da build independente.
+
+## Procedimento antes da primeira utilização com pessoas reais
+
+- A instituição deve definir o controlador dos dados, a finalidade do cadastro, a base legal aplicável, a comunicação de privacidade, a política de retenção e o tratamento de dados potencialmente sensíveis (p. ex. religião ou saúde), conforme LGPD.
+- Usar contas individuais, não compartilhar credenciais; somente membros ativos com autorização própria em `barquinha_attendance_access` têm acesso. No domínio Atendimentos a sessão fica no navegador até que a aba seja encerrada, sem a opção de confiar permanentemente no dispositivo.
+- Fazer um teste completo com registros **fictícios**: cadastrar Guia, cadastrar paciente, adicionar chegada, mudar situação, consultar histórico, atualizar a página e confirmar persistência; testar upload e consulta da fotografia.
+- Abrir **Expediente → Cópia de segurança** e testar o download criptografado com senha forte. Conservar a senha separada do arquivo. Essa cópia é complementar e sua restauração exige apoio técnico.
+- Preparar backup completo regular do banco Supabase e do Storage fora da plataforma; o plano Free não oferece backups automáticos. Testar periodicamente o procedimento de restauração.
+
+## Rotina de cada expediente (eventos a cada 15 dias ou mais)
+
+1. **Na véspera:** confirmar que o Supabase está ativo, abrir Atendimentos, conferir filas e Guias e baixar cópia criptografada.
+2. **No início:** confirmar login das pessoas autorizadas, registrar e acompanhar a fila por Guia.
+3. **Durante:** não registrar lançamentos enquanto houver erro de conexão; seguir procedimento físico sob controle de acesso até o serviço voltar, evitando registros duplicados na retomada.
+4. **Ao terminar:** revisar pendências e situações, baixar nova cópia criptografada e guardá-la em local institucional protegido.
+5. **Se o banco estiver pausado:** reativar pelo painel Supabase e testar conexão antes de voltar aos lançamentos. O Free pode ser pausado por inatividade e não garante operação contínua.
+
+## Limites atuais
+
+- Expediente contém painel de orientação/backup, **não** abertura e encerramento formal automático.
+- Autorizações especiais, devoluções de materiais e controle fino por Guia permanecem para etapa futura.
+- A cópia criptografada exporta tabelas e fotografias de Atendimentos, **não** banco completo, contas Auth, projetos ou configurações de outros módulos.
+- Não existe rotina automatizada de restauração, nem backup externo automatizado. A organização deve assegurar backups adequados antes do uso continuado.
+- Uma implantação READY e testes automatizados não substituem um teste de ponta a ponta em navegador autenticado nem aprovação interna do tratamento de dados pessoais.
+
+---
+
 
 **Branch de desenvolvimento:** `feature/barquinha-plataforma-modular-portal`  
 **Publicação:** projeto Vercel separado `plataforma-barquinha-preview`; o endereço oficial de Projetos não é alterado.
