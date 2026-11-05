@@ -82,7 +82,8 @@
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
     else if(route==="/atendimentos/expediente")inner=deferred("Expediente","A abertura e o encerramento do expediente serão implementados em uma etapa posterior.");
     else inner=queuePage();
-    return nav(tabs)+info()+inner;
+    const previewNotice=location.hostname?.startsWith("plataforma-barquinha-preview")?"<div class=\"note warn\"><strong>Ambiente de homologação.</strong> Utilize cadastros fictícios até concluir a validação do atendimento e a revisão de proteção de dados.</div>":"";
+    return nav(tabs)+previewNotice+info()+inner;
   }
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
   function title(t,description){return '<section class="intro"><div class="eyebrow">ATENDIMENTOS BARQUINHA</div><h1>'+esc(t)+'</h1><p>'+esc(description)+'</p></section>';}
