@@ -82,7 +82,7 @@ html.platform-embedded body:has(.app:not([inert])) .app{grid-template-columns:1f
 </style>`);
 await rm(dist,{recursive:true,force:true});
 await mkdir(join(dist,"projetos"),{recursive:true});
-for(const file of ["index.html","styles.css","modules.js","auth.js","app.js"])await copyFile(join(here,file),join(dist,file));
+for(const file of ["index.html","styles.css","attendance-live.css","attendance-live.js","modules.js","auth.js","app.js"])await copyFile(join(here,file),join(dist,file));
 await writeFile(join(dist,"projetos/index.html"),legacy,"utf8");
 for(const file of ["manifest.webmanifest","sw.js"]){
   await copyFile(resolve(here,"../obra-facil",file),join(dist,"projetos",file));
