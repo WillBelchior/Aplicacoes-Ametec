@@ -25,9 +25,9 @@
     },
     {
       id:"atendimentos", name:"Atendimentos Barquinha", shortName:"Atendimentos", icon:"☷",
-      route:"/atendimentos/fila", status:"demo", group:"management",
+      route:"/atendimentos/fila", status:"active", group:"management",
       permissionKey:"attendance.view",
-      description:"Fila por Guia, fichas, autorizações e expediente. Somente dados fictícios."
+      description:"Fila por Guia, pacientes, chegadas e histórico protegido. Autorizações e expediente em preparação."
     },
     {
       id:"igreja", name:"Gestão da Igreja", shortName:"Igreja", icon:"♧",
