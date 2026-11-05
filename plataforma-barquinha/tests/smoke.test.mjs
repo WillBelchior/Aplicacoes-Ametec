@@ -44,7 +44,7 @@ test("SSO continues requiring an active member",()=>{
   assert.match(auth,/data\?\.status!=="active"/);
   assert.match(auth,/barquinha-auth-v1/);
   assert.match(auth,/\/projetos\/index\.html/);
-  assert.doesNotMatch(auth,/https:\/\/obra-facil-acompanhamento\.vercel\.app/);
+  assert.match(auth,/https:\/\/obra-facil-acompanhamento\.vercel\.app/);
 });
 test("old root password-recovery callbacks survive migration",()=>{
   assert.match(html,/get\("recovery"\)==="1"/);
