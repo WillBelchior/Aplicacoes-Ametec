@@ -1,7 +1,6 @@
 "use strict";
 /* Autenticação compartilhada com Projetos Barquinha.
-   Usa o mesmo Supabase e a mesma chave de armazenamento; os dados de Atendimentos
-   permanecem fictícios e nunca são consultados no banco nesta fase. */
+   Usa o mesmo Supabase e a mesma chave de armazenamento; o módulo Atendimentos usa autorização própria e RLS do Supabase. */
 (() => {
   const URL="https://tvhvwpyuobdonkqctogh.supabase.co";
   const KEY="sb_publishable_itdqm8sjFzvPl4YJzlbe1g_Md2JKZ_U";
@@ -80,12 +79,13 @@
       (error?'<div class="form-error" role="alert">'+escape(error)+'</div>':"")+
       '<button type="submit" class="button" '+(busy?"disabled":"")+'>'+(busy?"Verificando…":"Entrar na plataforma")+'</button>'+
       '<p class="login-help">Para criar uma conta ou recuperar a senha, abra <a href="/projetos/index.html">Cadastro de usuário e recuperação de senha</a>.</p>'+
-      '<small>Atendimentos é demonstrativo. Não utilize dados reais de pacientes.</small></form></div>';
+      '<small>Atendimentos exige permissão específica. Não utilize contas compartilhadas.</small></form></div>';
   }
   window.PlatformAuth={
     init,login,logout,gateHTML,
     get user(){return user;},
     get profile(){return profile;},
-    get kind(){return kind;}
+    get kind(){return kind;},
+    get client(){return user?client:null;}
   };
 })();
