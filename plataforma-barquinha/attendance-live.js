@@ -18,7 +18,7 @@
   const PHOTO_BUCKET="barquinha-attendance-photos";
   const state={userId:null,loaded:false,loading:false,error:"",notice:"",access:null,
     guides:[],patients:[],visits:[],events:[],closures:[],filter:"todos",search:"",profileTab:"dados",arrivalSearch:"",webcamStream:null,webcamBlob:null,editId:null,
-    photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false};
+    photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false,currentRoute:null};
   let renderCallback=()=>{},navigateCallback=route=>{location.hash="#"+route;};
   const auth=()=>window.PlatformAuth;
   const client=()=>auth()?.client;
@@ -95,6 +95,10 @@
     const user=auth()?.user;
     if(!user)return "";
     if(state.userId!==user.id)resetFor(user.id);
+    if(state.currentRoute!==route){
+      if(state.currentRoute?.includes("paciente")){stopWebcam();state.webcamBlob=null;}
+      state.currentRoute=route;
+    }
     if(!state.loaded&&!state.loading)queueMicrotask(load);
     if(!state.loaded)return nav(tabs)+'<div class="panel attendance-placeholder">Carregando dados protegidos de Atendimentos…</div>';
     if(state.error)return nav(tabs)+info();
@@ -551,12 +555,12 @@
     const priority=document.getElementById("live-arrival-priority");
     const hint=document.getElementById("live-arrival-age-hint");
     if(p){
-      if(guideSelect&&p.guide_id&&guide(p.guide_id))guideSelect.value=p.guide_id;
+      if(guideSelect)guideSelect.value=p.guide_id&&guide(p.guide_id)?p.guide_id:"";
       if(priority)priority.value=agePriority(p.nascimento)?"Idoso":"Normal";
       if(hint)hint.textContent=ageYears(p.nascimento)===null?
         "Idade não informada. Selecione a prioridade aplicável.":
         "Idade: "+ageYears(p.nascimento)+" anos"+(agePriority(p.nascimento)?" — PRIORIDADE IDOSO":" — classificação normal");
-    }else if(hint){hint.textContent="Digite e selecione um paciente da lista para preencher o Guia e a idade.";}
+    }else{if(guideSelect)guideSelect.value="";if(priority)priority.value="Normal";if(hint)hint.textContent="Digite e selecione um paciente da lista para preencher o Guia e a idade.";}
   }
   function syncPatientForm(){
     const mode=document.getElementById("live-patient-mode")?.value||"presencial";
@@ -592,6 +596,7 @@
   function handleChange(event){
     const target=event.target;
     if(target?.id==="live-guide-filter"){state.filter=target.value;renderCallback();return true;}
+    if(target?.name==="foto"){state.webcamBlob=null;return true;}
     if(target?.id==="live-patient-mode"||target?.id==="live-patient-birth"){syncPatientForm();return true;}
     if(target?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
     if(target?.matches?.("[data-live-status]")){void changeStatus(target);return true;}
