@@ -344,36 +344,66 @@
   }
   async function patientSubmit(form){
     if(state.busy||!canWrite())return;
-    const data=new FormData(form),nome=String(data.get("nome")||"").trim().replace(/\s+/g," "),
-      nascimento=String(data.get("nascimento")||""),telefone=String(data.get("telefone")||"").trim(),
-      cpf=cpfDigits(data.get("cpf")),encaminhamento=String(data.get("encaminhamento")||"").trim();
-    if(nome.length<2||nome.length>160||!nascimento||nascimento>currentDay())return fail(form,"Informe nome e nascimento válidos.");
+    const data=new FormData(form);
+    const patientId=String(form.dataset.patientId||"");
+    const existing=patientId?person(patientId):null;
+    if(patientId&&!existing)return fail(form,"Paciente não encontrado. Atualize a lista.");
+    const nome=String(data.get("nome")||"").trim().replace(/\s+/g," ");
+    const nascimento=String(data.get("nascimento")||"");
+    const telefone=String(data.get("telefone")||"").trim();
+    const cpf=cpfDigits(data.get("cpf"));
+    const preferred_guide_id=String(data.get("preferred_guide_id")||"")||null;
+    const modalidade_cadastro=String(data.get("modalidade_cadastro")||"presencial");
+    const endereco=String(data.get("endereco")||"").trim();
+    if(nome.length<2||nome.length>160)return fail(form,"Informe o nome completo do paciente.");
+    if(!MODES.some(m=>m[0]===modalidade_cadastro))return fail(form,"Selecione a modalidade de cadastro.");
+    if((!nascimento&&modalidade_cadastro!=="distancia")||(nascimento&&nascimento>currentDay()))
+      return fail(form,"Informe uma data de nascimento válida. Ela é dispensada apenas para cadastro à distância.");
+    if(modalidade_cadastro==="distancia"&&endereco.length<5)
+      return fail(form,"Informe o endereço disponível para o cadastro à distância.");
     if(cpf&&!validCpf(cpf))return fail(form,"CPF inválido.");
-    const exists=state.patients.find(p=>(cpf&&p.cpf===cpf)||(normalize(p.nome)===normalize(nome)&&p.nascimento===nascimento));
-    if(exists)return fail(form,"Possível duplicidade: "+exists.nome+". Consulte a ficha antes de cadastrar novamente.");
-    const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
+    if(preferred_guide_id&&!guide(preferred_guide_id))return fail(form,"Guia não encontrado.");
+    const duplicate=state.patients.find(p=>p.id!==patientId&&(
+      (cpf&&p.cpf===cpf)||
+      (nascimento&&p.nascimento===nascimento&&normalize(p.nome)===normalize(nome))||
+      (!nascimento&&!p.nascimento&&normalize(p.nome)===normalize(nome)&&normalize(p.endereco)===normalize(endereco))
+    ));
+    if(duplicate)return fail(form,"Possível duplicidade: "+duplicate.nome+". Consulte a ficha antes de cadastrar.");
+    const file=data.get("foto"),removePhoto=data.get("remover_foto")==="on";
+    const payload={nome,nascimento:nascimento||null,telefone:telefone||null,cpf:cpf||null,
+      preferred_guide_id,modalidade_cadastro,endereco:endereco||null};
+    if(existing&&removePhoto&&!file?.size&&!state.cameraBlob)payload.foto_path=null;
+    const submit=form.querySelector('[type="submit"]');
+    state.busy=true;if(submit)submit.disabled=true;
     try{
-      const file=data.get("foto"),blob=file?.size?await imageBlob(file):null;
-      const {data:saved,error}=await client().from("barquinha_attendance_patients")
-        .insert({nome,nascimento,telefone:telefone||null,cpf:cpf||null,encaminhamento:encaminhamento||null})
-        .select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at").single();
+      const blob=state.cameraBlob||((file?.size)?await imageBlob(file):null);
+      const statement=existing?
+        client().from("barquinha_attendance_patients").update(payload).eq("id",patientId):
+        client().from("barquinha_attendance_patients").insert(payload);
+      const {data:saved,error}=await statement.select(patientSelect).single();
       if(error)throw error;
-      state.patients.push(saved);
-      state.notice="Paciente cadastrado com segurança.";
+      if(existing){Object.assign(existing,saved);}
+      else state.patients.push(saved);
+      state.notice=existing?"Dados do paciente atualizados.":"Paciente cadastrado.";
       if(blob){
         try{
           const path=saved.id+"/"+crypto.randomUUID()+".jpg";
-          const upload=await client().storage.from(PHOTO_BUCKET).upload(path,blob,{upsert:false,contentType:"image/jpeg"});
-          if(upload.error)throw upload.error;
-          const updated=await client().from("barquinha_attendance_patients").update({foto_path:path}).eq("id",saved.id)
-            .select("id,foto_path").single();
-          if(updated.error)throw updated.error;
-          saved.foto_path=path;
-        }catch(uploadError){state.notice+=" A fotografia não foi salva: "+uploadError.message;}
+          const uploaded=await client().storage.from(PHOTO_BUCKET).upload(path,blob,
+            {upsert:false,contentType:"image/jpeg"});
+          if(uploaded.error)throw uploaded.error;
+          const {data:photo,error:photoError}=await client().from("barquinha_attendance_patients")
+            .update({foto_path:path}).eq("id",saved.id).select("id,foto_path").single();
+          if(photoError)throw photoError;
+          saved.foto_path=photo.foto_path;
+          const actual=person(saved.id);if(actual)actual.foto_path=photo.foto_path;
+        }catch(e){state.notice+=" A fotografia não foi salva: "+(e.message||e);}
       }
-      state.profileTab="dados";navigateCallback("/atendimentos/paciente/"+saved.id);
+      if(existing&&removePhoto&&!blob&&existing.foto_path===null)
+        state.photoUrls.clear();
+      stopCamera();state.cameraBlob=null;state.profileTab="dados";
+      navigateCallback("/atendimentos/paciente/"+saved.id);
     }catch(e){
-      fail(form,e.code==="23505"?"Já existe um paciente com este CPF. Confira a ficha antes de cadastrar.":"Não foi possível cadastrar: "+(e.message||e));
+      fail(form,e.code==="23505"?"Já existe paciente com este CPF.":("Não foi possível salvar: "+(e.message||e)));
     }finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
   }
   async function guideSubmit(form){
