@@ -25,9 +25,9 @@
     },
     {
       id:"atendimentos", name:"Atendimentos Barquinha", shortName:"Atendimentos", icon:"☷",
-      route:"/atendimentos/fila", status:"pilot", group:"management",
+      route:"/atendimentos/fila", status:"active", group:"management",
       permissionKey:"attendance.view",
-      description:"Primeiro teste presencial: fila por Guia, pacientes fictícios e histórico protegido. Autorizações e expediente em preparação."
+      description:"Cadastro oficial de pacientes e Guias, fichas por Guia, fila diária e relatório de fechamento. Atendimento remoto depende de autorização."
     },
     {
       id:"igreja", name:"Gestão da Igreja", shortName:"Igreja", icon:"♧",
