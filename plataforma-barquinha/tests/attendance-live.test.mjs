@@ -91,16 +91,19 @@ test("A fila usa toda a largura com até cinco Guias e ativa a rolagem com seis"
     for(let n=0;n<35;n++)await Promise.resolve();
     return w.AttendanceLive.page("/atendimentos/fila","");
   }
+  // A Triagem é uma coluna própria; a partir de 6 colunas totais, rolar.
   for(const count of [1,3,4,5]){
-    const output=await renderGuides(count);
-    assert.match(output,new RegExp('data-guide-count="'+count+'"'));
-    assert.doesNotMatch(output,/class="queue-board[^"]*is-scroll/);
-    assert.equal((output.match(/class="queue-guide-column"/g)||[]).length,count);
+    const output=await renderGuides(count),total=count+1;
+    assert.match(output,new RegExp('data-guide-count="'+total+'"'));
+    assert.match(output,/queue-triage-column/);
+    if(total>=6)assert.match(output,/class="queue-board is-scroll"/);
+    else assert.doesNotMatch(output,/class="queue-board[^"]*is-scroll/);
+    assert.equal((output.match(/class="queue-guide-column/g)||[]).length,total);
   }
   const six=await renderGuides(6);
-  assert.match(six,/class="queue-board is-scroll" data-guide-count="6"/);
+  assert.match(six,/class="queue-board is-scroll" data-guide-count="7"/);
   assert.match(six,/Use a rolagem horizontal/);
-  assert.equal((six.match(/class="queue-guide-column"/g)||[]).length,6);
+  assert.equal((six.match(/class="queue-guide-column/g)||[]).length,7);
   const styles=readFileSync(new URL("../attendance-live.css",import.meta.url),"utf8");
   assert.match(styles,/#main-content \.queue-board\.is-scroll/);
   assert.match(styles,/#main-content:has\(\.queue-board-scroll\) \.metrics/);
