@@ -168,35 +168,61 @@
       '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+
       '" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(selected.length,1)+'">'+columns+'</div></div>';
   }
-  function patientForm(){
-    if(!canWrite())return alertBox("Sua função não permite cadastrar pacientes.");
-    return '<button class="breadcrumb" type="button" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
-      title("Cadastrar paciente","O cadastro é único; a chegada para atendimento é registrada separadamente.")+
-      '<form id="live-patient-form" class="panel attendance-form"><div class="patient-fields">'+
-      field("nome","Nome completo","text",true,'maxlength="160" autocomplete="name"')+
-      field("nascimento","Data de nascimento","date",true,'max="'+currentDay()+'"')+
-      field("telefone","Telefone","tel",false,'maxlength="40"')+
-      field("cpf","CPF (opcional)","text",false,'maxlength="14" inputmode="numeric" autocomplete="off"')+
-      field("encaminhamento","Encaminhamento / indicação (opcional)","text",false,'maxlength="250"')+
-      '<label>Fotografia (opcional)<input type="file" name="foto" accept="image/jpeg,image/png,image/webp"><small>JPG, PNG ou WebP, até 2 MB após compactação. Armazenamento privado.</small></label></div>'+
+  function patientForm(patient=null){
+    if(!canWrite())return alertBox("Sua função não permite cadastrar ou editar pacientes.");
+    const p=patient||{},edit=!!patient;
+    const optionValue=(name,value)=>' value="'+esc(value||"")+'"';
+    return '<button class="breadcrumb" type="button" data-go="'+(edit?'/atendimentos/paciente/'+esc(p.id):'/atendimentos/pacientes')+
+      '">← Voltar</button>'+
+      title(edit?"Editar paciente":"Cadastrar paciente","O Guia será sugerido automaticamente em cada chegada. Atendimento à distância pode ser cadastrado apenas com nome e endereço; sua realização exige autorização separada.")+
+      '<form id="live-patient-form" data-edit-id="'+esc(p.id||"")+'" class="panel attendance-form">'+
+      '<div class="patient-fields">'+
+      '<label>Modalidade de cadastro *<select name="cadastro_modalidade" id="live-patient-mode">'+
+      MODES.map(m=>'<option value="'+m[0]+'"'+((p.cadastro_modalidade||"presencial")===m[0]?' selected':'')+'>'+m[1]+'</option>').join("")+'</select></label>'+
+      '<label>Nome completo *<input name="nome" type="text" required maxlength="160" autocomplete="name"'+optionValue("nome",p.nome)+'></label>'+
+      '<label>Data de nascimento <input name="nascimento" id="live-patient-birth" type="date" max="'+currentDay()+'"'+
+      (p.cadastro_modalidade!=="distancia"?' required':'')+optionValue("nascimento",p.nascimento)+'><small>Para pacientes à distância, pode ficar em branco.</small></label>'+
+      '<label>Idade calculada automaticamente <output id="live-patient-age" aria-live="polite">'+
+      (ageYears(p.nascimento)===null?"Não informada":ageYears(p.nascimento)+" anos"+(agePriority(p.nascimento)?" · Prioridade: IDOSO":""))+
+      '</output></label>'+
+      '<label>Telefone<input name="telefone" type="tel" maxlength="40"'+optionValue("telefone",p.telefone)+'></label>'+
+      '<label>CPF<input name="cpf" type="text" maxlength="14" inputmode="numeric" autocomplete="off"'+optionValue("cpf",p.cpf)+'></label>'+
+      '<label>Guia <select name="guide_id">'+selectGuide(p.guide_id||"","Selecione o Guia")+'</select></label>'+
+      '<label class="patient-address-field">Endereço do paciente'+
+      '<textarea name="endereco" id="live-patient-address" maxlength="900" rows="3"'+
+      (p.cadastro_modalidade==="distancia"?' required':'')+' placeholder="Rua, número, bairro, cidade, referência…">'+esc(p.endereco||"")+'</textarea>'+
+      '<small>Obrigatório para cadastro à distância.</small></label>'+
+      '<label>Fotografia<input type="file" name="foto" accept="image/jpeg,image/png,image/webp" capture="environment">'+
+      '<small>JPG/PNG/WebP, compactada para armazenamento privado.</small></label>'+
+      '<div class="webcam-controls"><button type="button" class="button ghost" data-live-camera-start>📷 Abrir webcam</button>'+
+      '<button type="button" class="button ghost" data-live-camera-capture hidden>Capturar foto</button>'+
+      '<button type="button" class="button ghost" data-live-camera-stop hidden>Fechar câmera</button>'+
+      '<video id="live-webcam" autoplay muted playsinline hidden aria-label="Visualização da webcam"></video>'+
+      '<div id="live-camera-preview" aria-live="polite"></div></div></div>'+
       '<div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
-      '<button type="button" class="button ghost" data-go="/atendimentos/pacientes">Cancelar</button>'+
-      '<button type="submit" class="button">Salvar paciente</button></div></form>';
+      '<button type="button" class="button ghost" data-go="'+(edit?'/atendimentos/paciente/'+esc(p.id):'/atendimentos/pacientes')+'">Cancelar</button>'+
+      '<button type="submit" class="button">'+(edit?"Salvar alterações":"Salvar paciente")+'</button></div></form>';
   }
+  const patientOptionText=p=>p.nome+" · "+fmtDay(p.nascimento)+" · "+p.id.slice(0,6);
   function arrivalForm(){
     if(!canWrite())return alertBox("Sua função não permite registrar chegadas.");
-    const options=state.patients.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.nome)+' · '+fmtDay(p.nascimento)+'</option>').join("");
+    const options=state.patients.map(p=>'<option value="'+esc(patientOptionText(p))+'"></option>').join("");
     const guides=state.guides.filter(g=>g.ativo).map(g=>'<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
     return '<button class="breadcrumb" type="button" data-go="/atendimentos/fila">← Voltar à fila</button>'+
-      title("Registrar chegada — teste presencial","Selecione um paciente fictício e um Guia. Um paciente pode ter vários atendimentos no mesmo dia.")+
+      title("Registrar chegada","Digite as primeiras letras do nome do paciente. O Guia já associado será preenchido automaticamente.")+
+      (isClosed()?alertBox("O expediente de hoje foi encerrado. Novas chegadas estão bloqueadas."):'')+
       (!options||!guides?alertBox("Cadastre pelo menos um paciente e um Guia antes de registrar uma chegada."):"")+
       '<form id="live-arrival-form" class="panel attendance-form"><div class="patient-fields">'+
-      '<label>Paciente *<select name="patient_id" required><option value="">Selecione um paciente</option>'+options+'</select></label>'+
-      '<label>Guia *<select name="guide_id" required><option value="">Selecione um Guia</option>'+guides+'</select></label>'+
-      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial (piloto)</option></select><small>À distância e trabalhadores da casa exigem autorização e novas regras, ainda não implementadas.</small></label>'+
-      '<label>Prioridade *<select name="prioridade">'+PRIORITIES.map(p=>'<option>'+esc(p)+'</option>').join("")+'</select></label>'+
-      '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions"><button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
-      '<button class="button" type="submit"'+(!options||!guides?' disabled':'')+'>Adicionar à fila</button></div></form>';
+      '<label>Paciente *<input type="search" name="patient_name" id="live-arrival-patient-search" list="live-patient-options" required placeholder="Digite o nome para localizar…" autocomplete="off">'+
+      '<datalist id="live-patient-options">'+options+'</datalist></label>'+
+      '<label>Guia *<select name="guide_id" id="live-arrival-guide" required><option value="">Selecione o Guia</option>'+guides+'</select></label>'+
+      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial</option></select>'+
+      '<small>Atendimento à distância e trabalhadores da casa: aguardam autorização do Presidente.</small></label>'+
+      '<label>Prioridade *<select name="prioridade" id="live-arrival-priority">'+priorityOptions()+'</select>'+
+      '<small id="live-arrival-age-hint">A prioridade Idoso será preenchida quando o paciente tiver 60 anos ou mais.</small></label>'+
+      '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
+      '<button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
+      '<button class="button" type="submit"'+(!options||!guides||isClosed()?' disabled':'')+'>Emitir ficha e registrar chegada</button></div></form>';
   }
   function patientsPage(){
     const results=state.patients.filter(p=>String(p.nome||"").toLocaleLowerCase("pt-BR").includes(state.search.toLocaleLowerCase("pt-BR")));
@@ -226,11 +252,15 @@
     const selected=state.visits.find(v=>v.id===segments[4]&&v.patient_id===p.id);
     const visits=state.visits.filter(v=>v.patient_id===p.id).sort((a,b)=>b.ordem-a.ordem);
     let details="";
-    if(state.profileTab==="dados")details='<dl><div><dt>Nascimento</dt><dd>'+fmtDay(p.nascimento)+'</dd></div>'+
+    if(state.profileTab==="dados")details='<dl><div><dt>Modalidade</dt><dd>'+
+      esc(MODES.find(m=>m[0]===p.cadastro_modalidade)?.[1]||"Presencial")+'</dd></div>'+
+      '<div><dt>Nascimento</dt><dd>'+fmtDay(p.nascimento)+'</dd></div>'+
+      '<div><dt>Idade</dt><dd>'+(ageYears(p.nascimento)===null?"Não informada":ageYears(p.nascimento)+" anos")+'</dd></div>'+
       '<div><dt>Telefone</dt><dd>'+esc(p.telefone||"Não informado")+'</dd></div>'+
       '<div><dt>CPF</dt><dd>'+esc(maskCpf(p.cpf))+'</dd></div>'+
-      '<div><dt>Atendimentos</dt><dd>'+visits.length+'</dd></div>'+
-      '<div><dt>Encaminhamento</dt><dd>'+esc(p.encaminhamento||"Não informado")+'</dd></div></dl>';
+      '<div><dt>Guia associado</dt><dd>'+esc(guide(p.guide_id)?.nome||"Não definido")+'</dd></div>'+
+      '<div><dt>Endereço</dt><dd>'+esc(p.endereco||"Não informado")+'</dd></div>'+
+      '<div><dt>Atendimentos</dt><dd>'+visits.length+'</dd></div></dl>';
     if(state.profileTab==="historico")details='<div class="list-box">'+(visits.map(v=>{
       const g=guide(v.guide_id),changes=state.events.filter(e=>e.visit_id===v.id);
       return '<div class="attendance-history-entry"><strong>'+fmtDay(v.service_date)+' · Guia '+esc(g?.nome||"Não encontrado")+'</strong> '+
