@@ -35,6 +35,7 @@
     '<input name="'+name+'" type="'+type+'" '+(required?"required ":"")+(extra||"")+'></label>';
   const nav=(tabs)=>tabs||"";
   const canWrite=()=>["administrador","recepcao"].includes(state.access?.access_role);
+  const canChangeStatus=()=>["administrador","recepcao","guia"].includes(state.access?.access_role);
   const isClosed=day=>state.sessions.some(s=>s.service_date===day);
   const ageAt=(birth,day=currentDay())=>{
     if(!birth)return null;
@@ -116,42 +117,61 @@
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
   function title(t,description){return '<section class="intro"><div class="eyebrow">ATENDIMENTOS BARQUINHA</div><h1>'+esc(t)+'</h1><p>'+esc(description)+'</p></section>';}
   function queuePage(){
-    const day=currentDay(),active=state.visits.filter(v=>v.service_date===day&&!CLOSED.has(v.status));
-    const completed=state.visits.filter(v=>v.service_date===day&&CLOSED.has(v.status));
-    const selected=state.guides.filter(g=>g.ativo&&(state.filter==="todos"||g.id===state.filter));
-    const filter='<option value="todos">Todos os Guias</option>'+state.guides.filter(g=>g.ativo).map(g=>
+    const day=currentDay();
+    const today=state.visits.filter(v=>v.service_date===day);
+    const finished=today.filter(v=>CLOSED.has(v.status));
+    const guides=state.guides.filter(g=>g.ativo||today.some(v=>v.guide_id===g.id));
+    const selected=guides.filter(g=>state.filter==="todos"||g.id===state.filter);
+    const filter='<option value="todos">Todos os Guias</option>'+guides.map(g=>
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
+    const closed=isClosed(day);
+    const statusChoices=v=>STATUSES.concat(v.status==="Cancelado"?["Cancelado"]:[]).map(st=>
+      '<option value="'+esc(st)+'"'+(v.status===st?' selected':'')+'>'+esc(st)+'</option>').join("");
     const columns=selected.map(g=>{
-      const visits=active.filter(v=>v.guide_id===g.id).sort((a,b)=>{
-        const priority=p=>p.prioridade==="Normal"?1:0;
-        return priority(a)-priority(b)||a.ordem-b.ordem;
+      const visits=today.filter(v=>v.guide_id===g.id).sort((a,b)=>{
+        return Number(isPriority(b))-Number(isPriority(a)) ||
+          (a.chamada_numero||a.ordem)-(b.chamada_numero||b.ordem);
       });
       const body=visits.map(v=>{
         const p=person(v.patient_id);
         if(!p)return "";
-        return '<button type="button" class="queue-card" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+
-          '" aria-label="Abrir atendimento de '+esc(p.nome)+'"><span class="queue-row"><span class="guide-rail" style="background:'+esc(g.cor)+
-          '"></span><span class="queue-inner"><span class="ticket">'+String(v.ordem).padStart(2,"0")+'</span><span class="queue-details"><strong>'+esc(p.nome)+
-          '</strong><small>'+esc(v.prioridade)+" · "+esc(MODES.find(m=>m[0]===v.modalidade)?.[1]||v.modalidade)+
-          '</small></span><span class="queue-status">'+pill(v.status)+'</span><span class="chevron" aria-hidden="true">›</span></span></span></button>';
+        const priority=isPriority(v);
+        const status=canChangeStatus()&&!closed?
+          '<label class="queue-select-wrap">Situação<select aria-label="Situação de '+esc(p.nome)+'" data-live-status="'+esc(v.id)+'">'+statusChoices(v)+'</select></label>':
+          '<span class="queue-readonly">'+pill(v.status)+'</span>';
+        return '<article class="queue-card'+(priority?' is-priority':'')+'">'+
+          '<button class="queue-open-patient" type="button" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+'">'+
+          '<span class="ticket'+(priority?' ticket-priority':'')+'">'+ticket(v)+'</span>'+
+          '<span class="queue-details"><strong>'+esc(p.nome)+'</strong><small>'+
+          (priority?'<span class="queue-priority-label">'+esc(v.prioridade)+' · PRIORIDADE</span>':'Ficha normal')+
+          ' · '+esc(v.modalidade==="distancia"?"À distância":"Presencial")+'</small></span>'+
+          '</button>'+status+'</article>';
       }).join("");
       return '<section class="queue-guide-column"><div class="queue-guide-header" style="border-top-color:'+esc(g.cor)+
-        '"><div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span><h3 title="Guia '+esc(g.nome)+'">Guia '+esc(g.nome)+'</h3></div>'+
-        '<span class="pill blue">'+visits.length+' na fila</span></div><div class="queue-guide-body">'+(body||'<div class="queue-empty">Nenhum atendimento aguardando.</div>')+'</div></section>';
+        '"><div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span>'+
+        '<h3 title="Guia '+esc(g.nome)+'">Guia '+esc(g.nome)+'</h3></div>'+
+        '<span class="pill blue">'+visits.length+' no dia</span></div>'+
+        '<div class="queue-guide-body">'+(body||'<div class="queue-empty">Nenhum registro para este Guia.</div>')+
+        '</div></section>';
     }).join("");
-    const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Registrar chegada</button>'+
+    const actionButtons=canWrite()&&!closed?
+      '<button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Registrar chegada</button>'+
       '<button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
-    return title("Atendimento do Dia","Fila real de "+fmtDay(day)+" · As colunas são organizadas por Guia e atualizadas após cada alteração.")+
-      '<div class="metrics"><div class="metric"><strong>'+active.length+'</strong><span>Na fila</span></div>'+
-      '<div class="metric"><strong>'+completed.length+'</strong><span>Finalizados hoje</span></div>'+
-      '<div class="metric"><strong>'+state.patients.length+'</strong><span>Pacientes cadastrados</span></div></div>'+
-      '<div class="filters"><div class="queue-actions"><h3>Fila geral por Guia</h3>'+buttons+
-      '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button></div>'+
+    return title("Atendimento do Dia","Fila geral de "+fmtDay(day)+" · Fichas numeradas por Guia e prioridade.")+
+      (closed?'<div class="note" role="status">Expediente encerrado. Todos os registros permanecem nesta lista; o relatório pode ser impresso na aba Expediente.</div>':"")+
+      '<div class="metrics"><div class="metric"><strong>'+today.filter(v=>!CLOSED.has(v.status)).length+
+      '</strong><span>Em aberto</span></div><div class="metric"><strong>'+finished.length+
+      '</strong><span>Encerrados</span></div><div class="metric"><strong>'+state.patients.length+
+      '</strong><span>Pacientes cadastrados</span></div></div>'+
+      '<div class="filters"><div class="queue-actions"><h3>Fila geral por Guia</h3>'+actionButtons+
+      '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button>'+
+      '<button type="button" class="button secondary" data-go="/atendimentos/expediente">Expediente e relatório</button></div>'+
       '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label></div>'+
-      (!state.guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
-      '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para ver todos os Guias.":"Até cinco Guias são exibidos juntos, aproveitando toda a largura da tela.")+' Atendimentos finalizados permanecem no histórico.</p>'+
+      (!guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
+      '<p class="queue-hint">Todas as situações permanecem visíveis. Fichas P01 e 01 são sequências independentes para cada Guia.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
-      '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+'" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(selected.length,1)+'">'+columns+'</div></div>';
+      '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+
+      '" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(1,selected.length)+'">'+columns+'</div></div>';
   }
   function patientForm(){
     if(!canWrite())return alertBox("Sua função não permite cadastrar pacientes.");
