@@ -65,11 +65,11 @@ CREATE TABLE IF NOT EXISTS private.barquinha_attendance_ticket_counters(
   PRIMARY KEY(service_date,guide_id,prioritaria)
 );
 REVOKE ALL ON private.barquinha_attendance_ticket_counters FROM public,anon,authenticated;
-INSERT INTO private.barquinha_attendance_ticket_counters(service_date,guide_id,prioritaria,ultimo)
+INSERT INTO private.barquinha_attendance_ticket_counters AS counter(service_date,guide_id,prioritaria,ultimo)
  SELECT service_date,guide_id,chamada_prioritaria,max(chamada_numero)
  FROM public.barquinha_attendance_visits GROUP BY service_date,guide_id,chamada_prioritaria
  ON CONFLICT(service_date,guide_id,prioritaria) DO UPDATE
- SET ultimo=greatest(private.barquinha_attendance_ticket_counters.ultimo,excluded.ultimo);
+ SET ultimo=greatest(counter.ultimo,excluded.ultimo);
 
 -- Registrar encerramento de expediente; não mistura com Projetos ou Financeiro.
 CREATE TABLE IF NOT EXISTS public.barquinha_attendance_sessions(
@@ -142,10 +142,10 @@ BEGIN
     new.prioridade='Idoso';
   END IF;
   new.chamada_prioritaria=(new.prioridade<>'Normal');
-  INSERT INTO private.barquinha_attendance_ticket_counters(service_date,guide_id,prioritaria,ultimo)
+  INSERT INTO private.barquinha_attendance_ticket_counters AS counter(service_date,guide_id,prioritaria,ultimo)
    VALUES(new.service_date,new.guide_id,new.chamada_prioritaria,1)
   ON CONFLICT(service_date,guide_id,prioritaria)
-   DO UPDATE SET ultimo=private.barquinha_attendance_ticket_counters.ultimo+1
+   DO UPDATE SET ultimo=counter.ultimo+1
   RETURNING ultimo INTO v_last;
   new.chamada_numero=v_last;
   RETURN new;
