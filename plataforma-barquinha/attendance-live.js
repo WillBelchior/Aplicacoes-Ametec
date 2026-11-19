@@ -564,6 +564,67 @@
     }catch(e){select.value=before;state.error="Não foi possível alterar a situação: "+(e.message||e);renderCallback();}
     finally{state.busy=false;if(select.isConnected)select.disabled=false;}
   }
+  function updateAgePreview(form){
+    const age=ageAt(form.querySelector('[name="nascimento"]')?.value);
+    const output=form.querySelector("#live-patient-age");if(!output)return;
+    output.textContent=age===null?"Idade não informada":age+" anos"+(age>=60?" · IDOSO — prioridade automática":" · Classificação normal");
+    output.classList.toggle("is-elderly",age!==null&&age>=60);
+  }
+  function updatePatientMode(form){
+    const remote=form.querySelector('[name="modalidade_cadastro"]')?.value==="distancia";
+    form.querySelector('[name="nascimento"]').required=!remote;
+    form.querySelector('[name="endereco"]').required=remote;
+    updateAgePreview(form);
+  }
+  async function openCamera(button){
+    const form=button.closest("form"),video=form.querySelector("#live-camera-video");
+    if(!navigator.mediaDevices?.getUserMedia)return fail(form,"Câmera indisponível: utilize o envio de fotografia.");
+    stopCamera();
+    try{
+      state.cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"},audio:false});
+      video.srcObject=state.cameraStream;video.hidden=false;
+      await video.play();
+      form.querySelector("[data-camera-capture]").hidden=false;
+      form.querySelector("[data-camera-stop]").hidden=false;
+    }catch(e){stopCamera();fail(form,"Não foi possível abrir a câmera. Confira as permissões ou envie uma fotografia: "+(e.message||e));}
+  }
+  async function captureCamera(button){
+    const form=button.closest("form"),video=form.querySelector("#live-camera-video");
+    if(!state.cameraStream||!video.videoWidth)return fail(form,"Aguarde a imagem da câmera.");
+    const size=Math.min(video.videoWidth,video.videoHeight);
+    const canvas=document.createElement("canvas");canvas.width=420;canvas.height=420;
+    canvas.getContext("2d").drawImage(video,(video.videoWidth-size)/2,(video.videoHeight-size)/2,size,size,0,0,420,420);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",.78));
+    if(!blob)return fail(form,"Não foi possível capturar a fotografia.");
+    state.cameraBlob=blob;
+    const preview=form.querySelector("#live-camera-preview");
+    preview.src=URL.createObjectURL(blob);preview.hidden=false;
+    stopCamera();video.hidden=true;
+    form.querySelector("[data-camera-capture]").hidden=true;form.querySelector("[data-camera-stop]").hidden=true;
+  }
+  function syncArrivalPatient(select){
+    const form=select.closest("form"),p=person(select.value);
+    if(!form||!p)return;
+    const guideSelect=form.querySelector('[name="guide_id"]');
+    if(p.preferred_guide_id&&[...guideSelect.options].some(o=>o.value===p.preferred_guide_id))
+      guideSelect.value=p.preferred_guide_id;
+    const priority=form.querySelector('[name="prioridade"]');
+    priority.value=isElderly(p)?"Idoso":"Normal";
+    const output=form.querySelector("#live-arrival-age-note");
+    const age=ageAt(p.nascimento);
+    output.textContent=age===null?"Idade não informada: selecione a prioridade manualmente.":age+" anos"+(age>=60?" · PRIORIDADE IDOSO automática":" · Classificação normal");
+    output.classList.toggle("is-elderly",age!==null&&age>=60);
+  }
+  function filterArrivalPatients(input){
+    const form=input.closest("form"),select=form.querySelector('[name="patient_id"]');
+    state.arrivalSearch=input.value;
+    const matches=state.patients.filter(p=>normalize(p.nome).includes(normalize(input.value)));
+    const previous=select.value;
+    select.innerHTML='<option value="">Selecione um paciente ('+matches.length+' encontrados)</option>'+
+      matches.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.nome)+' · '+fmtDay(p.nascimento)+'</option>').join("");
+    if(matches.some(p=>p.id===previous))select.value=previous;
+    if(select.value)syncArrivalPatient(select);
+  }
   function handleClick(event){
     const refreshButton=event.target.closest("[data-live-refresh]");
     if(refreshButton){event.preventDefault();refresh();return true;}
