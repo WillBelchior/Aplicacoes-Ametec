@@ -75,7 +75,7 @@
         client().from("barquinha_attendance_patients").select(patientSelect).order("nome"),
         client().from("barquinha_attendance_visits").select(visitSelect).order("created_at",{ascending:false}).limit(3000),
         client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000),
-        client().from("barquinha_attendance_sessions").select("service_date,closed_at,closed_by").order("service_date",{ascending:false}).limit(100)
+        client().from("barquinha_attendance_sessions").select("service_date,started_at,closed_at,closed_by").order("service_date",{ascending:false}).limit(100)
       ];
       const results=await Promise.all(requests);
       for(const result of results)if(result.error)throw result.error;
@@ -172,6 +172,88 @@
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
       '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+
       '" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(1,selected.length)+'">'+columns+'</div></div>';
+  }
+  function sessionPage(){
+    const day=currentDay(),session=state.sessions.find(s=>s.service_date===day);
+    const count=state.visits.filter(v=>v.service_date===day).length;
+    const closed=Boolean(session?.closed_at);
+    return title("Expediente","Abertura, encerramento e relatório completo da recepção.")+
+      '<section class="panel attendance-shift"><h3>'+fmtDay(day)+'</h3>'+
+      '<p><strong>Situação:</strong> '+(closed?'Encerrado em '+fmtTime(session.closed_at):
+        session?'Aberto desde '+fmtTime(session.started_at):'Ainda não iniciado formalmente')+'</p>'+
+      '<p>Atendimentos registrados no dia: <strong>'+count+'</strong>. Todos os status serão incluídos no relatório, com subtotal por Guia.</p>'+
+      '<div class="attendance-shift-actions">'+
+      (!session&&canWrite()?'<button class="button" data-live-start>Iniciar Atendimentos</button>':"")+
+      (!closed&&canWrite()?'<button class="button" data-live-finish>Finalizar Atendimentos e emitir relatório</button>':"")+
+      (closed?'<button class="button secondary" data-live-print>Imprimir relatório da data</button>':"")+
+      '</div><small>O encerramento é definitivo para esta data: bloqueia novas chegadas e alterações de situação. Confira as informações antes de finalizar.</small>'+
+      '</section>';
+  }
+  function reportMarkup(day,closedAt){
+    const today=state.visits.filter(v=>v.service_date===day);
+    const groups=[...new Set(today.map(v=>v.guide_id))].map(id=>({
+      id,name:guide(id)?.nome||"Guia não encontrado",
+      visits:today.filter(v=>v.guide_id===id).sort((a,b)=>Number(isPriority(b))-Number(isPriority(a))||
+        (a.chamada_numero||a.ordem)-(b.chamada_numero||b.ordem))
+    })).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+    const rows=groups.map(g=>
+      g.visits.map(v=>'<tr><td class="ticket-print">'+esc(ticket(v))+'</td><td>'+esc(person(v.patient_id)?.nome||"Paciente não encontrado")+
+        '</td><td>'+esc(g.name)+'</td><td>'+esc(v.status==="Cancelado"?"Desistente":v.status)+'</td></tr>').join("")+
+      '<tr class="subtotal"><td colspan="3">Total de atendimentos — Guia '+esc(g.name)+'</td><td>'+g.visits.length+'</td></tr>'
+    ).join("");
+    return '<section id="attendance-print-report"><header><h1>Barquinha — Relatório de Atendimentos</h1>'+
+      '<p>Data: '+fmtDay(day)+(closedAt?' · Encerramento: '+fmtTime(closedAt):'')+'</p></header>'+
+      '<table><thead><tr><th>Ordem de Atendimento</th><th>Nome Paciente</th><th>Guia</th><th>Situação</th></tr></thead>'+
+      '<tbody>'+rows+'<tr class="report-total"><td colspan="3">TOTAL GERAL DE ATENDIMENTOS</td><td>'+today.length+'</td></tr></tbody></table>'+
+      '<footer><p>Data do atendimento: '+fmtDay(day)+'</p>'+
+      '<div class="signature-line">Assinatura do(a) Recepcionista</div></footer></section>';
+  }
+  function printSessionReport(day=currentDay()){
+    const session=state.sessions.find(s=>s.service_date===day);
+    if(!session?.closed_at){state.error="Encerre o expediente antes de emitir o relatório.";renderCallback();return;}
+    document.getElementById("attendance-print-report")?.remove();
+    const container=document.createElement("div");
+    container.innerHTML=reportMarkup(day,session.closed_at);
+    document.body.appendChild(container.firstElementChild);
+    window.addEventListener("afterprint",()=>document.getElementById("attendance-print-report")?.remove(),{once:true});
+    window.print();
+  }
+  async function startSession(){
+    if(state.busy||!canWrite()||state.sessions.some(s=>s.service_date===currentDay()))return;
+    state.busy=true;
+    try{
+      const {data,error}=await client().from("barquinha_attendance_sessions")
+        .insert({service_date:currentDay()})
+        .select("service_date,started_at,closed_at,closed_by").single();
+      if(error)throw error;
+      state.sessions.unshift(data);state.notice="Expediente iniciado.";renderCallback();
+    }catch(e){state.error="Não foi possível abrir o expediente: "+(e.message||e);renderCallback();}
+    finally{state.busy=false;}
+  }
+  async function finishSession(){
+    if(state.busy||!canWrite()||isClosed(currentDay()))return;
+    if(!window.confirm("Encerrar os atendimentos de hoje? Isso bloqueará novas chegadas e alterações de status e emitirá a tabela para assinatura."))return;
+    state.busy=true;
+    try{
+      const day=currentDay();
+      let session=state.sessions.find(s=>s.service_date===day);
+      if(!session){
+        const {data:started,error:startError}=await client().from("barquinha_attendance_sessions")
+          .insert({service_date:day})
+          .select("service_date,started_at,closed_at,closed_by").single();
+        if(startError)throw startError;
+        state.sessions.unshift(started);session=started;
+      }
+      const {data:closed,error}=await client().from("barquinha_attendance_sessions")
+        .update({closed_at:new Date().toISOString()}).eq("service_date",day).is("closed_at",null)
+        .select("service_date,started_at,closed_at,closed_by").single();
+      if(error)throw error;
+      Object.assign(session,closed);
+      state.notice="Expediente encerrado. Relatório liberado para assinatura.";
+      renderCallback();
+      printSessionReport(day);
+    }catch(e){state.error="Não foi possível finalizar o expediente: "+(e.message||e);renderCallback();}
+    finally{state.busy=false;}
   }
   function patientForm(patientId=null){
     if(!canWrite())return alertBox("Sua função não permite cadastrar ou editar pacientes.");
