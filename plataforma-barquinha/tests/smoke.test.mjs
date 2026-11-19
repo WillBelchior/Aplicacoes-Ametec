@@ -15,7 +15,7 @@ test("registry contains canonical modules with unique ids and paths",()=>{
   assert.equal(new Set(ids).size,ids.length);
   assert.equal(new Set(routes).size,routes.length);
   assert.equal(catalog.byId("projetos").status,"active");
-  assert.equal(catalog.byId("atendimentos").status,"pilot");
+  assert.equal(catalog.byId("atendimentos").status,"active");
   assert.equal(catalog.byId("igreja").status,"planned");
 });
 test("existing Projects tabs are preserved by the registry",()=>{
@@ -59,10 +59,9 @@ test("attendance routes are connected to the isolated RLS-backed module",()=>{
   assert.match(styles,/queue-board-scroll\s*\{[^}]*overflow-x:auto/);
 });
 
-test("O primeiro atendimento é identificado como piloto, não operação completa",()=>{
-  assert.match(app,/module\.status==="pilot"/);
-  assert.match(modules,/status:"pilot"/);
-  assert.match(read("attendance-live.js"),/Primeiro teste prático — modo piloto/);
+test("Cadastro oficial ativo, sem liberar atendimento remoto não autorizado",()=>{
+  assert.match(modules,/status:"active"/);
+  assert.match(read("attendance-live.js"),/Atendimentos Barquinha/);
   assert.match(read("attendance-live.js"),/modalidade!=="presencial"/);
   assert.match(read("attendance-live.js"),/afterArrivalDeadline\(\)/);
 });
