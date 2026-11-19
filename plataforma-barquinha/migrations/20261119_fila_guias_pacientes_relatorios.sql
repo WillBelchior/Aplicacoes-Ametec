@@ -74,18 +74,27 @@ INSERT INTO private.barquinha_attendance_ticket_counters(service_date,guide_id,p
 -- Registrar encerramento de expediente; não mistura com Projetos ou Financeiro.
 CREATE TABLE IF NOT EXISTS public.barquinha_attendance_sessions(
   service_date date PRIMARY KEY,
-  closed_at timestamptz NOT NULL DEFAULT now(),
-  closed_by uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id)
+  started_at timestamptz NOT NULL DEFAULT now(),
+  started_by uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id),
+  closed_at timestamptz,
+  closed_by uuid REFERENCES auth.users(id)
 );
 ALTER TABLE public.barquinha_attendance_sessions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.barquinha_attendance_sessions FROM anon,authenticated;
-GRANT SELECT,INSERT(service_date) ON public.barquinha_attendance_sessions TO authenticated;
+GRANT SELECT,INSERT(service_date),UPDATE(closed_at)
+  ON public.barquinha_attendance_sessions TO authenticated;
 CREATE POLICY attendance_sessions_select ON public.barquinha_attendance_sessions
  FOR SELECT TO authenticated USING ((SELECT private.barquinha_attendance_permitted(array['administrador','recepcao','guia'])));
-CREATE POLICY attendance_sessions_close ON public.barquinha_attendance_sessions
+CREATE POLICY attendance_sessions_start ON public.barquinha_attendance_sessions
  FOR INSERT TO authenticated
- WITH CHECK (closed_by=(SELECT auth.uid())
+ WITH CHECK (started_by=(SELECT auth.uid())
    AND service_date=(now() AT TIME ZONE 'America/Fortaleza')::date
+   AND (SELECT private.barquinha_attendance_permitted(array['administrador','recepcao'])));
+CREATE POLICY attendance_sessions_close ON public.barquinha_attendance_sessions
+ FOR UPDATE TO authenticated
+ USING (closed_at IS NULL AND service_date=(now() AT TIME ZONE 'America/Fortaleza')::date
+   AND (SELECT private.barquinha_attendance_permitted(array['administrador','recepcao'])))
+ WITH CHECK (service_date=(now() AT TIME ZONE 'America/Fortaleza')::date
    AND (SELECT private.barquinha_attendance_permitted(array['administrador','recepcao'])));
 
 CREATE OR REPLACE FUNCTION private.barquinha_attendance_lock_session()
@@ -93,12 +102,19 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $$
 BEGIN
   PERFORM pg_catalog.pg_advisory_xact_lock(417219,pg_catalog.hashtext(new.service_date::text));
+  IF tg_op='UPDATE' THEN
+    IF old.closed_at IS NOT NULL THEN RAISE EXCEPTION 'Expediente já encerrado'; END IF;
+    IF new.closed_at IS NULL THEN RAISE EXCEPTION 'Informe o encerramento do expediente'; END IF;
+    new.closed_at=now();
+    new.closed_by=auth.uid();
+  END IF;
   RETURN new;
 END;
 $$;
 REVOKE ALL ON FUNCTION private.barquinha_attendance_lock_session() FROM public,anon,authenticated;
-CREATE TRIGGER attendance_session_lock BEFORE INSERT ON public.barquinha_attendance_sessions
- FOR EACH ROW EXECUTE FUNCTION private.barquinha_attendance_lock_session();
+CREATE TRIGGER attendance_session_lock BEFORE INSERT OR UPDATE OF closed_at
+ ON public.barquinha_attendance_sessions FOR EACH ROW
+ EXECUTE FUNCTION private.barquinha_attendance_lock_session();
 
 CREATE OR REPLACE FUNCTION private.barquinha_attendance_assign_ticket()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
@@ -109,7 +125,7 @@ DECLARE
 BEGIN
   -- Serializa a inscrição com o fechamento, inclusive em clientes diferentes.
   PERFORM pg_catalog.pg_advisory_xact_lock(417219,pg_catalog.hashtext(new.service_date::text));
-  IF EXISTS (SELECT 1 FROM public.barquinha_attendance_sessions s WHERE s.service_date=new.service_date) THEN
+  IF EXISTS (SELECT 1 FROM public.barquinha_attendance_sessions s WHERE s.service_date=new.service_date AND s.closed_at IS NOT NULL) THEN
     RAISE EXCEPTION 'Expediente encerrado para esta data';
   END IF;
   SELECT nascimento INTO v_birth FROM public.barquinha_attendance_patients WHERE id=new.patient_id;
@@ -134,3 +150,21 @@ CREATE TRIGGER attendance_ticket_before_insert
 
 -- Impede manipulação das fichas por UPDATE de situação (só a situação pode mudar).
 -- A auditoria de situações existente continua ativa.
+
+
+-- Após fechar a sessão, alterações de situação também ficam protegidas no banco.
+CREATE OR REPLACE FUNCTION private.barquinha_attendance_guard_closed()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM public.barquinha_attendance_sessions s
+   WHERE s.service_date=old.service_date AND s.closed_at IS NOT NULL) THEN
+   RAISE EXCEPTION 'Atendimento encerrado; alteração não permitida';
+ END IF;
+ RETURN new;
+END;
+$$;
+REVOKE ALL ON FUNCTION private.barquinha_attendance_guard_closed() FROM public,anon,authenticated;
+CREATE TRIGGER attendance_closed_guard BEFORE UPDATE OF status
+ ON public.barquinha_attendance_visits FOR EACH ROW
+ EXECUTE FUNCTION private.barquinha_attendance_guard_closed();
