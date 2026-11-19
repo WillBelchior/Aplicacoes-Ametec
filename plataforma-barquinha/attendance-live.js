@@ -17,7 +17,7 @@
   }
   const PHOTO_BUCKET="barquinha-attendance-photos";
   const state={userId:null,loaded:false,loading:false,error:"",notice:"",access:null,
-    guides:[],patients:[],visits:[],events:[],closures:[],filter:"todos",search:"",profileTab:"dados",arrivalSearch:"",webcamStream:null,webcamBlob:null,editId:null,
+    guides:[],patients:[],visits:[],events:[],closures:[],filter:"todos",search:"",queueSearch:"",historyDate:"",historyGuide:"todos",historyPatient:"",historyReportVisible:false,guideEditingId:null,profileTab:"dados",arrivalSearch:"",webcamStream:null,webcamBlob:null,editId:null,
     photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false,currentRoute:null};
   let renderCallback=()=>{},navigateCallback=route=>{location.hash="#"+route;};
   const auth=()=>window.PlatformAuth;
@@ -54,7 +54,7 @@
   function resetFor(userId){
     state.userId=userId;state.loaded=false;state.loading=false;state.error="";state.access=null;
     stopWebcam();state.guides=[];state.patients=[];state.visits=[];state.events=[];state.closures=[];state.notice="";state.arrivalSearch="";state.editId=null;
-    state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";
+    state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";state.queueSearch="";state.historyDate="";state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=false;state.guideEditingId=null;
   }
   async function load(){
     if(state.loading)return;
@@ -71,7 +71,7 @@
       const requests=[
         client().from("barquinha_attendance_guides").select("id,nome,cor,ativo,created_at").order("nome"),
         client().from("barquinha_attendance_patients").select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id").order("nome"),
-        client().from("barquinha_attendance_visits").select("id,ordem,ficha_tipo,ficha_numero,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").order("created_at",{ascending:false}).limit(5000),
+        client().from("barquinha_attendance_visits").select("id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").order("created_at",{ascending:false}).limit(5000),
         client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000),
         client().from("barquinha_attendance_closures").select("service_date,closed_at,closed_by").order("service_date",{ascending:false}).limit(100)
       ];
@@ -111,7 +111,7 @@
     else if(route==="/atendimentos/pacientes")inner=patientsPage();
     else if(route==="/atendimentos/guias")inner=guidesPage();
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
-    else if(route==="/atendimentos/expediente")inner=shiftPage();
+    else if(route==="/atendimentos/expediente"||route==="/atendimentos/historico")inner=shiftPage();
     else inner=queuePage();
     const previewNotice='<div class="note" role="status"><strong>Atendimentos Barquinha.</strong> Fichas por Guia: 01, 02… e prioritárias P01, P02…. Cadastros à distância são permitidos com nome e endereço; a realização de atendimentos remotos ainda exige autorização do Presidente.</div>';
     return nav(tabs)+previewNotice+info()+inner;
@@ -122,12 +122,17 @@
     const day=currentDay(),today=state.visits.filter(v=>v.service_date===day);
     const pending=today.filter(v=>!CLOSED.has(v.status));
     const completed=today.filter(v=>CLOSED.has(v.status));
-    const selected=state.guides.filter(g=>g.ativo&&(state.filter==="todos"||g.id===state.filter));
-    const filter='<option value="todos">Todos os Guias</option>'+state.guides.filter(g=>g.ativo).map(g=>
+    const needle=normalize(state.queueSearch);
+    const matches=needle?today.filter(v=>normalize(person(v.patient_id)?.nome||"").includes(needle)):today;
+    // Guias inativos com atendimentos hoje continuam visíveis.
+    const available=state.guides.filter(g=>g.ativo||today.some(v=>v.guide_id===g.id));
+    const selected=available.filter(g=>(state.filter==="todos"||g.id===state.filter)&&
+      (!needle||matches.some(v=>v.guide_id===g.id)));
+    const filter='<option value="todos">Todos os Guias</option>'+available.map(g=>
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
     const locked=isClosed();
     const columns=selected.map(g=>{
-      const visits=today.filter(v=>v.guide_id===g.id).sort((a,b)=>{
+      const visits=matches.filter(v=>v.guide_id===g.id).sort((a,b)=>{
         const priority=v=>v.ficha_tipo==="P"?0:1;
         return priority(a)-priority(b)||(a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem);
       });
@@ -159,14 +164,22 @@
       '>＋ Registrar chegada</button><button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
     return title("Fila Geral — Atendimento do Dia","Fichas por Guia de "+fmtDay(day)+
       " · Prioritárias P01, P02… e normais 01, 02…, em listas independentes.")+
-      (locked?'<div class="note">Expediente encerrado. Os registros permanecem visíveis e o relatório está disponível na aba Expediente.</div>':'')+
+      (locked?'<div class="note">Expediente encerrado. Os registros permanecem visíveis e o relatório está disponível em Histórico de Atendimentos.</div>':'')+
       '<div class="metrics"><div class="metric"><strong>'+pending.length+'</strong><span>Em andamento</span></div>'+
       '<div class="metric"><strong>'+completed.length+'</strong><span>Finalizados hoje</span></div>'+
       '<div class="metric"><strong>'+today.length+'</strong><span>Total de atendimentos hoje</span></div></div>'+
       '<div class="filters"><div class="queue-actions"><h3>Fila geral por Guia</h3>'+buttons+
       '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button></div>'+
-      '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label></div>'+
+      '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label>'+
+      '<label class="attendance-queue-search">Pesquisar paciente na fila'+
+      '<input id="live-queue-search" type="search" value="'+esc(state.queueSearch)+
+      '" placeholder="Digite o nome do paciente" autocomplete="off" aria-label="Pesquisar paciente nos atendimentos de hoje">'+
+      '</label></div>'+
+      (needle?'<p class="queue-search-feedback" role="status">'+
+      matches.filter(v=>state.filter==="todos"||v.guide_id===state.filter).length+
+      ' atendimento(s) encontrado(s) para "'+esc(state.queueSearch)+'".</p>':'')+
       (!state.guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
+      (needle&&!selected.length?'<div class="note">Nenhum paciente encontrado na fila de hoje com esse nome.</div>':"")+
       '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para ver todos os Guias.":"Até cinco Guias são exibidos juntos, aproveitando toda a largura da tela.")+
       ' Pacientes continuam visíveis independentemente do status; saem somente da fila diária quando muda a data.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
@@ -513,7 +526,7 @@
     try{
       const {data:saved,error}=await client().from("barquinha_attendance_visits")
         .insert({patient_id:patient.id,guide_id:guideId,modalidade,prioridade:priority})
-        .select("id,ordem,ficha_tipo,ficha_numero,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
+        .select("id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
       if(error)throw error;
       state.visits.unshift(saved);
       state.notice="Chegada registrada. Ficha "+officialTicket(saved)+" do Guia "+(guide(guideId)?.nome||"")+
