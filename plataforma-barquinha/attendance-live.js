@@ -29,7 +29,8 @@
   const currentDay=()=>new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Fortaleza",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   const fmtDay=date=>date?new Date(date+"T12:00:00").toLocaleDateString("pt-BR"):"—";
   const fmtTime=date=>date?new Date(date).toLocaleString("pt-BR",{timeZone:"America/Fortaleza",dateStyle:"short",timeStyle:"short"}):"—";
-  const pill=status=>'<span class="pill '+(status==="Concluído"?"green":status==="Chamado"?"blue":status==="Cancelado"?"red":"")+'">'+esc(status)+'</span>';
+  const statusLabel=value=>value==="Em atendimento"?"Em Atendimento":value==="Não compareceu"?"Não Compareceu":value==="Cancelado"?"Desistente":value;
+  const pill=status=>'<span class="pill '+(status==="Concluído"?"green":status==="Chamado"?"blue":status==="Cancelado"||status==="Desistente"?"red":"")+'">'+esc(statusLabel(status))+'</span>';
   const alertBox=text=>'<div class="note warn" role="alert">'+esc(text)+'</div>';
   const field=(name,label,type,required,extra)=>'<label>'+esc(label)+(required?" *":"")+
     '<input name="'+name+'" type="'+type+'" '+(required?"required ":"")+(extra||"")+'></label>';
@@ -127,7 +128,7 @@
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
     const closed=isClosed(day);
     const statusChoices=v=>STATUSES.concat(v.status==="Cancelado"?["Cancelado"]:[]).map(st=>
-      '<option value="'+esc(st)+'"'+(v.status===st?' selected':'')+'>'+esc(st)+'</option>').join("");
+      '<option value="'+esc(st)+'"'+(v.status===st?' selected':'')+'>'+esc(statusLabel(st))+'</option>').join("");
     const columns=selected.map(g=>{
       const visits=today.filter(v=>v.guide_id===g.id).sort((a,b)=>{
         return Number(isPriority(b))-Number(isPriority(a)) ||
@@ -199,7 +200,7 @@
     })).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
     const rows=groups.map(g=>
       g.visits.map(v=>'<tr><td class="ticket-print">'+esc(ticket(v))+'</td><td>'+esc(person(v.patient_id)?.nome||"Paciente não encontrado")+
-        '</td><td>'+esc(g.name)+'</td><td>'+esc(v.status==="Cancelado"?"Desistente":v.status)+'</td></tr>').join("")+
+        '</td><td>'+esc(g.name)+'</td><td>'+esc(statusLabel(v.status))+'</td></tr>').join("")+
       '<tr class="subtotal"><td colspan="3">Total de atendimentos — Guia '+esc(g.name)+'</td><td>'+g.visits.length+'</td></tr>'
     ).join("");
     return '<section id="attendance-print-report"><header><h1>Barquinha — Relatório de Atendimentos</h1>'+
@@ -377,7 +378,7 @@
       '<div><strong>Atendimento selecionado · Guia '+esc(guide(selected.guide_id)?.nome||"—")+'</strong>'+
       '<div class="muted">Ficha '+ticket(selected)+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
       '<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'"'+(isClosed(selected.service_date)?' disabled':'')+'>'+STATUSES.map(st=>
-      '<option value="'+esc(st)+'"'+(selected.status===st?" selected":"")+'>'+esc(st)+'</option>').join("")+'</select></label>'+
+      '<option value="'+esc(st)+'"'+(selected.status===st?" selected":"")+'>'+esc(statusLabel(st))+'</option>').join("")+'</select></label>'+
       pill(selected.status)+'</div></div>':"";
     return '<button class="breadcrumb" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
       '<section class="profile"><div class="profile-header">'+img+'<div><h2>'+esc(p.nome)+'</h2>'+
