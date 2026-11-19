@@ -113,3 +113,65 @@
   #main-content .queue-guide-header .pill{font-size:9px;padding:2px 4px}
   #main-content .queue-guide-body{padding:4px}
 }
+
+/* Gestão da fila: fichas por Guia, status direto no cartão e prioridades visíveis. */
+#main-content:has(.queue-board-scroll) .intro h1{font-size:clamp(30px,3vw,40px);line-height:1.15;letter-spacing:-.5px}
+#main-content:has(.queue-board-scroll) .filters h3{font-size:clamp(18px,1.4vw,23px);font-weight:800}
+#main-content .queue-guide-body .queue-card{padding:0;border-radius:11px;overflow:hidden}
+#main-content .queue-card-open{display:block;width:100%;border:0;padding:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
+#main-content .queue-card-open:focus-visible{outline:2px solid #285fe9;outline-offset:-2px}
+#main-content .queue-card-finished{opacity:.79;background:#f6f8fb}
+#main-content .queue-card-priority{border-color:#ed8a8a;background:#fff7f7}
+#main-content .queue-card-priority .queue-details small{color:#a12222;font-weight:750}
+#main-content .priority-ticket{background:#bb2424;color:#fff;border-radius:7px;min-width:40px;text-align:center}
+#main-content .queue-status-line{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:7px 8px;border-top:1px solid #dae2eb;min-width:0}
+#main-content .queue-priority-flag{font-size:9px;font-weight:800;color:#467085;letter-spacing:.5px}
+#main-content .queue-priority-flag.is-priority{color:#ba1c1c;background:#fff0ef;padding:3px 5px;border-radius:4px}
+#main-content .queue-inline-status{min-width:0;width:100%;font-size:12px;color:#19405e;font-weight:700;padding:7px 6px;border-radius:8px;border:1px solid #bdcee0;background:#fff;cursor:pointer}
+#main-content .queue-inline-status:disabled{cursor:default;color:#67798b;background:#f2f5f9}
+#main-content .queue-guide-total{margin-top:auto;border-top:1px solid #dae4ed;padding:9px 10px;font-size:12px;font-weight:700;background:#eef4f9;color:#1d4965;display:flex;justify-content:space-between}
+#main-content .queue-guide-total strong{font-size:15px}
+#main-content .queue-guide-header{align-items:flex-start}
+.attendance-form textarea{width:100%;min-width:0;padding:11px;border-radius:10px;border:1px solid #ccdae8;resize:vertical;font:inherit;color:#173e5a}
+.attendance-form output{display:block;padding:12px;background:#edf5fd;border:1px solid #d4e4f2;border-radius:10px;color:#1b4c73;font-size:14px;font-weight:800}
+.attendance-form .patient-address-field{grid-column:1/-1}
+.attendance-form .webcam-controls{grid-column:1/-1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.webcam-controls #live-webcam{max-width:330px;max-height:260px;width:100%;border-radius:12px;background:#162b45;object-fit:cover}
+.webcam-controls #live-camera-preview{font-size:12px;color:#345d77}
+.attendance-shift-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px}
+.attendance-report{background:#fff;border:1px solid #d6e4ef;border-radius:12px;padding:25px;max-width:1100px;margin:0 auto;color:#1c344b}
+.attendance-report h2{font-size:23px;margin:0 0 9px}
+.attendance-report p{font-size:13px;margin-bottom:20px}
+.attendance-report table{width:100%;border-collapse:collapse;font-size:13px}
+.attendance-report th,.attendance-report td{border:1px solid #a9bac6;padding:9px 10px;text-align:left;overflow-wrap:anywhere}
+.attendance-report th{background:#e5edf5;color:#193652;font-weight:800}
+.attendance-report-subtotal{background:#f0f5f9;font-weight:750}
+.attendance-report-total{background:#d9e6f1;font-weight:850;font-size:15px}
+.attendance-report-subtotal td:last-child,.attendance-report-total td:last-child{text-align:center;font-variant-numeric:tabular-nums}
+.attendance-report-signature{margin:70px 0 10px;display:grid;gap:7px;max-width:420px;text-align:center;font-size:13px}
+.attendance-report-signature span{margin-top:8px}
+@media(max-width:560px){
+ #main-content:has(.queue-board-scroll) .intro h1{font-size:28px}
+ #main-content .queue-status-line{padding:5px}
+ #main-content .queue-inline-status{font-size:11px}
+ .attendance-report{padding:12px}
+ .attendance-report th,.attendance-report td{padding:6px 5px;font-size:11px}
+}
+@media print{
+ @page{size:A4 portrait;margin:13mm}
+ body:has(#attendance-print-report){background:#fff!important}
+ body:has(#attendance-print-report) .sidebar,
+ body:has(#attendance-print-report) .topbar,
+ body:has(#attendance-print-report) .mobile-bottom{display:none!important}
+ body:has(#attendance-print-report) .shell{display:block!important}
+ body:has(#attendance-print-report) .content-shell{display:block!important;min-width:0!important}
+ body:has(#attendance-print-report) #main-content{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
+ body:has(#attendance-print-report) #main-content > :not(#attendance-print-report){display:none!important}
+ #attendance-print-report{display:block!important;border:0!important;box-shadow:none!important;margin:0!important;padding:0!important;max-width:none!important;font-family:Arial,sans-serif;color:#000!important}
+ #attendance-print-report h2{font-size:16pt}
+ #attendance-print-report table{font-size:10pt}
+ #attendance-print-report th,#attendance-print-report td{border:1px solid #222!important;color:#000!important}
+ #attendance-print-report thead{display:table-header-group}
+ #attendance-print-report tr{break-inside:avoid}
+ #attendance-print-report .attendance-report-signature{break-inside:avoid}
+}
