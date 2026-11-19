@@ -16,13 +16,15 @@ test("A build exclusiva não disponibiliza o legado Projetos",()=>{
   assert.deepEqual(readdirSync(out).sort(),["app.js","attendance-live.css","attendance-live.js",
     "auth.js","index.html","manifest.webmanifest","modules.js","robots.txt","styles.css"].sort());
 });
-test("A entrada de Projetos em domínio independente abre somente o endereço oficial",()=>{
+test("Projetos continua integrado na mesma origem e a recuperação não volta ao domínio antigo",()=>{
   const app=readFileSync(join(dir,"app.js"),"utf8");
   const auth=readFileSync(join(dir,"auth.js"),"utf8");
-  assert.match(app,/const isolatedPreview=projects&&!officialHost/);
-  assert.match(app,/main\.hidden=projects&&!isolatedPreview;embed\.hidden=!projects\|\|isolatedPreview/);
-  assert.match(app,/https:\/\/obra-facil-acompanhamento\.vercel\.app\//);
-  assert.match(auth,/location\.hostname==="obra-facil-acompanhamento\.vercel\.app"/);
+  const index=readFileSync(join(dir,"index.html"),"utf8");
+  assert.match(app,/main\.hidden=projects;embed\.hidden=!projects/);
+  assert.doesNotMatch(app,/isolatedPreview/);
+  assert.match(app,/\.\/projetos\/index\.html/);
+  assert.doesNotMatch(auth,/https:\/\/obra-facil-acompanhamento\.vercel\.app/);
+  assert.doesNotMatch(index,/https:\/\/obra-facil-acompanhamento\.vercel\.app/);
 });
 test("Fila real atualiza periodicamente apenas quando aberta e visível",()=>{
   const app=readFileSync(join(dir,"app.js"),"utf8");
