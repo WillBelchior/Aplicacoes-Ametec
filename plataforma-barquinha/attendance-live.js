@@ -6,6 +6,15 @@
   const PRIORITIES=["Normal","Idoso","Gestante","Deficiência","Outra"];
   const MODES=[["presencial","Presencial"],["distancia","À distância"],["trabalhador","Trabalhador da casa"]];
   const CLOSED=new Set(["Concluído","Não compareceu","Cancelado"]);
+  // Primeiro teste de recepção: somente atendimentos presenciais; os demais
+  // dependem das autorizações e da ordem de atendimento ainda não implementadas.
+  const PILOT_ONLY=true;
+  function afterArrivalDeadline(){
+    const hour=Number(new Intl.DateTimeFormat("en-GB",{
+      timeZone:"America/Fortaleza",hour:"2-digit",hourCycle:"h23"
+    }).format(new Date()));
+    return hour>=17;
+  }
   const PHOTO_BUCKET="barquinha-attendance-photos";
   const state={userId:null,loaded:false,loading:false,error:"",notice:"",access:null,
     guides:[],patients:[],visits:[],events:[],filter:"todos",search:"",profileTab:"dados",
@@ -82,7 +91,7 @@
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
     else if(route==="/atendimentos/expediente")inner=deferred("Expediente","A abertura e o encerramento do expediente serão implementados em uma etapa posterior.");
     else inner=queuePage();
-    const previewNotice=location.hostname?.startsWith("plataforma-barquinha-preview")?"<div class=\"note warn\"><strong>Ambiente de homologação.</strong> Utilize cadastros fictícios até concluir a validação do atendimento e a revisão de proteção de dados.</div>":"";
+    const previewNotice='<div class="note warn" role="status"><strong>Primeiro teste prático — modo piloto.</strong> Utilize somente pacientes fictícios. Está habilitado o fluxo presencial de cadastro, chegada, fila e histórico. Autorizações, atendimento à distância, trabalhadores da casa e expediente completo ainda não estão liberados para uso real.</div>';
     return nav(tabs)+previewNotice+info()+inner;
   }
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
@@ -145,12 +154,12 @@
     const options=state.patients.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.nome)+' · '+fmtDay(p.nascimento)+'</option>').join("");
     const guides=state.guides.filter(g=>g.ativo).map(g=>'<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
     return '<button class="breadcrumb" type="button" data-go="/atendimentos/fila">← Voltar à fila</button>'+
-      title("Registrar chegada","Selecione o paciente e o Guia. Um paciente pode ter vários atendimentos no mesmo dia.")+
+      title("Registrar chegada — teste presencial","Selecione um paciente fictício e um Guia. Um paciente pode ter vários atendimentos no mesmo dia.")+
       (!options||!guides?alertBox("Cadastre pelo menos um paciente e um Guia antes de registrar uma chegada."):"")+
       '<form id="live-arrival-form" class="panel attendance-form"><div class="patient-fields">'+
       '<label>Paciente *<select name="patient_id" required><option value="">Selecione um paciente</option>'+options+'</select></label>'+
       '<label>Guia *<select name="guide_id" required><option value="">Selecione um Guia</option>'+guides+'</select></label>'+
-      '<label>Modalidade *<select name="modalidade">'+MODES.map(m=>'<option value="'+m[0]+'">'+m[1]+'</option>').join("")+'</select></label>'+
+      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial (piloto)</option></select><small>À distância e trabalhadores da casa exigem autorização e novas regras, ainda não implementadas.</small></label>'+
       '<label>Prioridade *<select name="prioridade">'+PRIORITIES.map(p=>'<option>'+esc(p)+'</option>').join("")+'</select></label>'+
       '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions"><button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
       '<button class="button" type="submit"'+(!options||!guides?' disabled':'')+'>Adicionar à fila</button></div></form>';
@@ -304,6 +313,10 @@
       modalidade=String(data.get("modalidade")||""),prioridade=String(data.get("prioridade")||"");
     if(!person(patientId)||!guide(guideId)||!MODES.some(m=>m[0]===modalidade)||!PRIORITIES.includes(prioridade))
       return fail(form,"Selecione paciente, Guia, modalidade e prioridade válidos.");
+    if(PILOT_ONLY&&modalidade!=="presencial")
+      return fail(form,"Nesta etapa só é possível testar atendimentos presenciais.");
+    if(PILOT_ONLY&&afterArrivalDeadline())
+      return fail(form,"Chegadas após 17h exigem autorização do Presidente. Este fluxo ainda está em preparação; registre a chegada pelo procedimento manual.");
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
       const {data:saved,error}=await client().from("barquinha_attendance_visits")
