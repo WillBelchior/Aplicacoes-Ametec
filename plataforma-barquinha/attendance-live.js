@@ -2,13 +2,13 @@
 /* Atendimentos Barquinha: módulo persistente isolado do Projetos.
    Dados pessoais ficam no Supabase com RLS; sem localStorage nem dados fictícios. */
 (() => {
-  const STATUSES=["Aguardando","Chamado","Em atendimento","Concluído","Não compareceu","Cancelado"];
+  const STATUSES=["Aguardando","Chamado","Em atendimento","Concluído","Não compareceu","Desistente"];
   const PRIORITIES=["Normal","Idoso","Gestante","Deficiência","Outra"];
   const MODES=[["presencial","Presencial"],["distancia","À distância"],["trabalhador","Trabalhador da casa"]];
-  const CLOSED=new Set(["Concluído","Não compareceu","Cancelado"]);
+  const CLOSED=new Set(["Concluído","Não compareceu","Desistente","Cancelado"]);
   // Primeiro teste de recepção: somente atendimentos presenciais; os demais
   // dependem das autorizações e da ordem de atendimento ainda não implementadas.
-  const PILOT_ONLY=true;
+  const PILOT_ONLY=false;
   function afterArrivalDeadline(){
     const hour=Number(new Intl.DateTimeFormat("en-GB",{
       timeZone:"America/Fortaleza",hour:"2-digit",hourCycle:"h23"
@@ -17,7 +17,7 @@
   }
   const PHOTO_BUCKET="barquinha-attendance-photos";
   const state={userId:null,loaded:false,loading:false,error:"",notice:"",access:null,
-    guides:[],patients:[],visits:[],events:[],filter:"todos",search:"",profileTab:"dados",
+    guides:[],patients:[],visits:[],events:[],closures:[],filter:"todos",search:"",profileTab:"dados",arrivalSearch:"",webcamStream:null,webcamBlob:null,editId:null,
     photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false};
   let renderCallback=()=>{},navigateCallback=route=>{location.hash="#"+route;};
   const auth=()=>window.PlatformAuth;
@@ -34,10 +34,25 @@
     '<input name="'+name+'" type="'+type+'" '+(required?"required ":"")+(extra||"")+'></label>';
   const nav=(tabs)=>tabs||"";
   const canWrite=()=>["administrador","recepcao"].includes(state.access?.access_role);
+  const isClosed=()=>state.closures.some(c=>c.service_date===currentDay());
+  const officialTicket=v=>(v.ficha_tipo==="P"?"P":"")+String(v.ficha_numero||v.ordem||0).padStart(2,"0");
+  function ageYears(date,at=currentDay()){
+    if(!date)return null;
+    const birth=String(date).split("-").map(Number),today=String(at).split("-").map(Number);
+    if(birth.length!==3||birth.some(x=>!x))return null;
+    return today[0]-birth[0]-(today[1]<birth[1]||(today[1]===birth[1]&&today[2]<birth[2])?1:0);
+  }
+  const agePriority=date=>ageYears(date)!==null&&ageYears(date)>=60;
+  function selectGuide(selected="",placeholder="Sem Guia definido"){
+    return '<option value="">'+placeholder+'</option>'+state.guides.filter(g=>g.ativo||g.id===selected)
+      .map(g=>'<option value="'+esc(g.id)+'"'+(g.id===selected?" selected":"")+'>'+esc(g.nome)+'</option>').join("");
+  }
+  const priorityOptions=(selected="Normal")=>PRIORITIES.map(p=>'<option value="'+esc(p)+'"'+(p===selected?" selected":"")+'>'+esc(p)+'</option>').join("");
+
   function connect(render,navigate){renderCallback=render;navigateCallback=navigate;}
   function resetFor(userId){
     state.userId=userId;state.loaded=false;state.loading=false;state.error="";state.access=null;
-    state.guides=[];state.patients=[];state.visits=[];state.events=[];state.notice="";
+    stopWebcam();state.guides=[];state.patients=[];state.visits=[];state.events=[];state.closures=[];state.notice="";state.arrivalSearch="";state.editId=null;
     state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";
   }
   async function load(){
@@ -54,14 +69,15 @@
       if(!state.access){state.loaded=true;return;}
       const requests=[
         client().from("barquinha_attendance_guides").select("id,nome,cor,ativo,created_at").order("nome"),
-        client().from("barquinha_attendance_patients").select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at").order("nome"),
-        client().from("barquinha_attendance_visits").select("id,ordem,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").order("created_at",{ascending:false}).limit(3000),
-        client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000)
+        client().from("barquinha_attendance_patients").select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id").order("nome"),
+        client().from("barquinha_attendance_visits").select("id,ordem,ficha_tipo,ficha_numero,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").order("created_at",{ascending:false}).limit(5000),
+        client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000),
+        client().from("barquinha_attendance_closures").select("service_date,closed_at,closed_by").order("service_date",{ascending:false}).limit(100)
       ];
       const results=await Promise.all(requests);
       for(const result of results)if(result.error)throw result.error;
       if(auth()?.user?.id!==userId)return;
-      [state.guides,state.patients,state.visits,state.events]=results.map(r=>r.data||[]);
+      [state.guides,state.patients,state.visits,state.events,state.closures]=results.map(r=>r.data||[]);
       state.loaded=true;
     }catch(error){state.error="Falha ao consultar Atendimentos: "+(error.message||error);state.loaded=true;}
     finally{state.loading=false;if(auth()?.user?.id===userId)renderCallback();}
@@ -84,55 +100,73 @@
     if(!state.access)return nav(tabs)+alertBox("Este usuário não possui autorização para acessar os dados de Atendimentos. Solicite liberação à administração.");
     let inner;
     if(route==="/atendimentos/novo-paciente")inner=patientForm();
+    else if(route.startsWith("/atendimentos/editar-paciente/"))inner=patientForm(person(route.split("/")[3]));
     else if(route==="/atendimentos/nova-chegada")inner=arrivalForm();
     else if(route.startsWith("/atendimentos/paciente/"))inner=patientDetail(route);
     else if(route==="/atendimentos/pacientes")inner=patientsPage();
     else if(route==="/atendimentos/guias")inner=guidesPage();
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
-    else if(route==="/atendimentos/expediente")inner=deferred("Expediente","A abertura e o encerramento do expediente serão implementados em uma etapa posterior.");
+    else if(route==="/atendimentos/expediente")inner=shiftPage();
     else inner=queuePage();
-    const previewNotice='<div class="note warn" role="status"><strong>Primeiro teste prático — modo piloto.</strong> Utilize somente pacientes fictícios. Está habilitado o fluxo presencial de cadastro, chegada, fila e histórico. Autorizações, atendimento à distância, trabalhadores da casa e expediente completo ainda não estão liberados para uso real.</div>';
+    const previewNotice='<div class="note" role="status"><strong>Atendimentos Barquinha.</strong> Fichas por Guia: 01, 02… e prioritárias P01, P02…. Cadastros à distância são permitidos com nome e endereço; a realização de atendimentos remotos ainda exige autorização do Presidente.</div>';
     return nav(tabs)+previewNotice+info()+inner;
   }
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
   function title(t,description){return '<section class="intro"><div class="eyebrow">ATENDIMENTOS BARQUINHA</div><h1>'+esc(t)+'</h1><p>'+esc(description)+'</p></section>';}
   function queuePage(){
-    const day=currentDay(),active=state.visits.filter(v=>v.service_date===day&&!CLOSED.has(v.status));
-    const completed=state.visits.filter(v=>v.service_date===day&&CLOSED.has(v.status));
+    const day=currentDay(),today=state.visits.filter(v=>v.service_date===day);
+    const pending=today.filter(v=>!CLOSED.has(v.status));
+    const completed=today.filter(v=>CLOSED.has(v.status));
     const selected=state.guides.filter(g=>g.ativo&&(state.filter==="todos"||g.id===state.filter));
     const filter='<option value="todos">Todos os Guias</option>'+state.guides.filter(g=>g.ativo).map(g=>
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
+    const locked=isClosed();
     const columns=selected.map(g=>{
-      const visits=active.filter(v=>v.guide_id===g.id).sort((a,b)=>{
-        const priority=p=>p.prioridade==="Normal"?1:0;
-        return priority(a)-priority(b)||a.ordem-b.ordem;
+      const visits=today.filter(v=>v.guide_id===g.id).sort((a,b)=>{
+        const priority=v=>v.ficha_tipo==="P"?0:1;
+        return priority(a)-priority(b)||(a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem);
       });
       const body=visits.map(v=>{
-        const p=person(v.patient_id);
-        if(!p)return "";
-        return '<button type="button" class="queue-card" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+
-          '" aria-label="Abrir atendimento de '+esc(p.nome)+'"><span class="queue-row"><span class="guide-rail" style="background:'+esc(g.cor)+
-          '"></span><span class="queue-inner"><span class="ticket">'+String(v.ordem).padStart(2,"0")+'</span><span class="queue-details"><strong>'+esc(p.nome)+
-          '</strong><small>'+esc(v.prioridade)+" · "+esc(MODES.find(m=>m[0]===v.modalidade)?.[1]||v.modalidade)+
-          '</small></span><span class="queue-status">'+pill(v.status)+'</span><span class="chevron" aria-hidden="true">›</span></span></span></button>';
+        const p=person(v.patient_id);if(!p)return "";
+        const priority=v.ficha_tipo==="P";
+        return '<div class="queue-card'+(priority?' queue-card-priority':'')+(CLOSED.has(v.status)?' queue-card-finished':'')+'">'+
+          '<button type="button" class="queue-card-open" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+
+          '" aria-label="Abrir ficha de '+esc(p.nome)+'"><span class="queue-row"><span class="guide-rail" style="background:'+esc(g.cor)+
+          '"></span><span class="queue-inner"><strong class="ticket'+(priority?' priority-ticket':'')+'">'+officialTicket(v)+
+          '</strong><span class="queue-details"><strong>'+esc(p.nome)+'</strong><small>'+
+          esc(v.prioridade)+' · '+esc(MODES.find(m=>m[0]===v.modalidade)?.[1]||v.modalidade)+
+          '</small></span><span class="chevron" aria-hidden="true">›</span></span></span></button>'+
+          '<div class="queue-status-line"><span class="queue-priority-flag'+(priority?' is-priority':'')+'">'+
+          (priority?'PRIORITÁRIO':'NORMAL')+'</span>'+
+          '<select class="queue-inline-status" data-live-status="'+esc(v.id)+'" aria-label="Situação de '+esc(p.nome)+'"'+
+          (!canWrite()||locked?' disabled':'')+'>'+
+          STATUSES.map(st=>'<option value="'+st+'"'+(v.status===st?' selected':'')+'>'+st+'</option>').join('')+
+          (v.status==="Cancelado"?'<option value="Cancelado" selected>Cancelado (histórico)</option>':'')+
+          '</select></div></div>';
       }).join("");
       return '<section class="queue-guide-column"><div class="queue-guide-header" style="border-top-color:'+esc(g.cor)+
         '"><div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span><h3 title="Guia '+esc(g.nome)+'">Guia '+esc(g.nome)+'</h3></div>'+
-        '<span class="pill blue">'+visits.length+' na fila</span></div><div class="queue-guide-body">'+(body||'<div class="queue-empty">Nenhum atendimento aguardando.</div>')+'</div></section>';
+        '<span class="pill blue">'+visits.length+' registrado(s)</span></div><div class="queue-guide-body">'+
+        (body||'<div class="queue-empty">Nenhum atendimento registrado hoje.</div>')+'</div>'+
+        '<div class="queue-guide-total">Total do Guia: <strong>'+visits.length+'</strong></div></section>';
     }).join("");
-    const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Registrar chegada</button>'+
-      '<button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
-    return title("Atendimento do Dia","Fila real de "+fmtDay(day)+" · As colunas são organizadas por Guia e atualizadas após cada alteração.")+
-      '<div class="metrics"><div class="metric"><strong>'+active.length+'</strong><span>Na fila</span></div>'+
+    const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada"'+(locked?' disabled':'')+
+      '>＋ Registrar chegada</button><button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
+    return title("Fila Geral — Atendimento do Dia","Fichas por Guia de "+fmtDay(day)+
+      " · Prioritárias P01, P02… e normais 01, 02…, em listas independentes.")+
+      (locked?'<div class="note">Expediente encerrado. Os registros permanecem visíveis e o relatório está disponível na aba Expediente.</div>':'')+
+      '<div class="metrics"><div class="metric"><strong>'+pending.length+'</strong><span>Em andamento</span></div>'+
       '<div class="metric"><strong>'+completed.length+'</strong><span>Finalizados hoje</span></div>'+
-      '<div class="metric"><strong>'+state.patients.length+'</strong><span>Pacientes cadastrados</span></div></div>'+
+      '<div class="metric"><strong>'+today.length+'</strong><span>Total de atendimentos hoje</span></div></div>'+
       '<div class="filters"><div class="queue-actions"><h3>Fila geral por Guia</h3>'+buttons+
       '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button></div>'+
       '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label></div>'+
       (!state.guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
-      '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para ver todos os Guias.":"Até cinco Guias são exibidos juntos, aproveitando toda a largura da tela.")+' Atendimentos finalizados permanecem no histórico.</p>'+
+      '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para ver todos os Guias.":"Até cinco Guias são exibidos juntos, aproveitando toda a largura da tela.")+
+      ' Pacientes continuam visíveis independentemente do status; saem somente da fila diária quando muda a data.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
-      '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+'" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(selected.length,1)+'">'+columns+'</div></div>';
+      '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+
+      '" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(selected.length,1)+'">'+columns+'</div></div>';
   }
   function patientForm(){
     if(!canWrite())return alertBox("Sua função não permite cadastrar pacientes.");
