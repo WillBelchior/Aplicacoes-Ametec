@@ -173,35 +173,75 @@
       '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+
       '" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(1,selected.length)+'">'+columns+'</div></div>';
   }
-  function patientForm(){
-    if(!canWrite())return alertBox("Sua função não permite cadastrar pacientes.");
-    return '<button class="breadcrumb" type="button" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
-      title("Cadastrar paciente","O cadastro é único; a chegada para atendimento é registrada separadamente.")+
-      '<form id="live-patient-form" class="panel attendance-form"><div class="patient-fields">'+
-      field("nome","Nome completo","text",true,'maxlength="160" autocomplete="name"')+
-      field("nascimento","Data de nascimento","date",true,'max="'+currentDay()+'"')+
-      field("telefone","Telefone","tel",false,'maxlength="40"')+
-      field("cpf","CPF (opcional)","text",false,'maxlength="14" inputmode="numeric" autocomplete="off"')+
-      field("encaminhamento","Encaminhamento / indicação (opcional)","text",false,'maxlength="250"')+
-      '<label>Fotografia (opcional)<input type="file" name="foto" accept="image/jpeg,image/png,image/webp"><small>JPG, PNG ou WebP, até 2 MB após compactação. Armazenamento privado.</small></label></div>'+
-      '<div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
-      '<button type="button" class="button ghost" data-go="/atendimentos/pacientes">Cancelar</button>'+
-      '<button type="submit" class="button">Salvar paciente</button></div></form>';
+  function patientForm(patientId=null){
+    if(!canWrite())return alertBox("Sua função não permite cadastrar ou editar pacientes.");
+    const p=patientId?person(patientId):null;
+    if(patientId&&!p)return alertBox("Paciente não encontrado.");
+    const editing=Boolean(p);
+    const modo=p?.modalidade_cadastro||"presencial";
+    const guides=state.guides.filter(g=>g.ativo||g.id===p?.preferred_guide_id);
+    const options=guides.map(g=>'<option value="'+esc(g.id)+'"'+(p?.preferred_guide_id===g.id?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
+    const dob=p?.nascimento||"";
+    const age=ageAt(dob);
+    return '<button class="breadcrumb" type="button" data-go="'+(editing?'/atendimentos/paciente/'+p.id:'/atendimentos/pacientes')+'">← Voltar</button>'+
+      title(editing?"Editar paciente":"Cadastrar paciente",editing?"Atualize os dados do paciente. Os atendimentos anteriores serão preservados.":"O Guia pode ser associado permanentemente. Cadastro à distância aceita apenas nome e endereço.")+
+      '<form id="live-patient-form" data-patient-id="'+esc(p?.id||"")+'" class="panel attendance-form">'+
+      '<div class="patient-fields">'+
+      '<label>Nome completo *<input name="nome" type="text" maxlength="160" autocomplete="name" required value="'+esc(p?.nome||"")+'"></label>'+
+      '<label>Modalidade de cadastro *<select name="modalidade_cadastro" id="live-patient-mode">'+
+      '<option value="presencial"'+(modo==="presencial"?' selected':'')+'>Presencial</option>'+
+      '<option value="distancia"'+(modo==="distancia"?' selected':'')+'>À distância</option>'+
+      '<option value="trabalhador"'+(modo==="trabalhador"?' selected':'')+'>Trabalhador da casa</option></select>'+
+      '<small>Cadastro à distância não exige nascimento, CPF ou telefone. O atendimento à distância depende de autorização do Presidente.</small></label>'+
+      '<label>Data de nascimento'+(modo!=="distancia"?" *":"")+
+      '<input id="live-patient-birth" name="nascimento" type="date" max="'+currentDay()+'"'+(modo!=="distancia"?" required":"")+
+      ' value="'+esc(dob)+'"></label>'+
+      '<label>Idade e classificação<output id="live-patient-age" class="age-preview" aria-live="polite">'+
+      (age===null?"Idade não informada":age+" anos"+(age>=60?" · IDOSO — prioridade automática":" · Classificação normal"))+
+      '</output></label>'+
+      '<label>Guia<select name="preferred_guide_id"><option value="">Sem Guia definido</option>'+options+'</select>'+
+      '<small>O Guia escolhido será sugerido automaticamente nas próximas chegadas.</small></label>'+
+      '<label>Telefone<input name="telefone" type="tel" maxlength="40" value="'+esc(p?.telefone||"")+'"></label>'+
+      '<label>CPF<input name="cpf" type="text" maxlength="14" inputmode="numeric" autocomplete="off" value="'+esc(p?.cpf||"")+'"></label>'+
+      '<label class="field-wide">Endereço'+(modo==="distancia"?" *":"")+
+      '<textarea name="endereco" id="live-patient-address" rows="3" maxlength="600"'+(modo==="distancia"?" required":"")+
+      ' placeholder="Rua, número, referência, bairro, cidade e demais informações disponíveis">'+esc(p?.endereco||"")+'</textarea>'+
+      '<small>Para pacientes à distância, informe o endereço disponível com detalhes suficientes.</small></label>'+
+      '<div class="field-wide webcam-field"><label>Fotografia<input type="file" name="foto" accept="image/jpeg,image/png,image/webp">'+
+      '<small>Envie uma imagem ou tire uma foto com a câmera, com autorização do paciente.</small></label>'+
+      '<div class="webcam-controls"><button class="button ghost" type="button" data-camera-open>📷 Abrir câmera</button>'+
+      '<button class="button ghost" type="button" data-camera-capture hidden>Capturar foto</button>'+
+      '<button class="button ghost" type="button" data-camera-stop hidden>Fechar câmera</button></div>'+
+      '<video id="live-camera-video" autoplay muted playsinline hidden></video>'+
+      '<img id="live-camera-preview" alt="Prévia da fotografia capturada" hidden>'+
+      (editing&&p.foto_path?'<label class="photo-remove"><input type="checkbox" name="remover_foto"> Remover foto atual da ficha</label>':"")+
+      '</div></div>'+
+      '<div class="attendance-form-error" role="alert" hidden></div>'+
+      '<div class="patient-form-actions"><button type="button" class="button ghost" data-go="'+
+      (editing?'/atendimentos/paciente/'+p.id:'/atendimentos/pacientes')+'">Cancelar</button>'+
+      '<button type="submit" class="button">'+(editing?"Salvar alterações":"Salvar paciente")+'</button></div></form>';
   }
   function arrivalForm(){
     if(!canWrite())return alertBox("Sua função não permite registrar chegadas.");
+    if(isClosed(currentDay()))return alertBox("O expediente de hoje está encerrado. Não é possível registrar novas chegadas.");
     const options=state.patients.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.nome)+' · '+fmtDay(p.nascimento)+'</option>').join("");
     const guides=state.guides.filter(g=>g.ativo).map(g=>'<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
     return '<button class="breadcrumb" type="button" data-go="/atendimentos/fila">← Voltar à fila</button>'+
-      title("Registrar chegada — teste presencial","Selecione um paciente fictício e um Guia. Um paciente pode ter vários atendimentos no mesmo dia.")+
+      title("Registrar chegada","Pesquise o paciente pelo nome e selecione seu Guia. A ficha oficial é gerada por Guia, separando senhas normais e prioritárias.")+
       (!options||!guides?alertBox("Cadastre pelo menos um paciente e um Guia antes de registrar uma chegada."):"")+
       '<form id="live-arrival-form" class="panel attendance-form"><div class="patient-fields">'+
-      '<label>Paciente *<select name="patient_id" required><option value="">Selecione um paciente</option>'+options+'</select></label>'+
-      '<label>Guia *<select name="guide_id" required><option value="">Selecione um Guia</option>'+guides+'</select></label>'+
-      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial (piloto)</option></select><small>À distância e trabalhadores da casa exigem autorização e novas regras, ainda não implementadas.</small></label>'+
-      '<label>Prioridade *<select name="prioridade">'+PRIORITIES.map(p=>'<option>'+esc(p)+'</option>').join("")+'</select></label>'+
-      '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions"><button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
-      '<button class="button" type="submit"'+(!options||!guides?' disabled':'')+'>Adicionar à fila</button></div></form>';
+      '<label>Buscar paciente pelo nome<input type="search" id="live-arrival-search" autocomplete="off" value="'+esc(state.arrivalSearch)+'" placeholder="Digite o nome para filtrar"></label>'+
+      '<label>Paciente *<select name="patient_id" required><option value="">Selecione um paciente</option>'+options+'</select>'+
+      '<small>A lista será filtrada enquanto você digita.</small></label>'+
+      '<label>Guia *<select name="guide_id" required><option value="">Selecione um Guia</option>'+guides+'</select>'+
+      '<small>Se o paciente tiver um Guia associado, ele será selecionado automaticamente.</small></label>'+
+      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial</option></select>'+
+      '<small>Atendimento à distância e após 17h exigem autorização do Presidente.</small></label>'+
+      '<label>Prioridade *<select name="prioridade" id="live-arrival-priority">'+PRIORITIES.map(t=>'<option>'+esc(t)+'</option>').join("")+'</select>'+
+      '<small id="live-arrival-age-note">Idosos de 60 anos ou mais recebem a classificação automaticamente.</small></label>'+
+      '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
+      '<button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
+      '<button class="button" type="submit"'+(!options||!guides?' disabled':'')+'>Gerar ficha e registrar chegada</button></div></form>';
   }
   function patientsPage(){
     const results=state.patients.filter(p=>String(p.nome||"").toLocaleLowerCase("pt-BR").includes(state.search.toLocaleLowerCase("pt-BR")));
