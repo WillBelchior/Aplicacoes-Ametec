@@ -53,7 +53,7 @@ test("Módulo inicia sem pacientes fictícios e mostra os controles reais",async
   assert.match(queue,/Registrar chegada/);
   assert.match(queue,/Nenhum Guia cadastrado/);
   assert.doesNotMatch(queue,/Maria Silva|Carlos Souza/);
-  assert.deepEqual(calls.sort(),["barquinha_attendance_access","barquinha_attendance_guides","barquinha_attendance_patients","barquinha_attendance_visits","barquinha_attendance_events"].sort());
+  assert.deepEqual(calls.sort(),["barquinha_attendance_access","barquinha_attendance_guides","barquinha_attendance_patients","barquinha_attendance_visits","barquinha_attendance_events","barquinha_attendance_sessions"].sort());
   assert.ok(callsRender>0);
   assert.match(window.AttendanceLive.page("/atendimentos/novo-paciente",""),/live-patient-form/);
   assert.match(window.AttendanceLive.page("/atendimentos/nova-chegada",""),/live-arrival-form/);
