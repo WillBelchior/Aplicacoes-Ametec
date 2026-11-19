@@ -702,6 +702,35 @@
       .select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000);
     if(!error)state.events=data||[];
   }
+  async function routeTriage(select){
+    if(state.busy||!canWrite()||isClosed())return;
+    const visit=state.visits.find(v=>v.id===select.dataset.liveRouteTriage);
+    const newGuide=guide(select.value);
+    if(!visit||visit.guide_id||!newGuide?.ativo)return;
+    state.busy=true;select.disabled=true;
+    try{
+      const {data,error}=await client().rpc("barquinha_attendance_route_triage",{
+        p_visit_id:visit.id,p_guide_id:newGuide.id
+      }).single();
+      if(error)throw error;
+      if(!data||data.guide_id!==newGuide.id||!data.ficha_numero)
+        throw Error("A ficha não foi confirmada pelo banco. Atualize a fila.");
+      Object.assign(visit,data);
+      const p=person(visit.patient_id);
+      if(p)p.guide_id=newGuide.id;
+      state.notice="Paciente encaminhado da Triagem para Guia "+newGuide.nome+
+        ". Ficha "+officialTicket(visit)+" emitida.";
+      renderCallback();
+    }catch(e){
+      select.value="";
+      state.notice="Não foi possível encaminhar a Triagem: "+(e.message||e)+
+        ". Atualize a fila e confira o paciente antes de tentar novamente.";
+      renderCallback();
+    }finally{
+      state.busy=false;
+      if(select.isConnected)select.disabled=false;
+    }
+  }
   async function changeStatus(select){
     if(state.busy||!canChangeStatus()||isClosed()||!STATUSES.includes(select.value))return;
     const visit=state.visits.find(v=>v.id===select.dataset.liveStatus);
@@ -806,6 +835,7 @@
     if(target?.name==="foto"){state.webcamBlob=null;return true;}
     if(target?.id==="live-patient-mode"||target?.id==="live-patient-birth"){syncPatientForm();return true;}
     if(target?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
+    if(target?.matches?.("[data-live-route-triage]")){void routeTriage(target);return true;}
     if(target?.matches?.("[data-live-status]")){void changeStatus(target);return true;}
     return false;
   }
