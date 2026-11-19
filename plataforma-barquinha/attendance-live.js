@@ -422,22 +422,36 @@
   }
   async function arrivalSubmit(form){
     if(state.busy||!canWrite())return;
+    if(isClosed(currentDay()))return fail(form,"O expediente foi encerrado. Atualize a página.");
     const data=new FormData(form);
-    const patientId=String(data.get("patient_id")||""),guideId=String(data.get("guide_id")||""),
-      modalidade=String(data.get("modalidade")||""),prioridade=String(data.get("prioridade")||"");
-    if(!person(patientId)||!guide(guideId)||!MODES.some(m=>m[0]===modalidade)||!PRIORITIES.includes(prioridade))
+    const patientId=String(data.get("patient_id")||"");
+    const guideId=String(data.get("guide_id")||"");
+    const modalidade=String(data.get("modalidade")||"");
+    let prioridade=String(data.get("prioridade")||"");
+    const p=person(patientId);
+    if(!p||!guide(guideId)||!MODES.some(m=>m[0]===modalidade)||!PRIORITIES.includes(prioridade))
       return fail(form,"Selecione paciente, Guia, modalidade e prioridade válidos.");
     if(PILOT_ONLY&&modalidade!=="presencial")
-      return fail(form,"Nesta etapa só é possível testar atendimentos presenciais.");
-    if(PILOT_ONLY&&afterArrivalDeadline())
-      return fail(form,"Chegadas após 17h exigem autorização do Presidente. Este fluxo ainda está em preparação; registre a chegada pelo procedimento manual.");
-    const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
+      return fail(form,"Atendimentos à distância dependem de autorização do Presidente. O cadastro de pacientes está liberado, não a passagem à distância.");
+    if(afterArrivalDeadline())
+      return fail(form,"Chegadas após 17h exigem autorização do Presidente. Use o procedimento manual autorizado.");
+    if(isElderly(p)&&prioridade==="Normal")prioridade="Idoso";
+    const submit=form.querySelector('[type="submit"]');
+    state.busy=true;if(submit)submit.disabled=true;
     try{
       const {data:saved,error}=await client().from("barquinha_attendance_visits")
         .insert({patient_id:patientId,guide_id:guideId,modalidade,prioridade})
-        .select("id,ordem,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
+        .select(visitSelect).single();
       if(error)throw error;
-      state.visits.unshift(saved);state.notice="Chegada registrada. Ordem "+saved.ordem+" atribuída ao Guia.";
+      state.visits.unshift(saved);
+      state.notice="Ficha "+ticket(saved)+" criada para o Guia "+guide(guideId).nome+".";
+      if(!p.preferred_guide_id){
+        const linked=await client().from("barquinha_attendance_patients")
+          .update({preferred_guide_id:guideId}).eq("id",p.id).is("preferred_guide_id",null)
+          .select("id,preferred_guide_id").maybeSingle();
+        if(!linked.error&&linked.data)p.preferred_guide_id=linked.data.preferred_guide_id;
+      }
+      state.arrivalSearch="";
       navigateCallback("/atendimentos/fila");
       void reloadEvents();
     }catch(e){fail(form,"Não foi possível registrar a chegada: "+(e.message||e));}
@@ -452,6 +466,7 @@
     if(state.busy||!STATUSES.includes(select.value))return;
     const visit=state.visits.find(v=>v.id===select.dataset.liveStatus);
     if(!visit)return;
+    if(isClosed(visit.service_date)){select.value=visit.status;state.error="O expediente já foi encerrado.";renderCallback();return;}
     const before=visit.status,newStatus=select.value;
     if(before===newStatus)return;
     select.disabled=true;state.busy=true;
