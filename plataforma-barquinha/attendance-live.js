@@ -274,20 +274,22 @@
     const options=state.patients.map(p=>'<option value="'+esc(patientOptionText(p))+'"></option>').join("");
     const guides=state.guides.filter(g=>g.ativo).map(g=>'<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
     return '<button class="breadcrumb" type="button" data-go="/atendimentos/fila">← Voltar à fila</button>'+
-      title("Registrar chegada","Digite as primeiras letras do nome do paciente. O Guia já associado será preenchido automaticamente.")+
+      title("Registrar chegada","Localize o paciente pelo nome. Na primeira visita, se ainda não houver Guia definido, selecione Triagem.")+
       (isClosed()?alertBox("O expediente de hoje foi encerrado. Novas chegadas estão bloqueadas."):'')+
-      (!options||!guides?alertBox("Cadastre pelo menos um paciente e um Guia antes de registrar uma chegada."):"")+
+      (!options?alertBox("Cadastre ao menos um paciente antes de registrar uma chegada."):"")+
       '<form id="live-arrival-form" class="panel attendance-form"><div class="patient-fields">'+
       '<label>Paciente *<input type="search" name="patient_name" id="live-arrival-patient-search" list="live-patient-options" required placeholder="Digite o nome para localizar…" autocomplete="off">'+
       '<datalist id="live-patient-options">'+options+'</datalist></label>'+
-      '<label>Guia *<select name="guide_id" id="live-arrival-guide" required><option value="">Selecione o Guia</option>'+guides+'</select></label>'+
+      '<label>Guia / Triagem<select name="guide_id" id="live-arrival-guide">'+
+      '<option value="">Triagem — primeiro atendimento sem Guia</option>'+guides+
+      '</select><small>Use a Triagem apenas na primeira chegada, enquanto o Guia não for definido.</small></label>'+
       '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial</option></select>'+
       '<small>Atendimento à distância e trabalhadores da casa: aguardam autorização do Presidente.</small></label>'+
       '<label>Prioridade *<select name="prioridade" id="live-arrival-priority">'+priorityOptions()+'</select>'+
       '<small id="live-arrival-age-hint">A prioridade Idoso será preenchida quando o paciente tiver 60 anos ou mais.</small></label>'+
       '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
       '<button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
-      '<button class="button" type="submit"'+(!options||!guides||isClosed()?' disabled':'')+'>Emitir ficha e registrar chegada</button></div></form>';
+      '<button class="button" type="submit"'+(!options||isClosed()?' disabled':'')+'>Registrar chegada</button></div></form>';
   }
   function patientsPage(){
     const results=state.patients.filter(p=>String(p.nome||"").toLocaleLowerCase("pt-BR").includes(state.search.toLocaleLowerCase("pt-BR")));
@@ -350,12 +352,14 @@
     if(p.foto_path&&!state.photoUrls.has(p.foto_path)&&!state.photoErrors.has(p.foto_path))loadSignedPhoto(p.foto_path);
     const img=p.foto_path&&state.photoUrls.has(p.foto_path)?'<img class="avatar patient-avatar" alt="Foto de '+esc(p.nome)+'" src="'+esc(state.photoUrls.get(p.foto_path))+'">':
       '<div class="avatar patient-avatar attendance-avatar-fallback" aria-label="Sem fotografia">♙</div>';
-    const current=selected?'<div class="attendance-current"><div class="guide-highlight"><i style="background:'+esc(guide(selected.guide_id)?.cor||"#467C9C")+'"></i>'+
-      '<div><strong>Atendimento selecionado · Guia '+esc(guide(selected.guide_id)?.nome||"—")+'</strong>'+
+    const current=selected?'<div class="attendance-current"><div class="guide-highlight"><i style="background:'+esc(guide(selected.guide_id)?.cor||"#b58b45")+'"></i>'+
+      '<div><strong>Atendimento selecionado · '+esc(guide(selected.guide_id)?.nome?"Guia "+guide(selected.guide_id).nome:"Triagem — aguardando Guia")+'</strong>'+
       '<div class="muted">Ficha '+officialTicket(selected)+' · Chegada '+selected.ordem+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
-      '<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'">'+STATUSES.map(st=>
+      (selected.guide_id?'<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'">'+STATUSES.map(st=>
       '<option value="'+esc(st)+'"'+(selected.status===st?" selected":"")+'>'+esc(st)+'</option>').join("")+'</select></label>'+
-      pill(selected.status)+'</div></div>':"";
+      pill(selected.status)+'</div>':
+        '<div class="note">Paciente na Triagem. Selecione um Guia pela Fila Geral para emitir sua ficha.</div>')+
+      '</div>':"";
     return '<button class="breadcrumb" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
       '<section class="profile"><div class="profile-header">'+img+'<div><h2>'+esc(p.nome)+'</h2>'+
       '<div class="muted">Ficha individual · dados protegidos</div></div></div>'+current+
@@ -366,13 +370,13 @@
   }
 
   function guideNameAtVisit(v){
-    return v.guia_nome_registro||guide(v.guide_id)?.nome||"Guia não encontrado";
+    return !v.guide_id?"Triagem — sem Guia":v.guia_nome_registro||guide(v.guide_id)?.nome||"Guia não encontrado";
   }
   function historyMatches(){
     const needle=normalize(state.historyPatient);
     return state.visits.filter(v=>
       (!state.historyDate||v.service_date===state.historyDate)&&
-      (state.historyGuide==="todos"||v.guide_id===state.historyGuide)&&
+      (state.historyGuide==="todos"||state.historyGuide==="triagem"&&!v.guide_id||v.guide_id===state.historyGuide)&&
       (!needle||normalize(person(v.patient_id)?.nome||"").includes(needle)));
   }
   function historySorted(visits){
@@ -419,7 +423,8 @@
   function shiftPage(){
     const today=currentDay(),closed=state.closures.find(c=>c.service_date===today);
     const visits=historySorted(historyMatches());
-    const options='<option value="todos">Todos os Guias</option>'+
+    const options='<option value="todos">Todos os Guias e Triagem</option>'+
+      '<option value="triagem"'+(state.historyGuide==="triagem"?' selected':'')+'>Triagem — sem Guia</option>'+
       state.guides.map(g=>'<option value="'+esc(g.id)+'"'+
         (state.historyGuide===g.id?' selected':'')+'>'+esc(g.nome)+
         (g.ativo?'':' (inativo)')+'</option>').join("");
@@ -659,8 +664,10 @@
       modalidade=String(data.get("modalidade")||"presencial"),
       prioridade=String(data.get("prioridade")||"Normal");
     if(!patient)return fail(form,"Selecione um paciente válido na lista de sugestões pelo nome.");
-    if(!guide(guideId)||!PRIORITIES.includes(prioridade))
-      return fail(form,"Selecione um Guia e a prioridade.");
+    if(!PRIORITIES.includes(prioridade)||guideId&&(!guide(guideId)||!guide(guideId).ativo))
+      return fail(form,"Selecione um Guia ativo ou a Triagem e informe a prioridade.");
+    if(!guideId&&state.visits.some(v=>v.patient_id===patient.id))
+      return fail(form,"Triagem somente na primeira visita. Para atendimentos posteriores, selecione um Guia.");
     if(modalidade!=="presencial")
       return fail(form,"Atendimentos à distância dependem de autorização do Presidente; o cadastro do paciente está disponível separadamente.");
     if(isClosed())return fail(form,"O expediente de hoje já foi encerrado.");
@@ -670,15 +677,17 @@
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
       const {data:saved,error}=await client().from("barquinha_attendance_visits")
-        .insert({patient_id:patient.id,guide_id:guideId,modalidade,prioridade:priority})
+        .insert({patient_id:patient.id,guide_id:guideId||null,modalidade,prioridade:priority})
         .select("id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
       if(error)throw error;
       state.visits.unshift(saved);
-      state.notice="Chegada registrada. Ficha "+officialTicket(saved)+" do Guia "+(guide(guideId)?.nome||"")+
-        " (ordem global de chegada "+saved.ordem+").";
+      state.notice=guideId?"Chegada registrada. Ficha "+officialTicket(saved)+" do Guia "+
+        (guide(guideId)?.nome||"")+" (chegada "+saved.ordem+").":
+        "Chegada registrada na Triagem (ordem de chegada "+saved.ordem+
+        "). A ficha de atendimento será emitida quando o Guia for escolhido.";
       // O Guia escolhido é também o vínculo padrão do paciente para próximas chegadas.
       // Se esta atualização falhar, a ficha já emitida permanece salva.
-      if(patient.guide_id!==guideId){
+      if(guideId&&patient.guide_id!==guideId){
         const linked=await client().from("barquinha_attendance_patients")
           .update({guide_id:guideId}).eq("id",patient.id);
         if(!linked.error)patient.guide_id=guideId;
