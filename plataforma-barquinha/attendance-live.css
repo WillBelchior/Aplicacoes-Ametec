@@ -113,3 +113,282 @@
   #main-content .queue-guide-header .pill{font-size:9px;padding:2px 4px}
   #main-content .queue-guide-body{padding:4px}
 }
+
+/* Gestão da fila: fichas por Guia, status direto no cartão e prioridades visíveis. */
+#main-content:has(.queue-board-scroll) .intro h1{font-size:clamp(30px,3vw,40px);line-height:1.15;letter-spacing:-.5px}
+#main-content:has(.queue-board-scroll) .filters h3{font-size:clamp(18px,1.4vw,23px);font-weight:800}
+#main-content .queue-guide-body .queue-card{padding:0;border-radius:11px;overflow:hidden}
+#main-content .queue-card-open{display:block;width:100%;border:0;padding:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
+#main-content .queue-card-open:focus-visible{outline:2px solid #285fe9;outline-offset:-2px}
+#main-content .queue-card-finished{opacity:.79;background:#f6f8fb}
+#main-content .queue-card-priority{border-color:#ed8a8a;background:#fff7f7}
+#main-content .queue-card-priority .queue-details small{color:#a12222;font-weight:750}
+#main-content .priority-ticket{background:#bb2424;color:#fff;border-radius:7px;min-width:40px;text-align:center}
+#main-content .queue-status-line{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:7px 8px;border-top:1px solid #dae2eb;min-width:0}
+#main-content .queue-priority-flag{font-size:9px;font-weight:800;color:#467085;letter-spacing:.5px}
+#main-content .queue-priority-flag.is-priority{color:#ba1c1c;background:#fff0ef;padding:3px 5px;border-radius:4px}
+#main-content .queue-inline-status{min-width:0;width:100%;font-size:12px;color:#19405e;font-weight:700;padding:7px 6px;border-radius:8px;border:1px solid #bdcee0;background:#fff;cursor:pointer}
+#main-content .queue-inline-status:disabled{cursor:default;color:#67798b;background:#f2f5f9}
+#main-content .queue-guide-total{margin-top:auto;border-top:1px solid #dae4ed;padding:9px 10px;font-size:12px;font-weight:700;background:#eef4f9;color:#1d4965;display:flex;justify-content:space-between}
+#main-content .queue-guide-total strong{font-size:15px}
+#main-content .queue-guide-header{align-items:flex-start}
+.attendance-form textarea{width:100%;min-width:0;padding:11px;border-radius:10px;border:1px solid #ccdae8;resize:vertical;font:inherit;color:#173e5a}
+.attendance-form output{display:block;padding:12px;background:#edf5fd;border:1px solid #d4e4f2;border-radius:10px;color:#1b4c73;font-size:14px;font-weight:800}
+.attendance-form .patient-address-field{grid-column:1/-1}
+.attendance-form .webcam-controls{grid-column:1/-1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.webcam-controls #live-webcam{max-width:330px;max-height:260px;width:100%;border-radius:12px;background:#162b45;object-fit:cover}
+.webcam-controls #live-camera-preview{font-size:12px;color:#345d77}
+.attendance-shift-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px}
+.attendance-report{background:#fff;border:1px solid #d6e4ef;border-radius:12px;padding:25px;max-width:1100px;margin:0 auto;color:#1c344b}
+.attendance-report h2{font-size:23px;margin:0 0 9px}
+.attendance-report p{font-size:13px;margin-bottom:20px}
+.attendance-report table{width:100%;border-collapse:collapse;font-size:13px}
+.attendance-report th,.attendance-report td{border:1px solid #a9bac6;padding:9px 10px;text-align:left;overflow-wrap:anywhere}
+.attendance-report th{background:#e5edf5;color:#193652;font-weight:800}
+.attendance-report-subtotal{background:#f0f5f9;font-weight:750}
+.attendance-report-total{background:#d9e6f1;font-weight:850;font-size:15px}
+.attendance-report-subtotal td:last-child,.attendance-report-total td:last-child{text-align:center;font-variant-numeric:tabular-nums}
+.attendance-report-signature{margin:70px 0 10px;display:grid;gap:7px;max-width:420px;text-align:center;font-size:13px}
+.attendance-report-signature span{margin-top:8px}
+@media(max-width:560px){
+ #main-content:has(.queue-board-scroll) .intro h1{font-size:28px}
+ #main-content .queue-status-line{padding:5px}
+ #main-content .queue-inline-status{font-size:11px}
+ .attendance-report{padding:12px}
+ .attendance-report th,.attendance-report td{padding:6px 5px;font-size:11px}
+}
+@media print{
+ @page{size:A4 portrait;margin:13mm}
+ body:has(#attendance-print-report){background:#fff!important}
+ body:has(#attendance-print-report) .sidebar,
+ body:has(#attendance-print-report) .topbar,
+ body:has(#attendance-print-report) .mobile-bottom{display:none!important}
+ body:has(#attendance-print-report) .shell{display:block!important}
+ body:has(#attendance-print-report) .content-shell{display:block!important;min-width:0!important}
+ body:has(#attendance-print-report) #main-content{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
+ body:has(#attendance-print-report) #main-content > :not(#attendance-print-report){display:none!important}
+ #attendance-print-report{display:block!important;border:0!important;box-shadow:none!important;margin:0!important;padding:0!important;max-width:none!important;font-family:Arial,sans-serif;color:#000!important}
+ #attendance-print-report h2{font-size:16pt}
+ #attendance-print-report table{font-size:10pt}
+ #attendance-print-report th,#attendance-print-report td{border:1px solid #222!important;color:#000!important}
+ #attendance-print-report thead{display:table-header-group}
+ #attendance-print-report tr{break-inside:avoid}
+ #attendance-print-report .attendance-report-signature{break-inside:avoid}
+}
+
+
+/* Atendimento do Dia: pesquisa do paciente sem reduzir o espaço da fila. */
+#main-content .attendance-queue-search{
+  flex:1 1 210px;max-width:340px;min-width:160px;
+  display:grid;gap:4px;font-size:12px;font-weight:700;color:#355a73;
+}
+#main-content .attendance-queue-search input{
+  width:100%;min-width:0;min-height:40px;padding:8px 11px;
+  border:1px solid #c7d7e6;border-radius:9px;background:white;
+  font-size:14px;color:#193a55;
+}
+#main-content .queue-search-feedback{
+  font-size:12px;color:#315777;font-weight:700;margin:4px 0 9px;
+}
+.attendance-guide-active{
+  display:flex!important;align-items:center;flex:0 0 auto!important;
+  gap:8px;padding:9px 11px;border-radius:9px;background:#edf3fa;
+  font-size:13px;font-weight:700;min-width:auto!important;cursor:pointer;
+}
+.attendance-guide-active input{height:17px;width:17px;accent-color:#245eb9}
+.attendance-guide-row{gap:12px}
+.attendance-guide-row .button{flex:0 0 auto;padding:8px 12px;font-size:12px}
+.attendance-history-filters{
+  display:grid;grid-template-columns:minmax(160px,1fr) minmax(180px,1fr) minmax(210px,1.4fr) auto;
+  gap:10px;align-items:end;padding:14px 16px;margin-bottom:10px;
+  background:#fff;border:1px solid #d9e5ef;border-radius:13px;
+}
+.attendance-history-filters label{display:grid;gap:5px;font-size:12px;color:#365b75;font-weight:750;min-width:0}
+.attendance-history-filters input,.attendance-history-filters select{
+  width:100%;min-width:0;min-height:40px;border:1px solid #c7d9e9;
+  border-radius:9px;padding:8px 10px;color:#203f59;background:white;font:inherit;font-size:14px;
+}
+.attendance-history-filters .button{white-space:nowrap;min-height:40px}
+.attendance-history-summary{
+  display:flex;flex-wrap:wrap;gap:8px 18px;padding:6px 2px 11px;
+  font-size:12px;color:#4a6980;
+}
+.attendance-history-summary strong{color:#1d4260;font-size:14px}
+.attendance-history-results{
+  width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #d9e4ec;
+  border-radius:12px;background:white;
+}
+.attendance-history-results table{width:100%;min-width:640px;border-collapse:collapse;font-size:12px}
+.attendance-history-results th,.attendance-history-results td{
+  padding:11px 12px;border-bottom:1px solid #e7edf3;text-align:left;vertical-align:middle;
+}
+.attendance-history-results th{
+  position:sticky;top:0;z-index:1;background:#eef4fa;color:#254863;font-size:12px;font-weight:800;
+}
+.attendance-history-results tr:hover td{background:#f7fbff}
+.attendance-history-results .attendance-history-priority{
+  color:#b41e1e;background:#fff0f0;padding:3px 6px;border-radius:5px;
+}
+.attendance-history-patient-link{
+  font:inherit;font-weight:750;color:#25568b;background:none;border:0;
+  text-align:left;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px;
+}
+.attendance-history-actions{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:15px 0 21px;
+}
+.attendance-report-caveat{
+  color:#9b2b21;background:#fff2ef;padding:9px;border-radius:8px;font-weight:700;
+}
+@media(max-width:1120px){
+ .attendance-history-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .attendance-history-filters .attendance-history-patient-search{grid-column:1}
+ .attendance-history-filters .button{grid-column:2;justify-self:end}
+}
+@media(max-width:650px){
+ #main-content .attendance-queue-search{flex:1 1 100%;max-width:none}
+ .attendance-guide-active{width:100%}
+ .attendance-history-filters{grid-template-columns:1fr;padding:12px}
+ .attendance-history-filters .attendance-history-patient-search,
+ .attendance-history-filters .button{grid-column:auto}
+ .attendance-history-filters .button{justify-self:stretch}
+ .attendance-history-results th,.attendance-history-results td{padding:9px 7px}
+ .attendance-history-actions .button{flex:1 1 180px}
+}
+@media print{
+  #attendance-print-report .attendance-report-caveat{border:1px solid #999!important;color:#333!important;background:none!important}
+}
+
+
+/* Layout compacto e fluido para TODAS as telas do módulo Atendimentos. */
+.shell:has(#main-content[data-section="attendance"]){
+  grid-template-columns:210px minmax(0,1fr);
+}
+#main-content[data-section="attendance"]{
+  width:100%;max-width:none;min-width:0;margin:0 auto;
+  padding:14px clamp(12px,1.5vw,24px) 28px;
+}
+#main-content[data-section="attendance"] .module-tabs{
+  gap:6px;margin-bottom:11px;align-items:center;
+}
+#main-content[data-section="attendance"] .module-tabs .tab{
+  padding:7px 11px;font-size:12px;
+}
+#main-content[data-section="attendance"] .intro{
+  margin-bottom:12px;
+}
+#main-content[data-section="attendance"] .intro h1{
+  font-size:clamp(25px,2.55vw,36px);line-height:1.15;
+}
+#main-content[data-section="attendance"] .intro p{
+  margin-top:5px;max-width:100%;line-height:1.45;
+}
+#main-content[data-section="attendance"] .breadcrumb{
+  margin-bottom:9px;
+}
+#main-content[data-section="attendance"] .attendance-form{
+  width:100%;max-width:none;padding:clamp(12px,1.5vw,22px);gap:12px;
+}
+#main-content[data-section="attendance"] .attendance-form .patient-fields{
+  grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;
+}
+#main-content[data-section="attendance"] .attendance-guide-form{
+  padding:13px 15px;gap:9px;margin:10px 0 13px;
+}
+#main-content[data-section="attendance"] .list-box,
+#main-content[data-section="attendance"] .profile,
+#main-content[data-section="attendance"] .attendance-history-filters,
+#main-content[data-section="attendance"] .attendance-history-results{
+  max-width:none;width:100%;min-width:0;
+}
+#main-content[data-section="attendance"] .filters{
+  gap:9px;margin-bottom:10px;
+}
+#main-content[data-section="attendance"] .list-item{
+  min-width:0;padding:11px 13px;
+}
+#main-content[data-section="attendance"] .attendance-shift-controls{
+  gap:9px;margin-bottom:11px;
+}
+#main-content[data-section="attendance"] .footer-note{margin-top:16px}
+#main-content[data-section="attendance"] .tab,
+#main-content[data-section="attendance"] .button,
+#main-content[data-section="attendance"] .queue-card,
+#main-content[data-section="attendance"] .list-item{
+  transition:background-color .17s ease, border-color .17s ease,
+    box-shadow .18s ease, transform .18s ease;
+}
+#main-content[data-section="attendance"] .tab:hover,
+#main-content[data-section="attendance"] .button:not(:disabled):hover{
+  transform:translateY(-1px);
+}
+#main-content[data-section="attendance"] .queue-card:hover,
+#main-content[data-section="attendance"] .attendance-patient-row:hover{
+  box-shadow:0 5px 15px rgb(25 61 90 / 9%);
+}
+/* Pacientes sem Guia: coluna própria e claramente distinta das filas oficiais. */
+#main-content .queue-triage-column{
+  background:#fffcf6;border-color:#e6d2ae;
+}
+#main-content .queue-triage-column .queue-guide-header{
+  border-top-color:#cc9b49;background:#fff9ed;
+}
+#main-content .queue-triage-column .guide-dot{background:#cc9b49}
+#main-content .queue-triage-column .queue-guide-info h3{font-size:15px}
+#main-content .queue-triage-column .queue-guide-total{
+  background:#fff3db;border-color:#ebd8b6;color:#6a4e1e;
+}
+#main-content .queue-triage-card{border-color:#e4cfab;background:#fff}
+#main-content .triage-ticket{
+  background:#f2e5cc;color:#684b1c;border-radius:6px;
+  min-width:64px;max-width:100%;font-size:10px;padding:7px 5px;
+  text-align:center;white-space:nowrap;
+}
+#main-content .triage-route-label{
+  width:100%;min-width:0;display:grid;gap:5px;
+  color:#6c582f;font-size:11px;font-weight:700;
+}
+#main-content .queue-triage-card .queue-status-line{align-items:stretch}
+#main-content .queue-triage-card .queue-inline-status{
+  border-color:#c9aa72;color:#5e431a;
+}
+@media (min-width:1500px){
+  #main-content[data-section="attendance"] .attendance-form .patient-fields{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+  }
+}
+@media(max-width:1120px){
+  #main-content[data-section="attendance"] .attendance-form .patient-fields{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:920px){
+  .shell:has(#main-content[data-section="attendance"]){
+    grid-template-columns:minmax(0,1fr);
+  }
+  #main-content[data-section="attendance"]{
+    padding:12px 10px 86px;
+  }
+}
+@media(max-width:600px){
+  #main-content[data-section="attendance"]{padding:9px 8px 90px}
+  #main-content[data-section="attendance"] .intro h1{font-size:26px}
+  #main-content[data-section="attendance"] .module-tabs{
+    flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  #main-content[data-section="attendance"] .module-tabs .tab{
+    flex:0 0 auto;white-space:nowrap;
+  }
+  #main-content[data-section="attendance"] .attendance-form .patient-fields{
+    grid-template-columns:minmax(0,1fr);
+  }
+  #main-content .triage-ticket{min-width:55px}
+}
+@media(prefers-reduced-motion: reduce){
+  #main-content[data-section="attendance"] .tab,
+  #main-content[data-section="attendance"] .button,
+  #main-content[data-section="attendance"] .queue-card,
+  #main-content[data-section="attendance"] .list-item{
+    transition:none!important;transform:none!important;
+  }
+}

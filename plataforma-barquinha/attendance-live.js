@@ -2,13 +2,13 @@
 /* Atendimentos Barquinha: módulo persistente isolado do Projetos.
    Dados pessoais ficam no Supabase com RLS; sem localStorage nem dados fictícios. */
 (() => {
-  const STATUSES=["Aguardando","Chamado","Em atendimento","Concluído","Não compareceu","Cancelado"];
+  const STATUSES=["Aguardando","Chamado","Em atendimento","Concluído","Não compareceu","Desistente"];
   const PRIORITIES=["Normal","Idoso","Gestante","Deficiência","Outra"];
   const MODES=[["presencial","Presencial"],["distancia","À distância"],["trabalhador","Trabalhador da casa"]];
-  const CLOSED=new Set(["Concluído","Não compareceu","Cancelado"]);
+  const CLOSED=new Set(["Concluído","Não compareceu","Desistente","Cancelado"]);
   // Primeiro teste de recepção: somente atendimentos presenciais; os demais
   // dependem das autorizações e da ordem de atendimento ainda não implementadas.
-  const PILOT_ONLY=true;
+  const PILOT_ONLY=false;
   function afterArrivalDeadline(){
     const hour=Number(new Intl.DateTimeFormat("en-GB",{
       timeZone:"America/Fortaleza",hour:"2-digit",hourCycle:"h23"
@@ -17,8 +17,8 @@
   }
   const PHOTO_BUCKET="barquinha-attendance-photos";
   const state={userId:null,loaded:false,loading:false,error:"",notice:"",access:null,
-    guides:[],patients:[],visits:[],events:[],filter:"todos",search:"",profileTab:"dados",
-    photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false};
+    guides:[],patients:[],visits:[],events:[],closures:[],filter:"todos",search:"",queueSearch:"",historyDate:"",historyGuide:"todos",historyPatient:"",historyReportVisible:false,guideEditingId:null,profileTab:"dados",arrivalSearch:"",webcamStream:null,webcamBlob:null,editId:null,
+    photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false,currentRoute:null};
   let renderCallback=()=>{},navigateCallback=route=>{location.hash="#"+route;};
   const auth=()=>window.PlatformAuth;
   const client=()=>auth()?.client;
@@ -34,11 +34,42 @@
     '<input name="'+name+'" type="'+type+'" '+(required?"required ":"")+(extra||"")+'></label>';
   const nav=(tabs)=>tabs||"";
   const canWrite=()=>["administrador","recepcao"].includes(state.access?.access_role);
+  const canChangeStatus=()=>["administrador","recepcao","guia"].includes(state.access?.access_role);
+  const isClosed=()=>state.closures.some(c=>c.service_date===currentDay());
+  const officialTicket=v=>!v.guide_id?"Triagem":(v.ficha_tipo==="P"?"P":"")+String(v.ficha_numero||v.ordem||0).padStart(2,"0");
+  function ageYears(date,at=currentDay()){
+    if(!date)return null;
+    const birth=String(date).split("-").map(Number),today=String(at).split("-").map(Number);
+    if(birth.length!==3||birth.some(x=>!x))return null;
+    return today[0]-birth[0]-(today[1]<birth[1]||(today[1]===birth[1]&&today[2]<birth[2])?1:0);
+  }
+  const agePriority=date=>ageYears(date)!==null&&ageYears(date)>=60;
+  function selectGuide(selected="",placeholder="Sem Guia definido"){
+    return '<option value="">'+placeholder+'</option>'+state.guides.filter(g=>g.ativo||g.id===selected)
+      .map(g=>'<option value="'+esc(g.id)+'"'+(g.id===selected?" selected":"")+'>'+esc(g.nome)+'</option>').join("");
+  }
+  const priorityOptions=(selected="Normal")=>PRIORITIES.map(p=>'<option value="'+esc(p)+'"'+(p===selected?" selected":"")+'>'+esc(p)+'</option>').join("");
+
   function connect(render,navigate){renderCallback=render;navigateCallback=navigate;}
   function resetFor(userId){
     state.userId=userId;state.loaded=false;state.loading=false;state.error="";state.access=null;
-    state.guides=[];state.patients=[];state.visits=[];state.events=[];state.notice="";
-    state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";
+    stopWebcam();state.guides=[];state.patients=[];state.visits=[];state.events=[];state.closures=[];state.notice="";state.arrivalSearch="";state.editId=null;
+    state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";state.queueSearch="";state.historyDate="";state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=false;state.guideEditingId=null;
+  }
+  // Consultas paginadas evitam perder atendimentos antigos por causa do limite
+  // de linhas por resposta da API Supabase (geralmente 1.000).
+  async function readAllPages(table,fields,orderKey,ascending=true){
+    const pageSize=1000,all=[];
+    for(let offset=0;offset<100000;offset+=pageSize){
+      let q=client().from(table).select(fields).order(orderKey,{ascending});
+      if(orderKey!=="id"&&orderKey!=="service_date")q=q.order("id",{ascending:true});
+      const response=await (offset===0?q.limit(pageSize):q.range(offset,offset+pageSize-1));
+      if(response.error)return response;
+      const entries=response.data||[];
+      all.push(...entries);
+      if(entries.length<pageSize)return {data:all,error:null};
+    }
+    throw Error("O histórico ultrapassou 100 mil registros. É necessário ampliar a paginação do módulo.");
   }
   async function load(){
     if(state.loading)return;
@@ -54,14 +85,20 @@
       if(!state.access){state.loaded=true;return;}
       const requests=[
         client().from("barquinha_attendance_guides").select("id,nome,cor,ativo,created_at").order("nome"),
-        client().from("barquinha_attendance_patients").select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at").order("nome"),
-        client().from("barquinha_attendance_visits").select("id,ordem,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").order("created_at",{ascending:false}).limit(3000),
-        client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000)
+        readAllPages("barquinha_attendance_patients",
+          "id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id","nome"),
+        readAllPages("barquinha_attendance_visits",
+          "id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at",
+          "created_at",false),
+        readAllPages("barquinha_attendance_events",
+          "id,visit_id,previous_status,next_status,changed_at","changed_at",false),
+        readAllPages("barquinha_attendance_closures",
+          "service_date,closed_at,closed_by","service_date",false)
       ];
       const results=await Promise.all(requests);
       for(const result of results)if(result.error)throw result.error;
       if(auth()?.user?.id!==userId)return;
-      [state.guides,state.patients,state.visits,state.events]=results.map(r=>r.data||[]);
+      [state.guides,state.patients,state.visits,state.events,state.closures]=results.map(r=>r.data||[]);
       state.loaded=true;
     }catch(error){state.error="Falha ao consultar Atendimentos: "+(error.message||error);state.loaded=true;}
     finally{state.loading=false;if(auth()?.user?.id===userId)renderCallback();}
@@ -78,91 +115,181 @@
     const user=auth()?.user;
     if(!user)return "";
     if(state.userId!==user.id)resetFor(user.id);
+    if(state.currentRoute!==route){
+      if(state.currentRoute?.includes("paciente")){stopWebcam();state.webcamBlob=null;}
+      state.currentRoute=route;
+    }
     if(!state.loaded&&!state.loading)queueMicrotask(load);
     if(!state.loaded)return nav(tabs)+'<div class="panel attendance-placeholder">Carregando dados protegidos de Atendimentos…</div>';
     if(state.error)return nav(tabs)+info();
     if(!state.access)return nav(tabs)+alertBox("Este usuário não possui autorização para acessar os dados de Atendimentos. Solicite liberação à administração.");
     let inner;
     if(route==="/atendimentos/novo-paciente")inner=patientForm();
+    else if(route.startsWith("/atendimentos/editar-paciente/"))inner=patientForm(person(route.split("/")[3]));
     else if(route==="/atendimentos/nova-chegada")inner=arrivalForm();
     else if(route.startsWith("/atendimentos/paciente/"))inner=patientDetail(route);
     else if(route==="/atendimentos/pacientes")inner=patientsPage();
     else if(route==="/atendimentos/guias")inner=guidesPage();
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
-    else if(route==="/atendimentos/expediente")inner=deferred("Expediente","A abertura e o encerramento do expediente serão implementados em uma etapa posterior.");
+    else if(route==="/atendimentos/expediente"||route==="/atendimentos/historico")inner=shiftPage();
     else inner=queuePage();
-    const previewNotice='<div class="note warn" role="status"><strong>Primeiro teste prático — modo piloto.</strong> Utilize somente pacientes fictícios. Está habilitado o fluxo presencial de cadastro, chegada, fila e histórico. Autorizações, atendimento à distância, trabalhadores da casa e expediente completo ainda não estão liberados para uso real.</div>';
+    const previewNotice='<div class="note" role="status"><strong>Atendimentos Barquinha.</strong> Fichas por Guia: 01, 02… e prioritárias P01, P02…. Cadastros à distância são permitidos com nome e endereço; a realização de atendimentos remotos ainda exige autorização do Presidente.</div>';
     return nav(tabs)+previewNotice+info()+inner;
   }
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
   function title(t,description){return '<section class="intro"><div class="eyebrow">ATENDIMENTOS BARQUINHA</div><h1>'+esc(t)+'</h1><p>'+esc(description)+'</p></section>';}
   function queuePage(){
-    const day=currentDay(),active=state.visits.filter(v=>v.service_date===day&&!CLOSED.has(v.status));
-    const completed=state.visits.filter(v=>v.service_date===day&&CLOSED.has(v.status));
-    const selected=state.guides.filter(g=>g.ativo&&(state.filter==="todos"||g.id===state.filter));
-    const filter='<option value="todos">Todos os Guias</option>'+state.guides.filter(g=>g.ativo).map(g=>
+    const day=currentDay(),today=state.visits.filter(v=>v.service_date===day);
+    const pending=today.filter(v=>!CLOSED.has(v.status));
+    const completed=today.filter(v=>CLOSED.has(v.status));
+    const needle=normalize(state.queueSearch);
+    const matches=needle?today.filter(v=>normalize(person(v.patient_id)?.nome||"").includes(needle)):today;
+    // Guias inativos com atendimentos hoje continuam visíveis.
+    const available=state.guides.filter(g=>g.ativo||today.some(v=>v.guide_id===g.id));
+    const selected=available.filter(g=>(state.filter==="todos"||g.id===state.filter)&&
+      (!needle||matches.some(v=>v.guide_id===g.id)));
+    const triageVisits=matches.filter(v=>!v.guide_id).sort((a,b)=>a.ordem-b.ordem);
+    const showTriage=(state.filter==="todos"||state.filter==="triagem")&&
+      (!needle||triageVisits.length>0);
+    const filter='<option value="todos">Todos os Guias e Triagem</option>'+
+      '<option value="triagem"'+(state.filter==="triagem"?' selected':'')+'>Triagem — sem Guia</option>'+available.map(g=>
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
-    const columns=selected.map(g=>{
-      const visits=active.filter(v=>v.guide_id===g.id).sort((a,b)=>{
-        const priority=p=>p.prioridade==="Normal"?1:0;
-        return priority(a)-priority(b)||a.ordem-b.ordem;
+    const locked=isClosed();
+    const triageBody=triageVisits.map(v=>{
+      const p=person(v.patient_id);if(!p)return "";
+      const priority=v.prioridade!=="Normal";
+      const guideOptions=state.guides.filter(g=>g.ativo).map(g=>
+        '<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
+      return '<div class="queue-card queue-triage-card'+(priority?' queue-card-priority':'')+'">'+
+        '<button type="button" class="queue-card-open" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+
+        '"><span class="queue-inner"><strong class="ticket triage-ticket">Chegada '+v.ordem+
+        '</strong><span class="queue-details"><strong>'+esc(p.nome)+'</strong><small>'+
+        esc(v.prioridade)+' · Aguardando Guia</small></span></span></button>'+
+        '<div class="queue-status-line"><span class="queue-priority-flag'+(priority?' is-priority':'')+'">'+
+        (priority?'PRIORITÁRIO':'TRIAGEM')+'</span>'+
+        '<label class="triage-route-label">Encaminhar para o Guia'+
+        '<select class="queue-inline-status" data-live-route-triage="'+esc(v.id)+'"'+
+        (!canWrite()||locked?' disabled':'')+'>'+
+        '<option value="">Selecionar Guia…</option>'+guideOptions+'</select></label></div></div>';
+    }).join("");
+    const triageColumn=showTriage?'<section class="queue-guide-column queue-triage-column">'+
+      '<div class="queue-guide-header"><div class="queue-guide-info"><span class="guide-dot"></span>'+
+      '<h3>Triagem</h3></div><span class="pill amber">'+triageVisits.length+' aguardando Guia</span></div>'+
+      '<div class="queue-guide-body">'+(triageBody||'<div class="queue-empty">Nenhum paciente na Triagem.</div>')+
+      '</div><div class="queue-guide-total">Em Triagem: <strong>'+triageVisits.length+'</strong></div></section>':"";
+    const columns=triageColumn+selected.map(g=>{
+      const visits=matches.filter(v=>v.guide_id===g.id).sort((a,b)=>{
+        const priority=v=>v.ficha_tipo==="P"?0:1;
+        return priority(a)-priority(b)||(a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem);
       });
       const body=visits.map(v=>{
-        const p=person(v.patient_id);
-        if(!p)return "";
-        return '<button type="button" class="queue-card" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+
-          '" aria-label="Abrir atendimento de '+esc(p.nome)+'"><span class="queue-row"><span class="guide-rail" style="background:'+esc(g.cor)+
-          '"></span><span class="queue-inner"><span class="ticket">'+String(v.ordem).padStart(2,"0")+'</span><span class="queue-details"><strong>'+esc(p.nome)+
-          '</strong><small>'+esc(v.prioridade)+" · "+esc(MODES.find(m=>m[0]===v.modalidade)?.[1]||v.modalidade)+
-          '</small></span><span class="queue-status">'+pill(v.status)+'</span><span class="chevron" aria-hidden="true">›</span></span></span></button>';
+        const p=person(v.patient_id);if(!p)return "";
+        const priority=v.ficha_tipo==="P";
+        return '<div class="queue-card'+(priority?' queue-card-priority':'')+(CLOSED.has(v.status)?' queue-card-finished':'')+'">'+
+          '<button type="button" class="queue-card-open" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+
+          '" aria-label="Abrir ficha de '+esc(p.nome)+'"><span class="queue-row"><span class="guide-rail" style="background:'+esc(g.cor)+
+          '"></span><span class="queue-inner"><strong class="ticket'+(priority?' priority-ticket':'')+'">'+officialTicket(v)+
+          '</strong><span class="queue-details"><strong>'+esc(p.nome)+'</strong><small>'+
+          esc(v.prioridade)+' · '+esc(MODES.find(m=>m[0]===v.modalidade)?.[1]||v.modalidade)+
+          '</small></span><span class="chevron" aria-hidden="true">›</span></span></span></button>'+
+          '<div class="queue-status-line"><span class="queue-priority-flag'+(priority?' is-priority':'')+'">'+
+          (priority?'PRIORITÁRIO':'NORMAL')+'</span>'+
+          '<select class="queue-inline-status" data-live-status="'+esc(v.id)+'" aria-label="Situação de '+esc(p.nome)+'"'+
+          (!canChangeStatus()||locked?' disabled':'')+'>'+
+          STATUSES.map(st=>'<option value="'+st+'"'+(v.status===st?' selected':'')+'>'+st+'</option>').join('')+
+          (v.status==="Cancelado"?'<option value="Cancelado" selected>Cancelado (histórico)</option>':'')+
+          '</select></div></div>';
       }).join("");
       return '<section class="queue-guide-column"><div class="queue-guide-header" style="border-top-color:'+esc(g.cor)+
         '"><div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span><h3 title="Guia '+esc(g.nome)+'">Guia '+esc(g.nome)+'</h3></div>'+
-        '<span class="pill blue">'+visits.length+' na fila</span></div><div class="queue-guide-body">'+(body||'<div class="queue-empty">Nenhum atendimento aguardando.</div>')+'</div></section>';
+        '<span class="pill blue">'+visits.length+' registrado(s)</span></div><div class="queue-guide-body">'+
+        (body||'<div class="queue-empty">Nenhum atendimento registrado hoje.</div>')+'</div>'+
+        '<div class="queue-guide-total">Total do Guia: <strong>'+visits.length+'</strong></div></section>';
     }).join("");
-    const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Registrar chegada</button>'+
-      '<button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
-    return title("Atendimento do Dia","Fila real de "+fmtDay(day)+" · As colunas são organizadas por Guia e atualizadas após cada alteração.")+
-      '<div class="metrics"><div class="metric"><strong>'+active.length+'</strong><span>Na fila</span></div>'+
+    const visibleCount=selected.length+(showTriage?1:0);
+    const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada"'+(locked?' disabled':'')+
+      '>＋ Registrar chegada</button><button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
+    return title("Fila Geral — Atendimento do Dia","Fichas por Guia de "+fmtDay(day)+
+      " · Prioritárias P01, P02… e normais 01, 02…, em listas independentes.")+
+      (locked?'<div class="note">Expediente encerrado. Os registros permanecem visíveis e o relatório está disponível em Histórico de Atendimentos.</div>':'')+
+      '<div class="metrics"><div class="metric"><strong>'+pending.length+'</strong><span>Em andamento</span></div>'+
       '<div class="metric"><strong>'+completed.length+'</strong><span>Finalizados hoje</span></div>'+
-      '<div class="metric"><strong>'+state.patients.length+'</strong><span>Pacientes cadastrados</span></div></div>'+
-      '<div class="filters"><div class="queue-actions"><h3>Fila geral por Guia</h3>'+buttons+
+      '<div class="metric"><strong>'+today.length+'</strong><span>Total de atendimentos hoje</span></div></div>'+
+      '<div class="filters"><div class="queue-actions"><h3>Fila Geral por Guia e Triagem</h3>'+buttons+
       '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button></div>'+
-      '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label></div>'+
+      '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label>'+
+      '<label class="attendance-queue-search">Pesquisar paciente na fila'+
+      '<input id="live-queue-search" type="search" value="'+esc(state.queueSearch)+
+      '" placeholder="Digite o nome do paciente" autocomplete="off" aria-label="Pesquisar paciente nos atendimentos de hoje">'+
+      '</label></div>'+
+      (needle?'<p class="queue-search-feedback" role="status">'+
+      matches.filter(v=>state.filter==="todos"||state.filter==="triagem"&&!v.guide_id||v.guide_id===state.filter).length+
+      ' atendimento(s) encontrado(s) para "'+esc(state.queueSearch)+'".</p>':'')+
       (!state.guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
-      '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para ver todos os Guias.":"Até cinco Guias são exibidos juntos, aproveitando toda a largura da tela.")+' Atendimentos finalizados permanecem no histórico.</p>'+
+      (needle&&!visibleCount?'<div class="note">Nenhum paciente encontrado na fila de hoje com esse nome.</div>':"")+
+      '<p class="queue-hint">'+(visibleCount>=6?"Use a rolagem horizontal para ver todas as colunas.":"Até cinco colunas são exibidas juntas, incluindo a Triagem.")+
+      ' Pacientes continuam visíveis independentemente do status; saem somente da fila diária quando muda a data.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
-      '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+'" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(selected.length,1)+'">'+columns+'</div></div>';
+      '<div class="queue-board'+(visibleCount===1?" single":"")+(visibleCount>=6?" is-scroll":"")+
+      '" data-guide-count="'+visibleCount+'" style="--guide-count:'+Math.max(visibleCount,1)+'">'+columns+'</div></div>';
   }
-  function patientForm(){
-    if(!canWrite())return alertBox("Sua função não permite cadastrar pacientes.");
-    return '<button class="breadcrumb" type="button" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
-      title("Cadastrar paciente","O cadastro é único; a chegada para atendimento é registrada separadamente.")+
-      '<form id="live-patient-form" class="panel attendance-form"><div class="patient-fields">'+
-      field("nome","Nome completo","text",true,'maxlength="160" autocomplete="name"')+
-      field("nascimento","Data de nascimento","date",true,'max="'+currentDay()+'"')+
-      field("telefone","Telefone","tel",false,'maxlength="40"')+
-      field("cpf","CPF (opcional)","text",false,'maxlength="14" inputmode="numeric" autocomplete="off"')+
-      field("encaminhamento","Encaminhamento / indicação (opcional)","text",false,'maxlength="250"')+
-      '<label>Fotografia (opcional)<input type="file" name="foto" accept="image/jpeg,image/png,image/webp"><small>JPG, PNG ou WebP, até 2 MB após compactação. Armazenamento privado.</small></label></div>'+
+  function patientForm(patient=null){
+    if(!canWrite())return alertBox("Sua função não permite cadastrar ou editar pacientes.");
+    const p=patient||{},edit=!!patient;
+    const optionValue=(name,value)=>' value="'+esc(value||"")+'"';
+    return '<button class="breadcrumb" type="button" data-go="'+(edit?'/atendimentos/paciente/'+esc(p.id):'/atendimentos/pacientes')+
+      '">← Voltar</button>'+
+      title(edit?"Editar paciente":"Cadastrar paciente","O Guia será sugerido automaticamente em cada chegada. Atendimento à distância pode ser cadastrado apenas com nome e endereço; sua realização exige autorização separada.")+
+      '<form id="live-patient-form" data-edit-id="'+esc(p.id||"")+'" class="panel attendance-form">'+
+      '<div class="patient-fields">'+
+      '<label>Modalidade de cadastro *<select name="cadastro_modalidade" id="live-patient-mode">'+
+      MODES.map(m=>'<option value="'+m[0]+'"'+((p.cadastro_modalidade||"presencial")===m[0]?' selected':'')+'>'+m[1]+'</option>').join("")+'</select></label>'+
+      '<label>Nome completo *<input name="nome" type="text" required maxlength="160" autocomplete="name"'+optionValue("nome",p.nome)+'></label>'+
+      '<label>Data de nascimento <input name="nascimento" id="live-patient-birth" type="date" max="'+currentDay()+'"'+
+      (p.cadastro_modalidade!=="distancia"?' required':'')+optionValue("nascimento",p.nascimento)+'><small>Para pacientes à distância, pode ficar em branco.</small></label>'+
+      '<label>Idade calculada automaticamente <output id="live-patient-age" aria-live="polite">'+
+      (ageYears(p.nascimento)===null?"Não informada":ageYears(p.nascimento)+" anos"+(agePriority(p.nascimento)?" · Prioridade: IDOSO":""))+
+      '</output></label>'+
+      '<label>Telefone<input name="telefone" type="tel" maxlength="40"'+optionValue("telefone",p.telefone)+'></label>'+
+      '<label>CPF<input name="cpf" type="text" maxlength="14" inputmode="numeric" autocomplete="off"'+optionValue("cpf",p.cpf)+'></label>'+
+      '<label>Guia <select name="guide_id">'+selectGuide(p.guide_id||"","Selecione o Guia")+'</select></label>'+
+      '<label class="patient-address-field">Endereço do paciente'+
+      '<textarea name="endereco" id="live-patient-address" maxlength="900" rows="3"'+
+      (p.cadastro_modalidade==="distancia"?' required':'')+' placeholder="Rua, número, bairro, cidade, referência…">'+esc(p.endereco||"")+'</textarea>'+
+      '<small>Obrigatório para cadastro à distância.</small></label>'+
+      '<label>Fotografia<input type="file" name="foto" accept="image/jpeg,image/png,image/webp" capture="environment">'+
+      '<small>JPG/PNG/WebP, compactada para armazenamento privado.</small></label>'+
+      '<div class="webcam-controls"><button type="button" class="button ghost" data-live-camera-start>📷 Abrir webcam</button>'+
+      '<button type="button" class="button ghost" data-live-camera-capture hidden>Capturar foto</button>'+
+      '<button type="button" class="button ghost" data-live-camera-stop hidden>Fechar câmera</button>'+
+      '<video id="live-webcam" autoplay muted playsinline hidden aria-label="Visualização da webcam"></video>'+
+      '<div id="live-camera-preview" aria-live="polite"></div></div></div>'+
       '<div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
-      '<button type="button" class="button ghost" data-go="/atendimentos/pacientes">Cancelar</button>'+
-      '<button type="submit" class="button">Salvar paciente</button></div></form>';
+      '<button type="button" class="button ghost" data-go="'+(edit?'/atendimentos/paciente/'+esc(p.id):'/atendimentos/pacientes')+'">Cancelar</button>'+
+      '<button type="submit" class="button">'+(edit?"Salvar alterações":"Salvar paciente")+'</button></div></form>';
   }
+  const patientOptionText=p=>p.nome+" · "+fmtDay(p.nascimento)+" · "+p.id.slice(0,6);
   function arrivalForm(){
     if(!canWrite())return alertBox("Sua função não permite registrar chegadas.");
-    const options=state.patients.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.nome)+' · '+fmtDay(p.nascimento)+'</option>').join("");
+    const options=state.patients.map(p=>'<option value="'+esc(patientOptionText(p))+'"></option>').join("");
     const guides=state.guides.filter(g=>g.ativo).map(g=>'<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
     return '<button class="breadcrumb" type="button" data-go="/atendimentos/fila">← Voltar à fila</button>'+
-      title("Registrar chegada — teste presencial","Selecione um paciente fictício e um Guia. Um paciente pode ter vários atendimentos no mesmo dia.")+
-      (!options||!guides?alertBox("Cadastre pelo menos um paciente e um Guia antes de registrar uma chegada."):"")+
+      title("Registrar chegada","Localize o paciente pelo nome. Na primeira visita, se ainda não houver Guia definido, selecione Triagem.")+
+      (isClosed()?alertBox("O expediente de hoje foi encerrado. Novas chegadas estão bloqueadas."):'')+
+      (!options?alertBox("Cadastre ao menos um paciente antes de registrar uma chegada."):"")+
       '<form id="live-arrival-form" class="panel attendance-form"><div class="patient-fields">'+
-      '<label>Paciente *<select name="patient_id" required><option value="">Selecione um paciente</option>'+options+'</select></label>'+
-      '<label>Guia *<select name="guide_id" required><option value="">Selecione um Guia</option>'+guides+'</select></label>'+
-      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial (piloto)</option></select><small>À distância e trabalhadores da casa exigem autorização e novas regras, ainda não implementadas.</small></label>'+
-      '<label>Prioridade *<select name="prioridade">'+PRIORITIES.map(p=>'<option>'+esc(p)+'</option>').join("")+'</select></label>'+
-      '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions"><button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
-      '<button class="button" type="submit"'+(!options||!guides?' disabled':'')+'>Adicionar à fila</button></div></form>';
+      '<label>Paciente *<input type="search" name="patient_name" id="live-arrival-patient-search" list="live-patient-options" required placeholder="Digite o nome para localizar…" autocomplete="off">'+
+      '<datalist id="live-patient-options">'+options+'</datalist></label>'+
+      '<label>Guia / Triagem<select name="guide_id" id="live-arrival-guide">'+
+      '<option value="">Triagem — primeiro atendimento sem Guia</option>'+guides+
+      '</select><small>Use a Triagem apenas na primeira chegada, enquanto o Guia não for definido.</small></label>'+
+      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial</option></select>'+
+      '<small>Atendimento à distância e trabalhadores da casa: aguardam autorização do Presidente.</small></label>'+
+      '<label>Prioridade *<select name="prioridade" id="live-arrival-priority">'+priorityOptions()+'</select>'+
+      '<small id="live-arrival-age-hint">A prioridade Idoso será preenchida quando o paciente tiver 60 anos ou mais.</small></label>'+
+      '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
+      '<button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
+      '<button class="button" type="submit"'+(!options||isClosed()?' disabled':'')+'>Registrar chegada</button></div></form>';
   }
   function patientsPage(){
     const results=state.patients.filter(p=>String(p.nome||"").toLocaleLowerCase("pt-BR").includes(state.search.toLocaleLowerCase("pt-BR")));
@@ -176,14 +303,28 @@
       }).join("")||'<div class="note">Nenhum paciente encontrado.</div>')+'</div>';
   }
   function guidesPage(){
-    return title("Guias","Cadastre os Guias para organizar as filas e atribuir atendimentos.")+
-      (canWrite()?'<form id="live-guide-form" class="panel attendance-guide-form">'+
-      '<label>Nome do Guia <input name="nome" maxlength="120" required placeholder="Nome completo"></label>'+
-      '<label>Cor da coluna <input name="cor" type="color" value="#467C9C"></label>'+
-      '<button type="submit" class="button">＋ Cadastrar Guia</button><div class="attendance-form-error" role="alert" hidden></div></form>':"")+
-      '<div class="list-box">'+(state.guides.map(g=>'<div class="list-item"><div><strong><span class="guide-dot" style="background:'+esc(g.cor)+'"></span> '+
-      esc(g.nome)+'</strong><small>'+(g.ativo?"Ativo":"Inativo")+'</small></div><span>'+state.visits.filter(v=>v.guide_id===g.id).length+' atendimento(s)</span></div>').join("")||
-      '<div class="note">Nenhum Guia cadastrado.</div>')+'</div>';
+    const editing=state.guides.find(g=>g.id===state.guideEditingId);
+    const form=canWrite()?'<form id="live-guide-form" data-guide-id="'+esc(editing?.id||"")+
+      '" class="panel attendance-guide-form">'+
+      '<label>Nome do Guia <input name="nome" maxlength="120" required placeholder="Nome do Guia" value="'+
+      esc(editing?.nome||"")+'"></label>'+
+      '<label>Cor da coluna <input name="cor" type="color" value="'+esc(editing?.cor||"#467C9C")+'"></label>'+
+      '<label class="attendance-guide-active"><input name="ativo" type="checkbox"'+
+      (!editing||editing.ativo?' checked':'')+'> Guia ativo</label>'+
+      '<button type="submit" class="button">'+(editing?'Salvar alterações':'＋ Cadastrar Guia')+'</button>'+
+      (editing?'<button type="button" class="button ghost" data-live-guide-cancel>Cancelar edição</button>':'')+
+      '<div class="attendance-form-error" role="alert" hidden></div></form>':"";
+    const rows=state.guides.map(g=>{
+      const total=state.visits.filter(v=>v.guide_id===g.id).length;
+      const linked=state.patients.filter(p=>p.guide_id===g.id).length;
+      return '<div class="list-item attendance-guide-row"><div><strong><span class="guide-dot" style="background:'+esc(g.cor)+
+        '"></span> '+esc(g.nome)+'</strong><small>'+(g.ativo?'Ativo':'Inativo')+
+        ' · '+total+' atendimento(s) · '+linked+' paciente(s) vinculado(s)</small></div>'+
+        (canWrite()?'<button type="button" class="button ghost" data-live-guide-edit="'+esc(g.id)+
+        '" aria-label="Editar Guia '+esc(g.nome)+'">Editar</button>':'')+'</div>';
+    }).join("");
+    return title("Guias","Cadastre e edite o nome, a cor e a situação dos Guias. Os históricos preservam o nome registrado no dia do atendimento.")+
+      form+'<div class="list-box">'+(rows||'<div class="note">Nenhum Guia cadastrado.</div>')+'</div>';
   }
   function maskCpf(cpf){const x=String(cpf||"");return x.length===11?"***.***.***-"+x.slice(-2):"Não informado";}
   function patientDetail(route){
@@ -192,34 +333,165 @@
     const selected=state.visits.find(v=>v.id===segments[4]&&v.patient_id===p.id);
     const visits=state.visits.filter(v=>v.patient_id===p.id).sort((a,b)=>b.ordem-a.ordem);
     let details="";
-    if(state.profileTab==="dados")details='<dl><div><dt>Nascimento</dt><dd>'+fmtDay(p.nascimento)+'</dd></div>'+
+    if(state.profileTab==="dados")details='<dl><div><dt>Modalidade</dt><dd>'+
+      esc(MODES.find(m=>m[0]===p.cadastro_modalidade)?.[1]||"Presencial")+'</dd></div>'+
+      '<div><dt>Nascimento</dt><dd>'+fmtDay(p.nascimento)+'</dd></div>'+
+      '<div><dt>Idade</dt><dd>'+(ageYears(p.nascimento)===null?"Não informada":ageYears(p.nascimento)+" anos")+'</dd></div>'+
       '<div><dt>Telefone</dt><dd>'+esc(p.telefone||"Não informado")+'</dd></div>'+
       '<div><dt>CPF</dt><dd>'+esc(maskCpf(p.cpf))+'</dd></div>'+
-      '<div><dt>Atendimentos</dt><dd>'+visits.length+'</dd></div>'+
-      '<div><dt>Encaminhamento</dt><dd>'+esc(p.encaminhamento||"Não informado")+'</dd></div></dl>';
+      '<div><dt>Guia associado</dt><dd>'+esc(guide(p.guide_id)?.nome||"Não definido")+'</dd></div>'+
+      '<div><dt>Endereço</dt><dd>'+esc(p.endereco||"Não informado")+'</dd></div>'+
+      '<div><dt>Atendimentos</dt><dd>'+visits.length+'</dd></div></dl>';
     if(state.profileTab==="historico")details='<div class="list-box">'+(visits.map(v=>{
       const g=guide(v.guide_id),changes=state.events.filter(e=>e.visit_id===v.id);
       return '<div class="attendance-history-entry"><strong>'+fmtDay(v.service_date)+' · Guia '+esc(g?.nome||"Não encontrado")+'</strong> '+
-        pill(v.status)+'<div class="muted">Ordem '+v.ordem+' · '+esc(v.prioridade)+'</div>'+
+        pill(v.status)+'<div class="muted">Ficha '+officialTicket(v)+' · Chegada '+v.ordem+' · '+esc(v.prioridade)+'</div>'+
         '<div class="attendance-event-list">'+changes.map(e=>'<small>'+fmtTime(e.changed_at)+' · '+esc(e.previous_status||"Entrada")+' → '+esc(e.next_status)+'</small>').join("")+'</div></div>';
     }).join("")||'<div class="note">Este paciente ainda não possui atendimentos.</div>')+'</div>';
     if(state.profileTab==="materiais")details='<div class="note">O controle de materiais e devoluções será implementado em uma próxima etapa.</div>';
     if(p.foto_path&&!state.photoUrls.has(p.foto_path)&&!state.photoErrors.has(p.foto_path))loadSignedPhoto(p.foto_path);
     const img=p.foto_path&&state.photoUrls.has(p.foto_path)?'<img class="avatar patient-avatar" alt="Foto de '+esc(p.nome)+'" src="'+esc(state.photoUrls.get(p.foto_path))+'">':
       '<div class="avatar patient-avatar attendance-avatar-fallback" aria-label="Sem fotografia">♙</div>';
-    const current=selected?'<div class="attendance-current"><div class="guide-highlight"><i style="background:'+esc(guide(selected.guide_id)?.cor||"#467C9C")+'"></i>'+
-      '<div><strong>Atendimento selecionado · Guia '+esc(guide(selected.guide_id)?.nome||"—")+'</strong>'+
-      '<div class="muted">Ordem '+selected.ordem+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
-      '<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'">'+STATUSES.map(st=>
+    const current=selected?'<div class="attendance-current"><div class="guide-highlight"><i style="background:'+esc(guide(selected.guide_id)?.cor||"#b58b45")+'"></i>'+
+      '<div><strong>Atendimento selecionado · '+esc(guide(selected.guide_id)?.nome?"Guia "+guide(selected.guide_id).nome:"Triagem — aguardando Guia")+'</strong>'+
+      '<div class="muted">Ficha '+officialTicket(selected)+' · Chegada '+selected.ordem+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
+      (selected.guide_id?'<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'">'+STATUSES.map(st=>
       '<option value="'+esc(st)+'"'+(selected.status===st?" selected":"")+'>'+esc(st)+'</option>').join("")+'</select></label>'+
-      pill(selected.status)+'</div></div>':"";
+      pill(selected.status)+'</div>':
+        '<div class="note">Paciente na Triagem. Selecione um Guia pela Fila Geral para emitir sua ficha.</div>')+
+      '</div>':"";
     return '<button class="breadcrumb" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
       '<section class="profile"><div class="profile-header">'+img+'<div><h2>'+esc(p.nome)+'</h2>'+
       '<div class="muted">Ficha individual · dados protegidos</div></div></div>'+current+
       '<div class="module-tabs" role="group" aria-label="Seções da ficha">'+[["dados","Dados"],["historico","Histórico"],["materiais","Materiais"]].map(t=>
       '<button class="tab '+(state.profileTab===t[0]?"active":"")+'" data-live-tab="'+t[0]+'">'+t[1]+'</button>').join("")+'</div>'+details+
-      (canWrite()?'<div class="attendance-detail-actions"><button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Novo atendimento</button></div>':"")+
+      (canWrite()?'<div class="attendance-detail-actions"><button class="button ghost" type="button" data-go="/atendimentos/editar-paciente/'+esc(p.id)+'">✎ Editar informações</button><button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Novo atendimento</button></div>':"")+
       '</section>';
+  }
+
+  function guideNameAtVisit(v){
+    return !v.guide_id?"Triagem — sem Guia":v.guia_nome_registro||guide(v.guide_id)?.nome||"Guia não encontrado";
+  }
+  function historyMatches(){
+    const needle=normalize(state.historyPatient);
+    return state.visits.filter(v=>
+      (!state.historyDate||v.service_date===state.historyDate)&&
+      (state.historyGuide==="todos"||state.historyGuide==="triagem"&&!v.guide_id||v.guide_id===state.historyGuide)&&
+      (!needle||normalize(person(v.patient_id)?.nome||"").includes(needle)));
+  }
+  function historySorted(visits){
+    return visits.slice().sort((a,b)=>
+      b.service_date.localeCompare(a.service_date)||
+      guideNameAtVisit(a).localeCompare(guideNameAtVisit(b),"pt-BR")||
+      (a.ficha_tipo==="P"?0:1)-(b.ficha_tipo==="P"?0:1)||
+      (a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem));
+  }
+  function reportTable(visits,{official=false,caption=""}={}){
+    const sorted=historySorted(visits);
+    const groups=new Map();
+    sorted.forEach(v=>{
+      const key=JSON.stringify([v.service_date,v.guide_id,guideNameAtVisit(v)]);
+      if(!groups.has(key))groups.set(key,{date:v.service_date,title:guideNameAtVisit(v),visits:[]});
+      groups.get(key).visits.push(v);
+    });
+    const body=[...groups.values()].map(group=>
+      group.visits.map(v=>'<tr><td>'+officialTicket(v)+'</td><td>'+
+        esc(person(v.patient_id)?.nome||"Paciente não encontrado")+'</td><td>'+
+        esc(guideNameAtVisit(v))+'</td><td>'+fmtDay(v.service_date)+'</td><td>'+
+        esc(v.status)+'</td></tr>').join("")+
+      '<tr class="attendance-report-subtotal"><td colspan="4">Total — Guia '+esc(group.title)+
+      ' · '+fmtDay(group.date)+'</td><td>'+group.visits.length+'</td></tr>'
+    ).join("");
+    const empty=sorted.length?"":'<tr><td colspan="5">Nenhum atendimento encontrado.</td></tr>';
+    const dates=[...new Set(sorted.map(v=>v.service_date))].sort().reverse();
+    const period=dates.length===1?fmtDay(dates[0]):dates.length?fmtDay(dates.at(-1))+
+      " a "+fmtDay(dates[0]):"Sem data selecionada";
+    const heading=official?"Barquinha — Lista oficial de atendimentos":"Barquinha — Histórico de Atendimentos";
+    const signDate=dates.length===1?fmtDay(dates[0]):"____/____/________";
+    return '<section id="attendance-print-report" class="attendance-report">'+
+      '<h2>'+heading+'</h2>'+
+      '<p>Período consultado: <strong>'+esc(period)+'</strong>'+
+      (caption?' · '+esc(caption):'')+'</p>'+
+      (!official?'<p class="attendance-report-caveat">Extrato de consulta. Atendimentos de dias não encerrados ainda podem sofrer alterações.</p>':'')+
+      '<table><thead><tr><th>Ordem de Atendimento</th><th>Nome Paciente</th><th>Guia</th>'+
+      '<th>Data</th><th>Situação</th></tr></thead><tbody>'+
+      body+empty+'<tr class="attendance-report-total"><td colspan="4">TOTAL GERAL DE ATENDIMENTOS</td>'+
+      '<td>'+sorted.length+'</td></tr></tbody></table>'+
+      '<div class="attendance-report-signature"><div>____________________________________________</div>'+
+      '<strong>Assinatura do(a) Recepcionista</strong><span>Data: '+signDate+'</span></div></section>';
+  }
+  function shiftPage(){
+    const today=currentDay(),closed=state.closures.find(c=>c.service_date===today);
+    const visits=historySorted(historyMatches());
+    const options='<option value="todos">Todos os Guias e Triagem</option>'+
+      '<option value="triagem"'+(state.historyGuide==="triagem"?' selected':'')+'>Triagem — sem Guia</option>'+
+      state.guides.map(g=>'<option value="'+esc(g.id)+'"'+
+        (state.historyGuide===g.id?' selected':'')+'>'+esc(g.nome)+
+        (g.ativo?'':' (inativo)')+'</option>').join("");
+    const uniqueDates=[...new Set(visits.map(v=>v.service_date))];
+    const header=title("Histórico de Atendimentos",
+      "Pesquise atendimentos pelo dia, pelo Guia ou pelo nome do paciente e emita relatórios filtrados. Os registros permanecem no histórico.");
+    const filters='<section class="attendance-history-filters" aria-label="Filtros do Histórico">'+
+      '<label>Dia do atendimento<input type="date" id="live-history-date" value="'+esc(state.historyDate)+'"></label>'+
+      '<label>Guia<select id="live-history-guide">'+options+'</select></label>'+
+      '<label class="attendance-history-patient-search">Pesquisar paciente'+
+      '<input type="search" id="live-history-patient" value="'+esc(state.historyPatient)+
+      '" placeholder="Digite o nome do paciente" autocomplete="off"></label>'+
+      '<button type="button" class="button ghost" data-live-history-clear>Limpar filtros</button>'+
+      '</section>';
+    const summary='<div class="attendance-history-summary"><strong>'+visits.length+
+      ' atendimento(s) encontrado(s)</strong><span>'+uniqueDates.length+' dia(s) de atendimento</span>'+
+      '<span>'+new Set(visits.map(v=>v.guide_id)).size+' Guia(s)</span></div>';
+    const body=visits.map(v=>
+      '<tr><td>'+fmtDay(v.service_date)+'</td><td><strong class="'+(v.ficha_tipo==="P"?"attendance-history-priority":"")+
+      '">'+officialTicket(v)+'</strong></td><td><button type="button" class="attendance-history-patient-link" data-go="/atendimentos/paciente/'+
+      esc(v.patient_id)+'/'+esc(v.id)+'">'+esc(person(v.patient_id)?.nome||"Paciente não encontrado")+'</button></td>'+
+      '<td>'+esc(guideNameAtVisit(v))+'</td><td>'+esc(v.status)+'</td></tr>'
+    ).join("");
+    const results='<div class="attendance-history-results" role="region" tabindex="0" aria-label="Atendimentos encontrados">'+
+      '<table><thead><tr><th>Data</th><th>Ficha</th><th>Nome Paciente</th><th>Guia</th>'+
+      '<th>Situação</th></tr></thead><tbody>'+
+      (body||'<tr><td colspan="5">Nenhum atendimento corresponde aos filtros selecionados.</td></tr>')+
+      '</tbody></table></div>';
+    const dayCount=state.visits.filter(v=>v.service_date===today).length;
+    const closing='<section class="attendance-shift-controls">'+
+      (closed?'<div class="note">Expediente de '+fmtDay(today)+' encerrado em '+fmtTime(closed.closed_at)+
+      '. A lista oficial do dia pode ser consultada e emitida.</div>':
+      '<div class="note warn">Atendimentos de hoje: '+dayCount+
+      '. Finalize o expediente somente após o último paciente.</div>'+
+      (canWrite()?'<button type="button" class="button" data-live-close-day>Finalizar Atendimentos</button>':''))+
+      '</section>';
+    const fullClosedDay=Boolean(state.historyDate&&
+      state.closures.some(c=>c.service_date===state.historyDate)&&
+      state.historyGuide==="todos"&&!normalize(state.historyPatient));
+    const preview=state.historyReportVisible&&visits.length>0;
+    const autoOfficial=Boolean(closed&&!state.historyDate&&state.historyGuide==="todos"&&
+      !normalize(state.historyPatient));
+    const reportRows=preview?visits:autoOfficial?state.visits.filter(v=>v.service_date===today):[];
+    const official=preview?fullClosedDay:autoOfficial;
+    const caption=state.historyDate?"Dia: "+fmtDay(state.historyDate):"Todos os dias";
+    const actions='<div class="attendance-history-actions">'+
+      '<button type="button" class="button secondary" data-live-history-generate'+(visits.length?'':' disabled')+
+      '">Preparar relatório da pesquisa</button>'+
+      (reportRows.length?'<button type="button" class="button" data-live-print>Imprimir ou salvar em PDF</button>':'')+
+      '</div>';
+    return header+closing+filters+summary+results+actions+
+      (reportRows.length?reportTable(reportRows,{official,caption:preview?caption:"Encerramento do dia"}):'');
+  }
+  async function closeDay(){
+    if(!canWrite()||state.busy||isClosed())return;
+    if(!confirm("Encerrar o atendimento de "+fmtDay(currentDay())+
+      "? A fila ficará bloqueada para novas chegadas e alterações. A lista oficial será emitida."))return;
+    state.busy=true;
+    try{
+      const {data,error}=await client().from("barquinha_attendance_closures")
+        .insert({service_date:currentDay()}).select("service_date,closed_at,closed_by").single();
+      if(error)throw error;
+      state.closures.push(data);
+      state.historyDate=currentDay();state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=true;
+      state.notice="Atendimentos encerrados. Lista oficial preparada para impressão.";
+    }catch(e){state.error="Não foi possível encerrar: "+(e.message||e);}
+    finally{state.busy=false;renderCallback();}
   }
   async function loadSignedPhoto(path){
     if(state.photoRequests.has(path))return;
@@ -258,24 +530,85 @@
     if(!blob||blob.size>2097152)throw Error("A foto compactada ultrapassou 2 MB.");
     return blob;
   }
+  function stopWebcam(){
+    if(state.webcamStream)state.webcamStream.getTracks().forEach(t=>t.stop());
+    state.webcamStream=null;
+    const video=document?.getElementById?.("live-webcam");
+    if(video){video.pause();video.srcObject=null;video.hidden=true;}
+    for(const key of ["data-live-camera-capture","data-live-camera-stop"]){
+      const b=document?.querySelector?.("["+key+"]");if(b)b.hidden=true;
+    }
+  }
+  async function startWebcam(){
+    const video=document.getElementById("live-webcam");
+    if(!video||!navigator.mediaDevices?.getUserMedia){
+      const msg=document.getElementById("live-camera-preview");
+      if(msg)msg.textContent="Este navegador não permite usar webcam. Utilize o campo de fotografia.";
+      return;
+    }
+    stopWebcam();
+    try{
+      state.webcamStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"},audio:false});
+      video.srcObject=state.webcamStream;video.hidden=false;await video.play();
+      document.querySelector("[data-live-camera-capture]").hidden=false;
+      document.querySelector("[data-live-camera-stop]").hidden=false;
+      const status=document.getElementById("live-camera-preview");
+      if(status)status.textContent="Câmera ativa. Posicione o paciente e clique em Capturar foto.";
+    }catch(e){
+      stopWebcam();
+      const status=document.getElementById("live-camera-preview");
+      if(status)status.textContent="Não foi possível acessar a câmera: "+(e.message||e);
+    }
+  }
+  async function captureWebcam(){
+    const video=document.getElementById("live-webcam");
+    if(!video||!video.videoWidth)return;
+    const canvas=document.createElement("canvas");canvas.width=420;canvas.height=420;
+    const ctx=canvas.getContext("2d"),side=Math.min(video.videoWidth,video.videoHeight);
+    if(!ctx)return;
+    ctx.drawImage(video,(video.videoWidth-side)/2,(video.videoHeight-side)/2,side,side,0,0,420,420);
+    const blob=await new Promise(ok=>canvas.toBlob(ok,"image/jpeg",0.8));
+    if(!blob)return;
+    state.webcamBlob=blob;
+    stopWebcam();
+    const display=document.getElementById("live-camera-preview");
+    if(display)display.textContent="Fotografia capturada e pronta para salvar.";
+  }
   async function patientSubmit(form){
     if(state.busy||!canWrite())return;
-    const data=new FormData(form),nome=String(data.get("nome")||"").trim().replace(/\s+/g," "),
-      nascimento=String(data.get("nascimento")||""),telefone=String(data.get("telefone")||"").trim(),
-      cpf=cpfDigits(data.get("cpf")),encaminhamento=String(data.get("encaminhamento")||"").trim();
-    if(nome.length<2||nome.length>160||!nascimento||nascimento>currentDay())return fail(form,"Informe nome e nascimento válidos.");
+    const data=new FormData(form),
+      id=String(form.dataset.editId||""),
+      mode=String(data.get("cadastro_modalidade")||"presencial"),
+      nome=String(data.get("nome")||"").trim().replace(/\s+/g," "),
+      nascimento=String(data.get("nascimento")||""),
+      telefone=String(data.get("telefone")||"").trim(),
+      cpf=cpfDigits(data.get("cpf")),
+      endereco=String(data.get("endereco")||"").trim(),
+      guide_id=String(data.get("guide_id")||"")||null;
+    if(nome.length<2||nome.length>160)return fail(form,"Informe o nome completo do paciente.");
+    if(!MODES.some(m=>m[0]===mode))return fail(form,"Modalidade inválida.");
+    if(mode!=="distancia"&&!nascimento)return fail(form,"Informe a data de nascimento para atendimento presencial.");
+    if(nascimento&&nascimento>currentDay())return fail(form,"Nascimento não pode ser uma data futura.");
+    if(mode==="distancia"&&endereco.length<5)return fail(form,"Informe o endereço para cadastrar paciente à distância.");
+    if(endereco.length>900)return fail(form,"O endereço ultrapassa 900 caracteres.");
     if(cpf&&!validCpf(cpf))return fail(form,"CPF inválido.");
-    const exists=state.patients.find(p=>(cpf&&p.cpf===cpf)||(normalize(p.nome)===normalize(nome)&&p.nascimento===nascimento));
-    if(exists)return fail(form,"Possível duplicidade: "+exists.nome+". Consulte a ficha antes de cadastrar novamente.");
+    if(guide_id&&!guide(guide_id))return fail(form,"Selecione um Guia cadastrado.");
+    const exists=state.patients.find(p=>p.id!==id&&((cpf&&p.cpf===cpf)||
+      (nascimento&&normalize(p.nome)===normalize(nome)&&p.nascimento===nascimento)));
+    if(exists)return fail(form,"Possível duplicidade: "+exists.nome+". Consulte a ficha antes de continuar.");
+    const payload={nome,nascimento:nascimento||null,telefone:telefone||null,cpf:cpf||null,
+      cadastro_modalidade:mode,endereco:endereco||null,guide_id};
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
-      const file=data.get("foto"),blob=file?.size?await imageBlob(file):null;
-      const {data:saved,error}=await client().from("barquinha_attendance_patients")
-        .insert({nome,nascimento,telefone:telefone||null,cpf:cpf||null,encaminhamento:encaminhamento||null})
-        .select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at").single();
+      const file=data.get("foto"),blob=state.webcamBlob||(file?.size?await imageBlob(file):null);
+      const request=id?client().from("barquinha_attendance_patients").update(payload).eq("id",id):
+        client().from("barquinha_attendance_patients").insert(payload);
+      const {data:saved,error}=await request
+        .select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id").single();
       if(error)throw error;
-      state.patients.push(saved);
-      state.notice="Paciente cadastrado com segurança.";
+      const index=state.patients.findIndex(p=>p.id===saved.id);
+      if(index>=0)state.patients[index]=saved;else state.patients.push(saved);
+      state.notice=id?"Informações do paciente atualizadas.":"Paciente cadastrado com segurança.";
       if(blob){
         try{
           const path=saved.id+"/"+crypto.randomUUID()+".jpg";
@@ -284,48 +617,83 @@
           const updated=await client().from("barquinha_attendance_patients").update({foto_path:path}).eq("id",saved.id)
             .select("id,foto_path").single();
           if(updated.error)throw updated.error;
-          saved.foto_path=path;
+          saved.foto_path=path;state.photoUrls.clear();state.photoErrors.clear();
         }catch(uploadError){state.notice+=" A fotografia não foi salva: "+uploadError.message;}
       }
-      state.profileTab="dados";navigateCallback("/atendimentos/paciente/"+saved.id);
+      stopWebcam();state.webcamBlob=null;state.profileTab="dados";
+      navigateCallback("/atendimentos/paciente/"+saved.id);
     }catch(e){
-      fail(form,e.code==="23505"?"Já existe um paciente com este CPF. Confira a ficha antes de cadastrar.":"Não foi possível cadastrar: "+(e.message||e));
+      fail(form,e.code==="23505"?"Já existe um paciente com este CPF. Confira a ficha antes de cadastrar.":
+        "Não foi possível salvar o cadastro: "+(e.message||e));
     }finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
   }
   async function guideSubmit(form){
     if(state.busy||!canWrite())return;
-    const data=new FormData(form),nome=String(data.get("nome")||"").trim(),cor=String(data.get("cor")||"#467C9C");
-    if(nome.length<2)return fail(form,"Informe o nome do Guia.");
+    const values=new FormData(form),
+      id=String(form.dataset.guideId||""),
+      nome=String(values.get("nome")||"").trim().replace(/\s+/g," "),
+      cor=String(values.get("cor")||"#467C9C"),
+      ativo=values.get("ativo")!==null;
+    if(nome.length<2||nome.length>120)return fail(form,"Informe um nome de Guia entre 2 e 120 caracteres.");
+    if(!/^#[0-9a-fA-F]{6}$/.test(cor))return fail(form,"Selecione uma cor válida.");
+    if(id&&!guide(id))return fail(form,"Guia não encontrado para edição.");
+    if(state.guides.some(g=>g.id!==id&&normalize(g.nome)===normalize(nome)))
+      return fail(form,"Já existe um Guia cadastrado com esse nome.");
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
-      const {data:added,error}=await client().from("barquinha_attendance_guides").insert({nome,cor})
-        .select("id,nome,cor,ativo,created_at").single();
+      const request=id?client().from("barquinha_attendance_guides")
+        .update({nome,cor,ativo}).eq("id",id):
+        client().from("barquinha_attendance_guides").insert({nome,cor,ativo});
+      const {data:saved,error}=await request.select("id,nome,cor,ativo,created_at").single();
       if(error)throw error;
-      state.guides.push(added);state.notice="Guia cadastrado.";
+      const index=state.guides.findIndex(g=>g.id===saved.id);
+      if(index>=0)state.guides[index]=saved;else state.guides.push(saved);
+      state.guideEditingId=null;
+      state.notice=id?"Guia atualizado. Os atendimentos anteriores permanecem preservados.":"Guia cadastrado.";
       renderCallback();
-    }catch(e){fail(form,e.code==="23505"?"Já existe um Guia com esse nome.":"Não foi possível salvar o Guia: "+e.message);}
+    }catch(e){fail(form,e.code==="23505"?"Já existe um Guia com esse nome.":"Não foi possível salvar o Guia: "+(e.message||e));}
     finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
   }
   async function arrivalSubmit(form){
     if(state.busy||!canWrite())return;
     const data=new FormData(form);
-    const patientId=String(data.get("patient_id")||""),guideId=String(data.get("guide_id")||""),
-      modalidade=String(data.get("modalidade")||""),prioridade=String(data.get("prioridade")||"");
-    if(!person(patientId)||!guide(guideId)||!MODES.some(m=>m[0]===modalidade)||!PRIORITIES.includes(prioridade))
-      return fail(form,"Selecione paciente, Guia, modalidade e prioridade válidos.");
-    if(PILOT_ONLY&&modalidade!=="presencial")
-      return fail(form,"Nesta etapa só é possível testar atendimentos presenciais.");
-    if(PILOT_ONLY&&afterArrivalDeadline())
-      return fail(form,"Chegadas após 17h exigem autorização do Presidente. Este fluxo ainda está em preparação; registre a chegada pelo procedimento manual.");
+    const patientLabel=String(data.get("patient_name")||"").trim();
+    const matched=state.patients.filter(p=>patientOptionText(p)===patientLabel);
+    const patient=matched.length===1?matched[0]:null;
+    const guideId=String(data.get("guide_id")||""),
+      modalidade=String(data.get("modalidade")||"presencial"),
+      prioridade=String(data.get("prioridade")||"Normal");
+    if(!patient)return fail(form,"Selecione um paciente válido na lista de sugestões pelo nome.");
+    if(!PRIORITIES.includes(prioridade)||guideId&&(!guide(guideId)||!guide(guideId).ativo))
+      return fail(form,"Selecione um Guia ativo ou a Triagem e informe a prioridade.");
+    if(!guideId&&state.visits.some(v=>v.patient_id===patient.id))
+      return fail(form,"Triagem somente na primeira visita. Para atendimentos posteriores, selecione um Guia.");
+    if(modalidade!=="presencial")
+      return fail(form,"Atendimentos à distância dependem de autorização do Presidente; o cadastro do paciente está disponível separadamente.");
+    if(isClosed())return fail(form,"O expediente de hoje já foi encerrado.");
+    if(afterArrivalDeadline())
+      return fail(form,"Chegadas após 17h exigem autorização do Presidente. Este procedimento ainda está em preparação.");
+    const priority=agePriority(patient.nascimento)&&prioridade==="Normal"?"Idoso":prioridade;
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
       const {data:saved,error}=await client().from("barquinha_attendance_visits")
-        .insert({patient_id:patientId,guide_id:guideId,modalidade,prioridade})
-        .select("id,ordem,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
+        .insert({patient_id:patient.id,guide_id:guideId||null,modalidade,prioridade:priority})
+        .select("id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
       if(error)throw error;
-      state.visits.unshift(saved);state.notice="Chegada registrada. Ordem "+saved.ordem+" atribuída ao Guia.";
-      navigateCallback("/atendimentos/fila");
-      void reloadEvents();
+      state.visits.unshift(saved);
+      state.notice=guideId?"Chegada registrada. Ficha "+officialTicket(saved)+" do Guia "+
+        (guide(guideId)?.nome||"")+" (chegada "+saved.ordem+").":
+        "Chegada registrada na Triagem (ordem de chegada "+saved.ordem+
+        "). A ficha de atendimento será emitida quando o Guia for escolhido.";
+      // O Guia escolhido é também o vínculo padrão do paciente para próximas chegadas.
+      // Se esta atualização falhar, a ficha já emitida permanece salva.
+      if(guideId&&patient.guide_id!==guideId){
+        const linked=await client().from("barquinha_attendance_patients")
+          .update({guide_id:guideId}).eq("id",patient.id);
+        if(!linked.error)patient.guide_id=guideId;
+        else state.notice+=" Atenção: o vínculo padrão do Guia não pôde ser salvo.";
+      }
+      navigateCallback("/atendimentos/fila");void reloadEvents();
     }catch(e){fail(form,"Não foi possível registrar a chegada: "+(e.message||e));}
     finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
   }
@@ -334,8 +702,37 @@
       .select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000);
     if(!error)state.events=data||[];
   }
+  async function routeTriage(select){
+    if(state.busy||!canWrite()||isClosed())return;
+    const visit=state.visits.find(v=>v.id===select.dataset.liveRouteTriage);
+    const newGuide=guide(select.value);
+    if(!visit||visit.guide_id||!newGuide?.ativo)return;
+    state.busy=true;select.disabled=true;
+    try{
+      const {data,error}=await client().rpc("barquinha_attendance_route_triage",{
+        p_visit_id:visit.id,p_guide_id:newGuide.id
+      }).single();
+      if(error)throw error;
+      if(!data||data.guide_id!==newGuide.id||!data.ficha_numero)
+        throw Error("A ficha não foi confirmada pelo banco. Atualize a fila.");
+      Object.assign(visit,data);
+      const p=person(visit.patient_id);
+      if(p)p.guide_id=newGuide.id;
+      state.notice="Paciente encaminhado da Triagem para Guia "+newGuide.nome+
+        ". Ficha "+officialTicket(visit)+" emitida.";
+      renderCallback();
+    }catch(e){
+      select.value="";
+      state.notice="Não foi possível encaminhar a Triagem: "+(e.message||e)+
+        ". Atualize a fila e confira o paciente antes de tentar novamente.";
+      renderCallback();
+    }finally{
+      state.busy=false;
+      if(select.isConnected)select.disabled=false;
+    }
+  }
   async function changeStatus(select){
-    if(state.busy||!STATUSES.includes(select.value))return;
+    if(state.busy||!canChangeStatus()||isClosed()||!STATUSES.includes(select.value))return;
     const visit=state.visits.find(v=>v.id===select.dataset.liveStatus);
     if(!visit)return;
     const before=visit.status,newStatus=select.value;
@@ -353,11 +750,70 @@
     }catch(e){select.value=before;state.error="Não foi possível alterar a situação: "+(e.message||e);renderCallback();}
     finally{state.busy=false;if(select.isConnected)select.disabled=false;}
   }
+  function syncArrivalPatient(){
+    const input=document.getElementById("live-arrival-patient-search");
+    if(!input)return;
+    const matched=state.patients.filter(p=>patientOptionText(p)===input.value.trim());
+    const p=matched.length===1?matched[0]:null;
+    const guideSelect=document.getElementById("live-arrival-guide");
+    const priority=document.getElementById("live-arrival-priority");
+    const hint=document.getElementById("live-arrival-age-hint");
+    if(p){
+      if(guideSelect)guideSelect.value=p.guide_id&&guide(p.guide_id)?p.guide_id:"";
+      if(priority)priority.value=agePriority(p.nascimento)?"Idoso":"Normal";
+      if(hint)hint.textContent=ageYears(p.nascimento)===null?
+        "Idade não informada. Selecione a prioridade aplicável.":
+        "Idade: "+ageYears(p.nascimento)+" anos"+(agePriority(p.nascimento)?" — PRIORIDADE IDOSO":" — classificação normal");
+    }else{if(guideSelect)guideSelect.value="";if(priority)priority.value="Normal";if(hint)hint.textContent="Digite e selecione um paciente da lista para preencher o Guia e a idade.";}
+  }
+  function syncPatientForm(){
+    const mode=document.getElementById("live-patient-mode")?.value||"presencial";
+    const birth=document.getElementById("live-patient-birth");
+    const address=document.getElementById("live-patient-address");
+    const age=document.getElementById("live-patient-age");
+    if(birth)birth.required=mode!=="distancia";
+    if(address)address.required=mode==="distancia";
+    if(age&&birth){
+      const years=ageYears(birth.value);
+      age.textContent=years===null?"Não informada":years+" anos"+(years>=60?" · PRIORIDADE: IDOSO":"");
+    }
+  }
+  function rerenderSearchInput(id,target){
+    const pos=target.selectionStart;
+    renderCallback();
+    const next=document?.getElementById?.(id);
+    if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
+  }
   function handleClick(event){
     const refreshButton=event.target.closest("[data-live-refresh]");
     if(refreshButton){event.preventDefault();refresh();return true;}
     const tab=event.target.closest("[data-live-tab]");
     if(tab){event.preventDefault();state.profileTab=tab.dataset.liveTab;renderCallback();return true;}
+    const editGuide=event.target.closest("[data-live-guide-edit]");
+    if(editGuide){
+      event.preventDefault();
+      state.guideEditingId=guide(editGuide.dataset.liveGuideEdit)?.id||null;
+      renderCallback();return true;
+    }
+    const cancelGuide=event.target.closest("[data-live-guide-cancel]");
+    if(cancelGuide){event.preventDefault();state.guideEditingId=null;renderCallback();return true;}
+    const clearHistory=event.target.closest("[data-live-history-clear]");
+    if(clearHistory){
+      event.preventDefault();
+      state.historyDate="";state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=false;
+      renderCallback();return true;
+    }
+    const generate=event.target.closest("[data-live-history-generate]");
+    if(generate){
+      event.preventDefault();
+      if(historyMatches().length){state.historyReportVisible=true;renderCallback();}
+      return true;
+    }
+    if(event.target.closest("[data-live-camera-start]")){event.preventDefault();void startWebcam();return true;}
+    if(event.target.closest("[data-live-camera-capture]")){event.preventDefault();void captureWebcam();return true;}
+    if(event.target.closest("[data-live-camera-stop]")){event.preventDefault();stopWebcam();return true;}
+    if(event.target.closest("[data-live-close-day]")){event.preventDefault();void closeDay();return true;}
+    if(event.target.closest("[data-live-print]")){event.preventDefault();window.print();return true;}
     return false;
   }
   function handleSubmit(event){
@@ -370,15 +826,32 @@
   function handleChange(event){
     const target=event.target;
     if(target?.id==="live-guide-filter"){state.filter=target.value;renderCallback();return true;}
+    if(target?.id==="live-history-date"){
+      state.historyDate=target.value;state.historyReportVisible=false;renderCallback();return true;
+    }
+    if(target?.id==="live-history-guide"){
+      state.historyGuide=target.value;state.historyReportVisible=false;renderCallback();return true;
+    }
+    if(target?.name==="foto"){state.webcamBlob=null;return true;}
+    if(target?.id==="live-patient-mode"||target?.id==="live-patient-birth"){syncPatientForm();return true;}
+    if(target?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
+    if(target?.matches?.("[data-live-route-triage]")){void routeTriage(target);return true;}
     if(target?.matches?.("[data-live-status]")){void changeStatus(target);return true;}
     return false;
   }
   function handleInput(event){
-    if(event.target?.id!=="live-patient-search")return false;
-    state.search=event.target.value;
-    const pos=event.target.selectionStart;renderCallback();
-    const next=document.getElementById("live-patient-search");
-    if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
+    const t=event.target;
+    if(t?.id==="live-patient-birth"||t?.id==="live-patient-mode"){syncPatientForm();return true;}
+    if(t?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
+    if(t?.id==="live-queue-search"){
+      state.queueSearch=t.value;rerenderSearchInput("live-queue-search",t);return true;
+    }
+    if(t?.id==="live-history-patient"){
+      state.historyPatient=t.value;state.historyReportVisible=false;
+      rerenderSearchInput("live-history-patient",t);return true;
+    }
+    if(t?.id!=="live-patient-search")return false;
+    state.search=t.value;rerenderSearchInput("live-patient-search",t);
     return true;
   }
   function syncQuietly(){

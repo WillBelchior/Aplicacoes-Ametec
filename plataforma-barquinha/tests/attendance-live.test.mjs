@@ -28,7 +28,8 @@ test("Módulo inicia sem pacientes fictícios e mostra os controles reais",async
     barquinha_attendance_guides:[],
     barquinha_attendance_patients:[],
     barquinha_attendance_visits:[],
-    barquinha_attendance_events:[]
+    barquinha_attendance_events:[],
+    barquinha_attendance_closures:[]
   };
   const calls=[];
   const client={from(table){
@@ -53,7 +54,7 @@ test("Módulo inicia sem pacientes fictícios e mostra os controles reais",async
   assert.match(queue,/Registrar chegada/);
   assert.match(queue,/Nenhum Guia cadastrado/);
   assert.doesNotMatch(queue,/Maria Silva|Carlos Souza/);
-  assert.deepEqual(calls.sort(),["barquinha_attendance_access","barquinha_attendance_guides","barquinha_attendance_patients","barquinha_attendance_visits","barquinha_attendance_events"].sort());
+  assert.deepEqual(calls.sort(),["barquinha_attendance_access","barquinha_attendance_guides","barquinha_attendance_patients","barquinha_attendance_visits","barquinha_attendance_events","barquinha_attendance_closures"].sort());
   assert.ok(callsRender>0);
   assert.match(window.AttendanceLive.page("/atendimentos/novo-paciente",""),/live-patient-form/);
   assert.match(window.AttendanceLive.page("/atendimentos/nova-chegada",""),/live-arrival-form/);
@@ -70,7 +71,8 @@ test("A fila usa toda a largura com até cinco Guias e ativa a rolagem com seis"
       })),
       barquinha_attendance_patients:[],
       barquinha_attendance_visits:[],
-      barquinha_attendance_events:[]
+      barquinha_attendance_events:[],
+    barquinha_attendance_closures:[]
     };
     const client={from(table){
       const builder={
@@ -89,18 +91,75 @@ test("A fila usa toda a largura com até cinco Guias e ativa a rolagem com seis"
     for(let n=0;n<35;n++)await Promise.resolve();
     return w.AttendanceLive.page("/atendimentos/fila","");
   }
+  // A Triagem é uma coluna própria; a partir de 6 colunas totais, rolar.
   for(const count of [1,3,4,5]){
-    const output=await renderGuides(count);
-    assert.match(output,new RegExp('data-guide-count="'+count+'"'));
-    assert.doesNotMatch(output,/class="queue-board[^"]*is-scroll/);
-    assert.equal((output.match(/class="queue-guide-column"/g)||[]).length,count);
+    const output=await renderGuides(count),total=count+1;
+    assert.match(output,new RegExp('data-guide-count="'+total+'"'));
+    assert.match(output,/queue-triage-column/);
+    if(total>=6)assert.match(output,/class="queue-board is-scroll"/);
+    else assert.doesNotMatch(output,/class="queue-board[^"]*is-scroll/);
+    assert.equal((output.match(/class="queue-guide-column/g)||[]).length,total);
   }
   const six=await renderGuides(6);
-  assert.match(six,/class="queue-board is-scroll" data-guide-count="6"/);
+  assert.match(six,/class="queue-board is-scroll" data-guide-count="7"/);
   assert.match(six,/Use a rolagem horizontal/);
-  assert.equal((six.match(/class="queue-guide-column"/g)||[]).length,6);
+  assert.equal((six.match(/class="queue-guide-column/g)||[]).length,7);
   const styles=readFileSync(new URL("../attendance-live.css",import.meta.url),"utf8");
   assert.match(styles,/#main-content \.queue-board\.is-scroll/);
   assert.match(styles,/#main-content:has\(\.queue-board-scroll\) \.metrics/);
   assert.match(styles,/grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+});
+
+test("Fila não oculta os concluídos e usa fichas P01 e 01 por Guia",async()=>{
+  const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Fortaleza",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const rows={
+    barquinha_attendance_guides:[{id:"guide-one",nome:"Guia Piloto",cor:"#336699",ativo:true}],
+    barquinha_attendance_patients:[{id:"patient-one",nome:"Paciente Prioritário",nascimento:"1950-01-01"},
+      {id:"patient-two",nome:"Paciente Normal",nascimento:"1990-01-01"}],
+    barquinha_attendance_visits:[
+      {id:"visit-p",patient_id:"patient-one",guide_id:"guide-one",service_date:today,ordem:30,
+        ficha_tipo:"P",ficha_numero:1,prioridade:"Idoso",modalidade:"presencial",status:"Concluído"},
+      {id:"visit-n",patient_id:"patient-two",guide_id:"guide-one",service_date:today,ordem:31,
+        ficha_tipo:"N",ficha_numero:1,prioridade:"Normal",modalidade:"presencial",status:"Aguardando"}],
+    barquinha_attendance_events:[],barquinha_attendance_closures:[]
+  };
+  const client={from(table){const b={select(){return b},eq(){return b},order(){return b},
+    limit(){return Promise.resolve({data:rows[table],error:null})},
+    maybeSingle(){return Promise.resolve({data:{access_role:"recepcao",enabled:true,user_id:"test"},error:null})},
+    then(ok,fail){return Promise.resolve({data:rows[table],error:null}).then(ok,fail)}};return b;}};
+  const w={PlatformAuth:{user:{id:"test"},client}};
+  const loc={hash:"#/atendimentos/fila"};
+  new Function("window","document","location","queueMicrotask",live)(w,{},loc,queueMicrotask);
+  w.AttendanceLive.connect(()=>{});
+  w.AttendanceLive.page("/atendimentos/fila","");
+  for(let i=0;i<35;i++)await Promise.resolve();
+  const queue=w.AttendanceLive.page("/atendimentos/fila","");
+  assert.match(queue,/Paciente Prioritário/);
+  assert.match(queue,/Paciente Normal/);
+  assert.match(queue,/P01/);
+  assert.match(queue,/data-live-status="visit-p"/);
+  assert.match(queue,/data-live-status="visit-n"/);
+  assert.match(queue,/PRIORITÁRIO/);
+  assert.match(queue,/Total do Guia/);
+  assert.match(queue,/Total de atendimentos hoje/);
+  const report=w.AttendanceLive.page("/atendimentos/expediente","");
+  assert.match(report,/Finalizar Atendimentos/);
+  assert.doesNotMatch(report,/attendance-print-report/);
+});
+
+test("Cadastro remoto dispensa nascimento, mas exige endereço; edição e webcam constam na interface",()=>{
+  assert.match(live,/mode==="distancia"&&endereco\.length<5/);
+  assert.match(live,/mode!=="distancia"&&!nascimento/);
+  assert.match(live,/getUserMedia/);
+  assert.match(live,/data-live-camera-capture/);
+  assert.match(live,/data-edit-id/);
+  assert.match(live,/live-arrival-patient-search/);
+  assert.match(live,/agePriority\(patient\.nascimento\)/);
+  assert.match(live,/canChangeStatus\(\)/);
+  assert.match(live,/attendance-print-report/);
+  const migration=readFileSync(new URL("../migrations/20261119_fichas_e_cadastros.sql",import.meta.url),"utf8");
+  assert.match(migration,/pg_advisory_xact_lock/);
+  assert.match(migration,/attendance_ticket_unique_per_guide_day/);
+  assert.match(migration,/attendance_patient_remote_address_check/);
+  assert.match(migration,/attendance_closed_status_guard/);
 });

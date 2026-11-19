@@ -1,0 +1,30 @@
+name: Testes Atendimentos Barquinha
+
+on:
+  push:
+    branches:
+      - feature/barquinha-fila-fichas-e-cadastro-remoto
+  pull_request:
+    paths:
+      - 'plataforma-barquinha/**'
+      - 'obra-facil/**'
+      - '.github/workflows/barquinha-attendance-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-attendance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testes de módulo, autorização, regressões e visual
+        run: node --test plataforma-barquinha/tests/*.test.mjs
+      - name: Build isolada da Plataforma
+        run: node plataforma-barquinha/build.mjs

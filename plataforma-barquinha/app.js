@@ -151,10 +151,10 @@
       ["/atendimentos/pacientes","Pacientes"],
       ["/atendimentos/guias","Guias"],
       ["/atendimentos/autorizacoes","Autorizações"],
-      ["/atendimentos/expediente","Expediente"]
+      ["/atendimentos/historico","Histórico de Atendimentos"]
     ];
     return '<nav class="module-tabs" aria-label="Áreas de Atendimentos">' + tabs.map((t) =>
-      '<button class="tab ' + (route.startsWith(t[0]) ? "active" : "") + '" data-go="' + t[0] +
+      '<button class="tab ' + ((route.startsWith(t[0])||t[0]==="/atendimentos/historico"&&route==="/atendimentos/expediente") ? "active" : "") + '" data-go="' + t[0] +
       '" type="button">' + t[1] + '</button>').join("") + '</nav>';
   }
   function queueCard(item) {
@@ -400,6 +400,7 @@
     else inner=queuePage();
     return moduleTabs(route)+inner;
   }
+  let lastRenderedRoute=null;
   function render(){
     if(!window.PlatformAuth?.user){
       app.innerHTML=window.PlatformAuth?.gateHTML()||'<div class="boot">Login indisponível</div>';
@@ -416,6 +417,8 @@
     // Ambos os módulos são servidos pela mesma origem da Plataforma.
     // Nunca redirecionar Projetos ao domínio antigo: ele já encaminha à Plataforma.
     main.hidden=projects;embed.hidden=!projects;
+    // O mesmo espaço otimizado vale para todas as áreas de Atendimentos.
+    main.dataset.section=route.startsWith("/atendimentos")?"attendance":"other";
     if(projects){
       app.querySelector("#project-subnav").innerHTML=projectTabMarkup(route);
       const f=app.querySelector("#projects-frame");
@@ -436,6 +439,17 @@
     const crumb=app.querySelector("#platform-crumb");
     if(crumb)crumb.textContent=projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":route.startsWith("/igreja")?"Gestão da Igreja":"Visão Geral";
     document.title=(projects?"Projetos Barquinha":route.startsWith("/atendimentos")?"Atendimentos Barquinha":route.startsWith("/igreja")?"Gestão da Igreja":"Visão Geral")+" | Plataforma Barquinha";
+    // Animar apenas trocas de página, nunca buscas, edições ou atualizações da fila.
+    if(route!==lastRenderedRoute){
+      const reducedMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      if(lastRenderedRoute!==null&&!projects&&!reducedMotion&&typeof main.animate==="function"){
+        main.animate([
+          {opacity:0.72,transform:"translateY(8px)"},
+          {opacity:1,transform:"translateY(0)"}
+        ],{duration:240,easing:"cubic-bezier(0.22,1,0.36,1)"});
+      }
+      lastRenderedRoute=route;
+    }
   }
     app.addEventListener("click",function(event){
     const logout=event.target.closest("[data-platform-logout]");
