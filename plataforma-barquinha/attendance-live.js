@@ -286,6 +286,59 @@
       (canWrite()?'<div class="attendance-detail-actions"><button class="button ghost" type="button" data-go="/atendimentos/editar-paciente/'+esc(p.id)+'">✎ Editar informações</button><button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Novo atendimento</button></div>':"")+
       '</section>';
   }
+
+  function reportTable(date){
+    const today=state.visits.filter(v=>v.service_date===date);
+    const usedGuideIds=[...new Set(today.map(v=>v.guide_id))];
+    const gids=usedGuideIds.sort((a,b)=>(guide(a)?.nome||"").localeCompare(guide(b)?.nome||"","pt-BR"));
+    const rows=gids.map(guideId=>{
+      const visits=today.filter(v=>v.guide_id===guideId).sort((a,b)=>
+        (a.ficha_tipo==="P"?0:1)-(b.ficha_tipo==="P"?0:1)||
+        (a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem));
+      const title=guide(guideId)?.nome||"Guia não encontrado";
+      return visits.map(v=>'<tr><td>'+officialTicket(v)+'</td><td>'+
+        esc(person(v.patient_id)?.nome||"Paciente")+'</td><td>'+esc(title)+'</td><td>'+
+        esc(v.status)+'</td></tr>').join("")+
+        '<tr class="attendance-report-subtotal"><td colspan="3">Total de atendimentos — Guia '+
+        esc(title)+'</td><td>'+visits.length+'</td></tr>';
+    }).join("");
+    const fallback=today.length?"":'<tr><td colspan="4">Nenhum atendimento registrado nesta data.</td></tr>';
+    return '<section id="attendance-print-report" class="attendance-report">'+
+      '<h2>Barquinha — Lista oficial de atendimentos</h2><p>Data do atendimento: <strong>'+fmtDay(date)+'</strong></p>'+
+      '<table><thead><tr><th>Ordem de Atendimento</th><th>Nome Paciente</th><th>Guia</th><th>Situação</th></tr></thead>'+
+      '<tbody>'+rows+fallback+
+      '<tr class="attendance-report-total"><td colspan="3">TOTAL GERAL DE ATENDIMENTOS</td><td>'+
+      today.length+'</td></tr></tbody></table>'+
+      '<div class="attendance-report-signature"><div>____________________________________________</div>'+
+      '<strong>Assinatura do(a) Recepcionista</strong><span>Data: '+fmtDay(date)+'</span></div></section>';
+  }
+  function shiftPage(){
+    const day=currentDay(),closed=state.closures.find(c=>c.service_date===day);
+    const count=state.visits.filter(v=>v.service_date===day).length;
+    const header=title("Encerramento dos Atendimentos",
+      "Ao finalizar o dia, todos os pacientes registrados entram na lista oficial, inclusive Concluído, Não compareceu e Desistente.");
+    const actions=closed?
+      '<div class="note">Expediente encerrado em '+fmtTime(closed.closed_at)+'. A lista foi preservada.</div>'+
+      '<button type="button" class="button" data-live-print>Imprimir ou salvar a lista em PDF</button>':
+      '<div class="note warn">Existem '+count+' atendimento(s) registrados para hoje. Encerre somente após o último paciente.</div>'+
+      (canWrite()?'<button type="button" class="button" data-live-close-day>Finalizar Atendimentos e emitir lista</button>':'');
+    return header+'<div class="attendance-shift-controls">'+actions+'</div>'+
+      (closed?reportTable(day):'<div class="panel attendance-placeholder">A lista oficial com assinatura será emitida após o encerramento.</div>');
+  }
+  async function closeDay(){
+    if(!canWrite()||state.busy||isClosed())return;
+    if(!confirm("Encerrar o atendimento de "+fmtDay(currentDay())+
+      "? A fila ficará bloqueada para novas chegadas e alterações. A lista oficial será emitida."))return;
+    state.busy=true;
+    try{
+      const {data,error}=await client().from("barquinha_attendance_closures")
+        .insert({service_date:currentDay()}).select("service_date,closed_at,closed_by").single();
+      if(error)throw error;
+      state.closures.push(data);
+      state.notice="Atendimentos encerrados. Lista oficial preparada para impressão.";
+    }catch(e){state.error="Não foi possível encerrar: "+(e.message||e);}
+    finally{state.busy=false;renderCallback();}
+  }
   async function loadSignedPhoto(path){
     if(state.photoRequests.has(path))return;
     state.photoRequests.add(path);
