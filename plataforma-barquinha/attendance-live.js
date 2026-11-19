@@ -34,6 +34,7 @@
     '<input name="'+name+'" type="'+type+'" '+(required?"required ":"")+(extra||"")+'></label>';
   const nav=(tabs)=>tabs||"";
   const canWrite=()=>["administrador","recepcao"].includes(state.access?.access_role);
+  const canChangeStatus=()=>["administrador","recepcao","guia"].includes(state.access?.access_role);
   const isClosed=()=>state.closures.some(c=>c.service_date===currentDay());
   const officialTicket=v=>(v.ficha_tipo==="P"?"P":"")+String(v.ficha_numero||v.ordem||0).padStart(2,"0");
   function ageYears(date,at=currentDay()){
@@ -139,7 +140,7 @@
           '<div class="queue-status-line"><span class="queue-priority-flag'+(priority?' is-priority':'')+'">'+
           (priority?'PRIORITÁRIO':'NORMAL')+'</span>'+
           '<select class="queue-inline-status" data-live-status="'+esc(v.id)+'" aria-label="Situação de '+esc(p.nome)+'"'+
-          (!canWrite()||locked?' disabled':'')+'>'+
+          (!canChangeStatus()||locked?' disabled':'')+'>'+
           STATUSES.map(st=>'<option value="'+st+'"'+(v.status===st?' selected':'')+'>'+st+'</option>').join('')+
           (v.status==="Cancelado"?'<option value="Cancelado" selected>Cancelado (histórico)</option>':'')+
           '</select></div></div>';
@@ -325,10 +326,10 @@
   function stopWebcam(){
     if(state.webcamStream)state.webcamStream.getTracks().forEach(t=>t.stop());
     state.webcamStream=null;
-    const video=document.getElementById("live-webcam");
+    const video=document?.getElementById?.("live-webcam");
     if(video){video.pause();video.srcObject=null;video.hidden=true;}
     for(const key of ["data-live-camera-capture","data-live-camera-stop"]){
-      const b=document.querySelector("["+key+"]");if(b)b.hidden=true;
+      const b=document?.querySelector?.("["+key+"]");if(b)b.hidden=true;
     }
   }
   async function startWebcam(){
@@ -470,7 +471,7 @@
     if(!error)state.events=data||[];
   }
   async function changeStatus(select){
-    if(state.busy||!STATUSES.includes(select.value))return;
+    if(state.busy||!canChangeStatus()||isClosed()||!STATUSES.includes(select.value))return;
     const visit=state.visits.find(v=>v.id===select.dataset.liveStatus);
     if(!visit)return;
     const before=visit.status,newStatus=select.value;
