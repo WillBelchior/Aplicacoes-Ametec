@@ -117,7 +117,7 @@
           '</small></span><span class="queue-status">'+pill(v.status)+'</span><span class="chevron" aria-hidden="true">›</span></span></span></button>';
       }).join("");
       return '<section class="queue-guide-column"><div class="queue-guide-header" style="border-top-color:'+esc(g.cor)+
-        '"><div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span><h3>Guia '+esc(g.nome)+'</h3></div>'+
+        '"><div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span><h3 title="Guia '+esc(g.nome)+'">Guia '+esc(g.nome)+'</h3></div>'+
         '<span class="pill blue">'+visits.length+' na fila</span></div><div class="queue-guide-body">'+(body||'<div class="queue-empty">Nenhum atendimento aguardando.</div>')+'</div></section>';
     }).join("");
     const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Registrar chegada</button>'+
@@ -130,9 +130,9 @@
       '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button></div>'+
       '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label></div>'+
       (!state.guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
-      '<p class="queue-hint">Deslize as colunas horizontalmente no celular. Atendimentos encerrados saem da fila, mas permanecem no histórico.</p>'+
+      '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para ver todos os Guias.":"Até cinco Guias são exibidos juntos, aproveitando toda a largura da tela.")+' Atendimentos finalizados permanecem no histórico.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
-      '<div class="queue-board'+(selected.length===1?" single":"")+'" style="--guide-count:'+selected.length+'">'+columns+'</div></div>';
+      '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+'" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(selected.length,1)+'">'+columns+'</div></div>';
   }
   function patientForm(){
     if(!canWrite())return alertBox("Sua função não permite cadastrar pacientes.");
