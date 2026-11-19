@@ -56,6 +56,21 @@
     stopWebcam();state.guides=[];state.patients=[];state.visits=[];state.events=[];state.closures=[];state.notice="";state.arrivalSearch="";state.editId=null;
     state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";state.queueSearch="";state.historyDate="";state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=false;state.guideEditingId=null;
   }
+  // Consultas paginadas evitam perder atendimentos antigos por causa do limite
+  // de linhas por resposta da API Supabase (geralmente 1.000).
+  async function readAllPages(table,fields,orderKey,ascending=true){
+    const pageSize=1000,all=[];
+    for(let offset=0;offset<100000;offset+=pageSize){
+      let q=client().from(table).select(fields).order(orderKey,{ascending});
+      if(orderKey!=="id"&&orderKey!=="service_date")q=q.order("id",{ascending:true});
+      const response=await (offset===0?q.limit(pageSize):q.range(offset,offset+pageSize-1));
+      if(response.error)return response;
+      const entries=response.data||[];
+      all.push(...entries);
+      if(entries.length<pageSize)return {data:all,error:null};
+    }
+    throw Error("O histórico ultrapassou 100 mil registros. É necessário ampliar a paginação do módulo.");
+  }
   async function load(){
     if(state.loading)return;
     const user=auth()?.user;
@@ -70,10 +85,15 @@
       if(!state.access){state.loaded=true;return;}
       const requests=[
         client().from("barquinha_attendance_guides").select("id,nome,cor,ativo,created_at").order("nome"),
-        client().from("barquinha_attendance_patients").select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id").order("nome"),
-        client().from("barquinha_attendance_visits").select("id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").order("created_at",{ascending:false}).limit(5000),
-        client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000),
-        client().from("barquinha_attendance_closures").select("service_date,closed_at,closed_by").order("service_date",{ascending:false}).limit(100)
+        readAllPages("barquinha_attendance_patients",
+          "id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id","nome"),
+        readAllPages("barquinha_attendance_visits",
+          "id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at",
+          "created_at",false),
+        readAllPages("barquinha_attendance_events",
+          "id,visit_id,previous_status,next_status,changed_at","changed_at",false),
+        readAllPages("barquinha_attendance_closures",
+          "service_date,closed_at,closed_by","service_date",false)
       ];
       const results=await Promise.all(requests);
       for(const result of results)if(result.error)throw result.error;
