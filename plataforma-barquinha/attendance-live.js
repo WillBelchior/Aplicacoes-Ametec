@@ -264,7 +264,7 @@
     if(state.profileTab==="historico")details='<div class="list-box">'+(visits.map(v=>{
       const g=guide(v.guide_id),changes=state.events.filter(e=>e.visit_id===v.id);
       return '<div class="attendance-history-entry"><strong>'+fmtDay(v.service_date)+' · Guia '+esc(g?.nome||"Não encontrado")+'</strong> '+
-        pill(v.status)+'<div class="muted">Ordem '+v.ordem+' · '+esc(v.prioridade)+'</div>'+
+        pill(v.status)+'<div class="muted">Ficha '+officialTicket(v)+' · Chegada '+v.ordem+' · '+esc(v.prioridade)+'</div>'+
         '<div class="attendance-event-list">'+changes.map(e=>'<small>'+fmtTime(e.changed_at)+' · '+esc(e.previous_status||"Entrada")+' → '+esc(e.next_status)+'</small>').join("")+'</div></div>';
     }).join("")||'<div class="note">Este paciente ainda não possui atendimentos.</div>')+'</div>';
     if(state.profileTab==="materiais")details='<div class="note">O controle de materiais e devoluções será implementado em uma próxima etapa.</div>';
@@ -273,7 +273,7 @@
       '<div class="avatar patient-avatar attendance-avatar-fallback" aria-label="Sem fotografia">♙</div>';
     const current=selected?'<div class="attendance-current"><div class="guide-highlight"><i style="background:'+esc(guide(selected.guide_id)?.cor||"#467C9C")+'"></i>'+
       '<div><strong>Atendimento selecionado · Guia '+esc(guide(selected.guide_id)?.nome||"—")+'</strong>'+
-      '<div class="muted">Ordem '+selected.ordem+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
+      '<div class="muted">Ficha '+officialTicket(selected)+' · Chegada '+selected.ordem+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
       '<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'">'+STATUSES.map(st=>
       '<option value="'+esc(st)+'"'+(selected.status===st?" selected":"")+'>'+esc(st)+'</option>').join("")+'</select></label>'+
       pill(selected.status)+'</div></div>':"";
@@ -282,7 +282,7 @@
       '<div class="muted">Ficha individual · dados protegidos</div></div></div>'+current+
       '<div class="module-tabs" role="group" aria-label="Seções da ficha">'+[["dados","Dados"],["historico","Histórico"],["materiais","Materiais"]].map(t=>
       '<button class="tab '+(state.profileTab===t[0]?"active":"")+'" data-live-tab="'+t[0]+'">'+t[1]+'</button>').join("")+'</div>'+details+
-      (canWrite()?'<div class="attendance-detail-actions"><button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Novo atendimento</button></div>':"")+
+      (canWrite()?'<div class="attendance-detail-actions"><button class="button ghost" type="button" data-go="/atendimentos/editar-paciente/'+esc(p.id)+'">✎ Editar informações</button><button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Novo atendimento</button></div>':"")+
       '</section>';
   }
   async function loadSignedPhoto(path){
@@ -322,24 +322,85 @@
     if(!blob||blob.size>2097152)throw Error("A foto compactada ultrapassou 2 MB.");
     return blob;
   }
+  function stopWebcam(){
+    if(state.webcamStream)state.webcamStream.getTracks().forEach(t=>t.stop());
+    state.webcamStream=null;
+    const video=document.getElementById("live-webcam");
+    if(video){video.pause();video.srcObject=null;video.hidden=true;}
+    for(const key of ["data-live-camera-capture","data-live-camera-stop"]){
+      const b=document.querySelector("["+key+"]");if(b)b.hidden=true;
+    }
+  }
+  async function startWebcam(){
+    const video=document.getElementById("live-webcam");
+    if(!video||!navigator.mediaDevices?.getUserMedia){
+      const msg=document.getElementById("live-camera-preview");
+      if(msg)msg.textContent="Este navegador não permite usar webcam. Utilize o campo de fotografia.";
+      return;
+    }
+    stopWebcam();
+    try{
+      state.webcamStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"},audio:false});
+      video.srcObject=state.webcamStream;video.hidden=false;await video.play();
+      document.querySelector("[data-live-camera-capture]").hidden=false;
+      document.querySelector("[data-live-camera-stop]").hidden=false;
+      const status=document.getElementById("live-camera-preview");
+      if(status)status.textContent="Câmera ativa. Posicione o paciente e clique em Capturar foto.";
+    }catch(e){
+      stopWebcam();
+      const status=document.getElementById("live-camera-preview");
+      if(status)status.textContent="Não foi possível acessar a câmera: "+(e.message||e);
+    }
+  }
+  async function captureWebcam(){
+    const video=document.getElementById("live-webcam");
+    if(!video||!video.videoWidth)return;
+    const canvas=document.createElement("canvas");canvas.width=420;canvas.height=420;
+    const ctx=canvas.getContext("2d"),side=Math.min(video.videoWidth,video.videoHeight);
+    if(!ctx)return;
+    ctx.drawImage(video,(video.videoWidth-side)/2,(video.videoHeight-side)/2,side,side,0,0,420,420);
+    const blob=await new Promise(ok=>canvas.toBlob(ok,"image/jpeg",0.8));
+    if(!blob)return;
+    state.webcamBlob=blob;
+    stopWebcam();
+    const display=document.getElementById("live-camera-preview");
+    if(display)display.textContent="Fotografia capturada e pronta para salvar.";
+  }
   async function patientSubmit(form){
     if(state.busy||!canWrite())return;
-    const data=new FormData(form),nome=String(data.get("nome")||"").trim().replace(/\s+/g," "),
-      nascimento=String(data.get("nascimento")||""),telefone=String(data.get("telefone")||"").trim(),
-      cpf=cpfDigits(data.get("cpf")),encaminhamento=String(data.get("encaminhamento")||"").trim();
-    if(nome.length<2||nome.length>160||!nascimento||nascimento>currentDay())return fail(form,"Informe nome e nascimento válidos.");
+    const data=new FormData(form),
+      id=String(form.dataset.editId||""),
+      mode=String(data.get("cadastro_modalidade")||"presencial"),
+      nome=String(data.get("nome")||"").trim().replace(/\s+/g," "),
+      nascimento=String(data.get("nascimento")||""),
+      telefone=String(data.get("telefone")||"").trim(),
+      cpf=cpfDigits(data.get("cpf")),
+      endereco=String(data.get("endereco")||"").trim(),
+      guide_id=String(data.get("guide_id")||"")||null;
+    if(nome.length<2||nome.length>160)return fail(form,"Informe o nome completo do paciente.");
+    if(!MODES.some(m=>m[0]===mode))return fail(form,"Modalidade inválida.");
+    if(mode!=="distancia"&&!nascimento)return fail(form,"Informe a data de nascimento para atendimento presencial.");
+    if(nascimento&&nascimento>currentDay())return fail(form,"Nascimento não pode ser uma data futura.");
+    if(mode==="distancia"&&endereco.length<5)return fail(form,"Informe o endereço para cadastrar paciente à distância.");
+    if(endereco.length>900)return fail(form,"O endereço ultrapassa 900 caracteres.");
     if(cpf&&!validCpf(cpf))return fail(form,"CPF inválido.");
-    const exists=state.patients.find(p=>(cpf&&p.cpf===cpf)||(normalize(p.nome)===normalize(nome)&&p.nascimento===nascimento));
-    if(exists)return fail(form,"Possível duplicidade: "+exists.nome+". Consulte a ficha antes de cadastrar novamente.");
+    if(guide_id&&!guide(guide_id))return fail(form,"Selecione um Guia cadastrado.");
+    const exists=state.patients.find(p=>p.id!==id&&((cpf&&p.cpf===cpf)||
+      (nascimento&&normalize(p.nome)===normalize(nome)&&p.nascimento===nascimento)));
+    if(exists)return fail(form,"Possível duplicidade: "+exists.nome+". Consulte a ficha antes de continuar.");
+    const payload={nome,nascimento:nascimento||null,telefone:telefone||null,cpf:cpf||null,
+      cadastro_modalidade:mode,endereco:endereco||null,guide_id};
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
-      const file=data.get("foto"),blob=file?.size?await imageBlob(file):null;
-      const {data:saved,error}=await client().from("barquinha_attendance_patients")
-        .insert({nome,nascimento,telefone:telefone||null,cpf:cpf||null,encaminhamento:encaminhamento||null})
-        .select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at").single();
+      const file=data.get("foto"),blob=state.webcamBlob||(file?.size?await imageBlob(file):null);
+      const request=id?client().from("barquinha_attendance_patients").update(payload).eq("id",id):
+        client().from("barquinha_attendance_patients").insert(payload);
+      const {data:saved,error}=await request
+        .select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id").single();
       if(error)throw error;
-      state.patients.push(saved);
-      state.notice="Paciente cadastrado com segurança.";
+      const index=state.patients.findIndex(p=>p.id===saved.id);
+      if(index>=0)state.patients[index]=saved;else state.patients.push(saved);
+      state.notice=id?"Informações do paciente atualizadas.":"Paciente cadastrado com segurança.";
       if(blob){
         try{
           const path=saved.id+"/"+crypto.randomUUID()+".jpg";
@@ -348,12 +409,14 @@
           const updated=await client().from("barquinha_attendance_patients").update({foto_path:path}).eq("id",saved.id)
             .select("id,foto_path").single();
           if(updated.error)throw updated.error;
-          saved.foto_path=path;
+          saved.foto_path=path;state.photoUrls.clear();state.photoErrors.clear();
         }catch(uploadError){state.notice+=" A fotografia não foi salva: "+uploadError.message;}
       }
-      state.profileTab="dados";navigateCallback("/atendimentos/paciente/"+saved.id);
+      stopWebcam();state.webcamBlob=null;state.profileTab="dados";
+      navigateCallback("/atendimentos/paciente/"+saved.id);
     }catch(e){
-      fail(form,e.code==="23505"?"Já existe um paciente com este CPF. Confira a ficha antes de cadastrar.":"Não foi possível cadastrar: "+(e.message||e));
+      fail(form,e.code==="23505"?"Já existe um paciente com este CPF. Confira a ficha antes de cadastrar.":
+        "Não foi possível salvar o cadastro: "+(e.message||e));
     }finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
   }
   async function guideSubmit(form){
@@ -373,23 +436,31 @@
   async function arrivalSubmit(form){
     if(state.busy||!canWrite())return;
     const data=new FormData(form);
-    const patientId=String(data.get("patient_id")||""),guideId=String(data.get("guide_id")||""),
-      modalidade=String(data.get("modalidade")||""),prioridade=String(data.get("prioridade")||"");
-    if(!person(patientId)||!guide(guideId)||!MODES.some(m=>m[0]===modalidade)||!PRIORITIES.includes(prioridade))
-      return fail(form,"Selecione paciente, Guia, modalidade e prioridade válidos.");
-    if(PILOT_ONLY&&modalidade!=="presencial")
-      return fail(form,"Nesta etapa só é possível testar atendimentos presenciais.");
-    if(PILOT_ONLY&&afterArrivalDeadline())
-      return fail(form,"Chegadas após 17h exigem autorização do Presidente. Este fluxo ainda está em preparação; registre a chegada pelo procedimento manual.");
+    const patientLabel=String(data.get("patient_name")||"").trim();
+    const matched=state.patients.filter(p=>patientOptionText(p)===patientLabel);
+    const patient=matched.length===1?matched[0]:null;
+    const guideId=String(data.get("guide_id")||""),
+      modalidade=String(data.get("modalidade")||"presencial"),
+      prioridade=String(data.get("prioridade")||"Normal");
+    if(!patient)return fail(form,"Selecione um paciente válido na lista de sugestões pelo nome.");
+    if(!guide(guideId)||!PRIORITIES.includes(prioridade))
+      return fail(form,"Selecione um Guia e a prioridade.");
+    if(modalidade!=="presencial")
+      return fail(form,"Atendimentos à distância dependem de autorização do Presidente; o cadastro do paciente está disponível separadamente.");
+    if(isClosed())return fail(form,"O expediente de hoje já foi encerrado.");
+    if(afterArrivalDeadline())
+      return fail(form,"Chegadas após 17h exigem autorização do Presidente. Este procedimento ainda está em preparação.");
+    const priority=agePriority(patient.nascimento)&&prioridade==="Normal"?"Idoso":prioridade;
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
       const {data:saved,error}=await client().from("barquinha_attendance_visits")
-        .insert({patient_id:patientId,guide_id:guideId,modalidade,prioridade})
-        .select("id,ordem,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
+        .insert({patient_id:patient.id,guide_id:guideId,modalidade,prioridade:priority})
+        .select("id,ordem,ficha_tipo,ficha_numero,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
       if(error)throw error;
-      state.visits.unshift(saved);state.notice="Chegada registrada. Ordem "+saved.ordem+" atribuída ao Guia.";
-      navigateCallback("/atendimentos/fila");
-      void reloadEvents();
+      state.visits.unshift(saved);
+      state.notice="Chegada registrada. Ficha "+officialTicket(saved)+" do Guia "+(guide(guideId)?.nome||"")+
+        " (ordem global de chegada "+saved.ordem+").";
+      navigateCallback("/atendimentos/fila");void reloadEvents();
     }catch(e){fail(form,"Não foi possível registrar a chegada: "+(e.message||e));}
     finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
   }
