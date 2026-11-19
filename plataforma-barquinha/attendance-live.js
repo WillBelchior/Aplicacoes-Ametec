@@ -172,7 +172,8 @@
       '<button type="button" class="button secondary" data-go="/atendimentos/expediente">Expediente e relatório</button></div>'+
       '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label></div>'+
       (!guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
-      '<p class="queue-hint">Todas as situações permanecem visíveis. Fichas P01 e 01 são sequências independentes para cada Guia.</p>'+
+      '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para visualizar todos os Guias. ":"")+
+      'Todas as situações permanecem visíveis. Fichas P01 e 01 são sequências independentes para cada Guia.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
       '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+
       '" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(1,selected.length)+'">'+columns+'</div></div>';
