@@ -147,3 +147,46 @@ test("Histórico pesquisa por dia, Guia e paciente e emite extrato filtrado",asy
   assert.match(portal,/Histórico de Atendimentos/);
   assert.match(portal,/\/atendimentos\/historico/);
 });
+
+
+test("Histórico pagina mais de mil atendimentos sem ocultar registros antigos",async()=>{
+  const count=1001;
+  const visits=Array.from({length:count},(_,i)=>({
+    id:"v"+i,patient_id:"p1",guide_id:"g1",guia_nome_registro:"Guia Exemplo",
+    service_date:"2026-10-01",ordem:i+1,ficha_tipo:"N",ficha_numero:i+1,
+    status:"Concluído",prioridade:"Normal",modalidade:"presencial",
+    created_at:new Date(Date.UTC(2026,9,1,10,0,i)).toISOString()
+  }));
+  const rows={
+    barquinha_attendance_guides:[{id:"g1",nome:"Guia Exemplo",cor:"#224466",ativo:true}],
+    barquinha_attendance_patients:[{id:"p1",nome:"Paciente Fictício",nascimento:"1990-01-01"}],
+    barquinha_attendance_visits:visits,
+    barquinha_attendance_events:[],
+    barquinha_attendance_closures:[{service_date:"2026-10-01",closed_at:"2026-10-01T21:00:00Z"}]
+  };
+  let pageTwo=0;
+  const client={from(table){
+    const q={
+      select(){return q},order(){return q},eq(){return q},
+      limit(n){return Promise.resolve({data:(rows[table]||[]).slice(0,n),error:null})},
+      range(start,end){
+        if(table==="barquinha_attendance_visits")pageTwo++;
+        return Promise.resolve({data:(rows[table]||[]).slice(start,end+1),error:null});
+      },
+      maybeSingle(){return Promise.resolve({data:{access_role:"recepcao",enabled:true,user_id:"user"},error:null})},
+      then(ok,fail){return Promise.resolve({data:rows[table]||[],error:null}).then(ok,fail)}
+    };
+    return q;
+  }};
+  const w={PlatformAuth:{user:{id:"user"},client}};
+  new Function("window","document","location","queueMicrotask",live)(
+    w,{getElementById(){return null}},{hash:"#/atendimentos/historico",hostname:"test.local"},queueMicrotask
+  );
+  w.AttendanceLive.connect(()=>{});
+  w.AttendanceLive.page("/atendimentos/historico","");
+  for(let i=0;i<65;i++)await Promise.resolve();
+  const html=w.AttendanceLive.page("/atendimentos/historico","");
+  assert.equal(pageTwo,1);
+  assert.match(html,/1001 atendimento\(s\) encontrado\(s\)/);
+  assert.match(html,/Paciente Fictício/);
+});
