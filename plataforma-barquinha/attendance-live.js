@@ -97,6 +97,7 @@
     const user=auth()?.user;
     if(!user)return "";
     if(state.userId!==user.id)resetFor(user.id);
+    if(route!=="/atendimentos/novo-paciente"&&!route.startsWith("/atendimentos/editar-paciente/"))stopCamera();
     if(!state.loaded&&!state.loading)queueMicrotask(load);
     if(!state.loaded)return nav(tabs)+'<div class="panel attendance-placeholder">Carregando dados protegidos de Atendimentos…</div>';
     if(state.error)return nav(tabs)+info();
@@ -626,9 +627,20 @@
     if(select.value)syncArrivalPatient(select);
   }
   function handleClick(event){
-    const refreshButton=event.target.closest("[data-live-refresh]");
+    const target=event.target;
+    if(target.closest("[data-live-start]")){event.preventDefault();void startSession();return true;}
+    if(target.closest("[data-live-finish]")){event.preventDefault();void finishSession();return true;}
+    if(target.closest("[data-live-print]")){event.preventDefault();printSessionReport();return true;}
+    const open=target.closest("[data-camera-open]");
+    if(open){event.preventDefault();void openCamera(open);return true;}
+    const capture=target.closest("[data-camera-capture]");
+    if(capture){event.preventDefault();void captureCamera(capture);return true;}
+    const stop=target.closest("[data-camera-stop]");
+    if(stop){event.preventDefault();stopCamera();const f=stop.closest("form");f.querySelector("#live-camera-video").hidden=true;
+      f.querySelector("[data-camera-capture]").hidden=true;stop.hidden=true;return true;}
+    const refreshButton=target.closest("[data-live-refresh]");
     if(refreshButton){event.preventDefault();refresh();return true;}
-    const tab=event.target.closest("[data-live-tab]");
+    const tab=target.closest("[data-live-tab]");
     if(tab){event.preventDefault();state.profileTab=tab.dataset.liveTab;renderCallback();return true;}
     return false;
   }
@@ -643,12 +655,18 @@
     const target=event.target;
     if(target?.id==="live-guide-filter"){state.filter=target.value;renderCallback();return true;}
     if(target?.matches?.("[data-live-status]")){void changeStatus(target);return true;}
+    if(target?.name==="modalidade_cadastro"){updatePatientMode(target.closest("form"));return true;}
+    if(target?.name==="nascimento"){updateAgePreview(target.closest("form"));return true;}
+    if(target?.name==="patient_id"&&target.closest("#live-arrival-form")){syncArrivalPatient(target);return true;}
     return false;
   }
   function handleInput(event){
-    if(event.target?.id!=="live-patient-search")return false;
-    state.search=event.target.value;
-    const pos=event.target.selectionStart;renderCallback();
+    const target=event.target;
+    if(target?.id==="live-arrival-search"){filterArrivalPatients(target);return true;}
+    if(target?.id==="live-patient-birth"){updateAgePreview(target.closest("form"));return true;}
+    if(target?.id!=="live-patient-search")return false;
+    state.search=target.value;
+    const pos=target.selectionStart;renderCallback();
     const next=document.getElementById("live-patient-search");
     if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
     return true;
