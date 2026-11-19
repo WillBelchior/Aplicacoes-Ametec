@@ -518,6 +518,14 @@
       state.visits.unshift(saved);
       state.notice="Chegada registrada. Ficha "+officialTicket(saved)+" do Guia "+(guide(guideId)?.nome||"")+
         " (ordem global de chegada "+saved.ordem+").";
+      // O Guia escolhido é também o vínculo padrão do paciente para próximas chegadas.
+      // Se esta atualização falhar, a ficha já emitida permanece salva.
+      if(patient.guide_id!==guideId){
+        const linked=await client().from("barquinha_attendance_patients")
+          .update({guide_id:guideId}).eq("id",patient.id);
+        if(!linked.error)patient.guide_id=guideId;
+        else state.notice+=" Atenção: o vínculo padrão do Guia não pôde ser salvo.";
+      }
       navigateCallback("/atendimentos/fila");void reloadEvents();
     }catch(e){fail(form,"Não foi possível registrar a chegada: "+(e.message||e));}
     finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
