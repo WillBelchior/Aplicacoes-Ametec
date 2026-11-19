@@ -1,0 +1,26 @@
+name: Barquinha - testes de Atendimentos
+on:
+  push:
+    branches:
+      - feature/barquinha-fila-fichas-e-relatorio
+  pull_request:
+    paths:
+      - 'plataforma-barquinha/**'
+      - 'obra-facil/**'
+      - '.github/workflows/barquinha-attendance-ci.yml'
+jobs:
+  frontend-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regression tests
+        run: node --test plataforma-barquinha/tests/*.test.mjs
+      - name: Build integrated platform
+        run: node plataforma-barquinha/build.mjs
