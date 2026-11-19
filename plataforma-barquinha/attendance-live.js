@@ -2,10 +2,10 @@
 /* Atendimentos Barquinha: módulo persistente isolado do Projetos.
    Dados pessoais ficam no Supabase com RLS; sem localStorage nem dados fictícios. */
 (() => {
-  const STATUSES=["Aguardando","Chamado","Em atendimento","Concluído","Não compareceu","Cancelado"];
+  const STATUSES=["Aguardando","Chamado","Em atendimento","Concluído","Não compareceu","Desistente"];
   const PRIORITIES=["Normal","Idoso","Gestante","Deficiência","Outra"];
   const MODES=[["presencial","Presencial"],["distancia","À distância"],["trabalhador","Trabalhador da casa"]];
-  const CLOSED=new Set(["Concluído","Não compareceu","Cancelado"]);
+  const CLOSED=new Set(["Concluído","Não compareceu","Desistente","Cancelado"]);
   // Primeiro teste de recepção: somente atendimentos presenciais; os demais
   // dependem das autorizações e da ordem de atendimento ainda não implementadas.
   const PILOT_ONLY=true;
@@ -17,7 +17,8 @@
   }
   const PHOTO_BUCKET="barquinha-attendance-photos";
   const state={userId:null,loaded:false,loading:false,error:"",notice:"",access:null,
-    guides:[],patients:[],visits:[],events:[],filter:"todos",search:"",profileTab:"dados",
+    guides:[],patients:[],visits:[],events:[],sessions:[],filter:"todos",search:"",arrivalSearch:"",profileTab:"dados",
+    cameraStream:null,cameraBlob:null,reportHtml:"",
     photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false};
   let renderCallback=()=>{},navigateCallback=route=>{location.hash="#"+route;};
   const auth=()=>window.PlatformAuth;
@@ -34,10 +35,26 @@
     '<input name="'+name+'" type="'+type+'" '+(required?"required ":"")+(extra||"")+'></label>';
   const nav=(tabs)=>tabs||"";
   const canWrite=()=>["administrador","recepcao"].includes(state.access?.access_role);
+  const isClosed=day=>state.sessions.some(s=>s.service_date===day);
+  const ageAt=(birth,day=currentDay())=>{
+    if(!birth)return null;
+    const y=Number(day.slice(0,4))-Number(birth.slice(0,4));
+    const hadBirthday=day.slice(5)>=birth.slice(5);
+    return y-(hadBirthday?0:1);
+  };
+  const isElderly=p=>ageAt(p?.nascimento)>=60;
+  const isPriority=v=>Boolean(v.chamada_prioritaria)||v.prioridade!=="Normal";
+  const ticket=v=>(isPriority(v)?"P":"")+String(v.chamada_numero||v.ordem||0).padStart(2,"0");
+  function stopCamera(){
+    if(state.cameraStream){state.cameraStream.getTracks().forEach(track=>track.stop());state.cameraStream=null;}
+  }
+  const patientSelect="id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,preferred_guide_id,modalidade_cadastro,endereco";
+  const visitSelect="id,ordem,patient_id,guide_id,service_date,modalidade,prioridade,status,chamada_numero,chamada_prioritaria,created_at,status_changed_at";
   function connect(render,navigate){renderCallback=render;navigateCallback=navigate;}
   function resetFor(userId){
     state.userId=userId;state.loaded=false;state.loading=false;state.error="";state.access=null;
-    state.guides=[];state.patients=[];state.visits=[];state.events=[];state.notice="";
+    stopCamera();state.cameraBlob=null;state.arrivalSearch="";state.reportHtml="";
+    state.guides=[];state.patients=[];state.visits=[];state.events=[];state.sessions=[];state.notice="";
     state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";
   }
   async function load(){
@@ -54,14 +71,15 @@
       if(!state.access){state.loaded=true;return;}
       const requests=[
         client().from("barquinha_attendance_guides").select("id,nome,cor,ativo,created_at").order("nome"),
-        client().from("barquinha_attendance_patients").select("id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at").order("nome"),
-        client().from("barquinha_attendance_visits").select("id,ordem,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").order("created_at",{ascending:false}).limit(3000),
-        client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000)
+        client().from("barquinha_attendance_patients").select(patientSelect).order("nome"),
+        client().from("barquinha_attendance_visits").select(visitSelect).order("created_at",{ascending:false}).limit(3000),
+        client().from("barquinha_attendance_events").select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000),
+        client().from("barquinha_attendance_sessions").select("service_date,closed_at,closed_by").order("service_date",{ascending:false}).limit(100)
       ];
       const results=await Promise.all(requests);
       for(const result of results)if(result.error)throw result.error;
       if(auth()?.user?.id!==userId)return;
-      [state.guides,state.patients,state.visits,state.events]=results.map(r=>r.data||[]);
+      [state.guides,state.patients,state.visits,state.events,state.sessions]=results.map(r=>r.data||[]);
       state.loaded=true;
     }catch(error){state.error="Falha ao consultar Atendimentos: "+(error.message||error);state.loaded=true;}
     finally{state.loading=false;if(auth()?.user?.id===userId)renderCallback();}
@@ -84,12 +102,13 @@
     if(!state.access)return nav(tabs)+alertBox("Este usuário não possui autorização para acessar os dados de Atendimentos. Solicite liberação à administração.");
     let inner;
     if(route==="/atendimentos/novo-paciente")inner=patientForm();
+    else if(route.startsWith("/atendimentos/editar-paciente/"))inner=patientForm(route.split("/")[3]);
     else if(route==="/atendimentos/nova-chegada")inner=arrivalForm();
     else if(route.startsWith("/atendimentos/paciente/"))inner=patientDetail(route);
     else if(route==="/atendimentos/pacientes")inner=patientsPage();
     else if(route==="/atendimentos/guias")inner=guidesPage();
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
-    else if(route==="/atendimentos/expediente")inner=deferred("Expediente","A abertura e o encerramento do expediente serão implementados em uma etapa posterior.");
+    else if(route==="/atendimentos/expediente")inner=sessionPage();
     else inner=queuePage();
     const previewNotice='<div class="note warn" role="status"><strong>Primeiro teste prático — modo piloto.</strong> Utilize somente pacientes fictícios. Está habilitado o fluxo presencial de cadastro, chegada, fila e histórico. Autorizações, atendimento à distância, trabalhadores da casa e expediente completo ainda não estão liberados para uso real.</div>';
     return nav(tabs)+previewNotice+info()+inner;
