@@ -151,10 +151,10 @@
       ["/atendimentos/pacientes","Pacientes"],
       ["/atendimentos/guias","Guias"],
       ["/atendimentos/autorizacoes","Autorizações"],
-      ["/atendimentos/expediente","Expediente"]
+      ["/atendimentos/historico","Histórico de Atendimentos"]
     ];
     return '<nav class="module-tabs" aria-label="Áreas de Atendimentos">' + tabs.map((t) =>
-      '<button class="tab ' + (route.startsWith(t[0]) ? "active" : "") + '" data-go="' + t[0] +
+      '<button class="tab ' + ((route.startsWith(t[0])||t[0]==="/atendimentos/historico"&&route==="/atendimentos/expediente") ? "active" : "") + '" data-go="' + t[0] +
       '" type="button">' + t[1] + '</button>').join("") + '</nav>';
   }
   function queueCard(item) {
