@@ -96,6 +96,7 @@
   }
   function moduleCard(module){
     const status=module.status==="active"?tag("Em funcionamento","green"):
+      module.status==="pilot"?tag("Teste prático","blue"):
       module.status==="demo"?tag("Demonstração","blue"):tag("Em planejamento","amber");
     const button=module.status==="planned"?"Conhecer o planejamento →":"Acessar módulo →";
     return '<article class="card module-card"><div class="card-top">'+
