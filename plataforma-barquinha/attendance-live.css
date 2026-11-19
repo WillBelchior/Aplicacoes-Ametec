@@ -175,3 +175,85 @@
  #attendance-print-report tr{break-inside:avoid}
  #attendance-print-report .attendance-report-signature{break-inside:avoid}
 }
+
+
+/* Atendimento do Dia: pesquisa do paciente sem reduzir o espaço da fila. */
+#main-content .attendance-queue-search{
+  flex:1 1 210px;max-width:340px;min-width:160px;
+  display:grid;gap:4px;font-size:12px;font-weight:700;color:#355a73;
+}
+#main-content .attendance-queue-search input{
+  width:100%;min-width:0;min-height:40px;padding:8px 11px;
+  border:1px solid #c7d7e6;border-radius:9px;background:white;
+  font-size:14px;color:#193a55;
+}
+#main-content .queue-search-feedback{
+  font-size:12px;color:#315777;font-weight:700;margin:4px 0 9px;
+}
+.attendance-guide-active{
+  display:flex!important;align-items:center;flex:0 0 auto!important;
+  gap:8px;padding:9px 11px;border-radius:9px;background:#edf3fa;
+  font-size:13px;font-weight:700;min-width:auto!important;cursor:pointer;
+}
+.attendance-guide-active input{height:17px;width:17px;accent-color:#245eb9}
+.attendance-guide-row{gap:12px}
+.attendance-guide-row .button{flex:0 0 auto;padding:8px 12px;font-size:12px}
+.attendance-history-filters{
+  display:grid;grid-template-columns:minmax(160px,1fr) minmax(180px,1fr) minmax(210px,1.4fr) auto;
+  gap:10px;align-items:end;padding:14px 16px;margin-bottom:10px;
+  background:#fff;border:1px solid #d9e5ef;border-radius:13px;
+}
+.attendance-history-filters label{display:grid;gap:5px;font-size:12px;color:#365b75;font-weight:750;min-width:0}
+.attendance-history-filters input,.attendance-history-filters select{
+  width:100%;min-width:0;min-height:40px;border:1px solid #c7d9e9;
+  border-radius:9px;padding:8px 10px;color:#203f59;background:white;font:inherit;font-size:14px;
+}
+.attendance-history-filters .button{white-space:nowrap;min-height:40px}
+.attendance-history-summary{
+  display:flex;flex-wrap:wrap;gap:8px 18px;padding:6px 2px 11px;
+  font-size:12px;color:#4a6980;
+}
+.attendance-history-summary strong{color:#1d4260;font-size:14px}
+.attendance-history-results{
+  width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #d9e4ec;
+  border-radius:12px;background:white;
+}
+.attendance-history-results table{width:100%;min-width:640px;border-collapse:collapse;font-size:12px}
+.attendance-history-results th,.attendance-history-results td{
+  padding:11px 12px;border-bottom:1px solid #e7edf3;text-align:left;vertical-align:middle;
+}
+.attendance-history-results th{
+  position:sticky;top:0;z-index:1;background:#eef4fa;color:#254863;font-size:12px;font-weight:800;
+}
+.attendance-history-results tr:hover td{background:#f7fbff}
+.attendance-history-results .attendance-history-priority{
+  color:#b41e1e;background:#fff0f0;padding:3px 6px;border-radius:5px;
+}
+.attendance-history-patient-link{
+  font:inherit;font-weight:750;color:#25568b;background:none;border:0;
+  text-align:left;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px;
+}
+.attendance-history-actions{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:15px 0 21px;
+}
+.attendance-report-caveat{
+  color:#9b2b21;background:#fff2ef;padding:9px;border-radius:8px;font-weight:700;
+}
+@media(max-width:1120px){
+ .attendance-history-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .attendance-history-filters .attendance-history-patient-search{grid-column:1}
+ .attendance-history-filters .button{grid-column:2;justify-self:end}
+}
+@media(max-width:650px){
+ #main-content .attendance-queue-search{flex:1 1 100%;max-width:none}
+ .attendance-guide-active{width:100%}
+ .attendance-history-filters{grid-template-columns:1fr;padding:12px}
+ .attendance-history-filters .attendance-history-patient-search,
+ .attendance-history-filters .button{grid-column:auto}
+ .attendance-history-filters .button{justify-self:stretch}
+ .attendance-history-results th,.attendance-history-results td{padding:9px 7px}
+ .attendance-history-actions .button{flex:1 1 180px}
+}
+@media print{
+  #attendance-print-report .attendance-report-caveat{border:1px solid #999!important;color:#333!important;background:none!important}
+}
