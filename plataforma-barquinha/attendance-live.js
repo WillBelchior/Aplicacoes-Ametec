@@ -36,7 +36,7 @@
   const canWrite=()=>["administrador","recepcao"].includes(state.access?.access_role);
   const canChangeStatus=()=>["administrador","recepcao","guia"].includes(state.access?.access_role);
   const isClosed=()=>state.closures.some(c=>c.service_date===currentDay());
-  const officialTicket=v=>(v.ficha_tipo==="P"?"P":"")+String(v.ficha_numero||v.ordem||0).padStart(2,"0");
+  const officialTicket=v=>!v.guide_id?"Triagem":(v.ficha_tipo==="P"?"P":"")+String(v.ficha_numero||v.ordem||0).padStart(2,"0");
   function ageYears(date,at=currentDay()){
     if(!date)return null;
     const birth=String(date).split("-").map(Number),today=String(at).split("-").map(Number);
@@ -148,10 +148,36 @@
     const available=state.guides.filter(g=>g.ativo||today.some(v=>v.guide_id===g.id));
     const selected=available.filter(g=>(state.filter==="todos"||g.id===state.filter)&&
       (!needle||matches.some(v=>v.guide_id===g.id)));
-    const filter='<option value="todos">Todos os Guias</option>'+available.map(g=>
+    const triageVisits=matches.filter(v=>!v.guide_id).sort((a,b)=>a.ordem-b.ordem);
+    const showTriage=(state.filter==="todos"||state.filter==="triagem")&&
+      (!needle||triageVisits.length>0);
+    const filter='<option value="todos">Todos os Guias e Triagem</option>'+
+      '<option value="triagem"'+(state.filter==="triagem"?' selected':'')+'>Triagem — sem Guia</option>'+available.map(g=>
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
     const locked=isClosed();
-    const columns=selected.map(g=>{
+    const triageBody=triageVisits.map(v=>{
+      const p=person(v.patient_id);if(!p)return "";
+      const priority=v.prioridade!=="Normal";
+      const guideOptions=state.guides.filter(g=>g.ativo).map(g=>
+        '<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
+      return '<div class="queue-card queue-triage-card'+(priority?' queue-card-priority':'')+'">'+
+        '<button type="button" class="queue-card-open" data-go="/atendimentos/paciente/'+esc(p.id)+'/'+esc(v.id)+
+        '"><span class="queue-inner"><strong class="ticket triage-ticket">Chegada '+v.ordem+
+        '</strong><span class="queue-details"><strong>'+esc(p.nome)+'</strong><small>'+
+        esc(v.prioridade)+' · Aguardando Guia</small></span></span></button>'+
+        '<div class="queue-status-line"><span class="queue-priority-flag'+(priority?' is-priority':'')+'">'+
+        (priority?'PRIORITÁRIO':'TRIAGEM')+'</span>'+
+        '<label class="triage-route-label">Encaminhar para o Guia'+
+        '<select class="queue-inline-status" data-live-route-triage="'+esc(v.id)+'"'+
+        (!canWrite()||locked?' disabled':'')+'>'+
+        '<option value="">Selecionar Guia…</option>'+guideOptions+'</select></label></div></div>';
+    }).join("");
+    const triageColumn=showTriage?'<section class="queue-guide-column queue-triage-column">'+
+      '<div class="queue-guide-header"><div class="queue-guide-info"><span class="guide-dot"></span>'+
+      '<h3>Triagem</h3></div><span class="pill amber">'+triageVisits.length+' aguardando Guia</span></div>'+
+      '<div class="queue-guide-body">'+(triageBody||'<div class="queue-empty">Nenhum paciente na Triagem.</div>')+
+      '</div><div class="queue-guide-total">Em Triagem: <strong>'+triageVisits.length+'</strong></div></section>':"";
+    const columns=triageColumn+selected.map(g=>{
       const visits=matches.filter(v=>v.guide_id===g.id).sort((a,b)=>{
         const priority=v=>v.ficha_tipo==="P"?0:1;
         return priority(a)-priority(b)||(a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem);
@@ -180,6 +206,7 @@
         (body||'<div class="queue-empty">Nenhum atendimento registrado hoje.</div>')+'</div>'+
         '<div class="queue-guide-total">Total do Guia: <strong>'+visits.length+'</strong></div></section>';
     }).join("");
+    const visibleCount=selected.length+(showTriage?1:0);
     const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada"'+(locked?' disabled':'')+
       '>＋ Registrar chegada</button><button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
     return title("Fila Geral — Atendimento do Dia","Fichas por Guia de "+fmtDay(day)+
@@ -188,7 +215,7 @@
       '<div class="metrics"><div class="metric"><strong>'+pending.length+'</strong><span>Em andamento</span></div>'+
       '<div class="metric"><strong>'+completed.length+'</strong><span>Finalizados hoje</span></div>'+
       '<div class="metric"><strong>'+today.length+'</strong><span>Total de atendimentos hoje</span></div></div>'+
-      '<div class="filters"><div class="queue-actions"><h3>Fila geral por Guia</h3>'+buttons+
+      '<div class="filters"><div class="queue-actions"><h3>Fila Geral por Guia e Triagem</h3>'+buttons+
       '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button></div>'+
       '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label>'+
       '<label class="attendance-queue-search">Pesquisar paciente na fila'+
@@ -196,15 +223,15 @@
       '" placeholder="Digite o nome do paciente" autocomplete="off" aria-label="Pesquisar paciente nos atendimentos de hoje">'+
       '</label></div>'+
       (needle?'<p class="queue-search-feedback" role="status">'+
-      matches.filter(v=>state.filter==="todos"||v.guide_id===state.filter).length+
+      matches.filter(v=>state.filter==="todos"||state.filter==="triagem"&&!v.guide_id||v.guide_id===state.filter).length+
       ' atendimento(s) encontrado(s) para "'+esc(state.queueSearch)+'".</p>':'')+
       (!state.guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
-      (needle&&!selected.length?'<div class="note">Nenhum paciente encontrado na fila de hoje com esse nome.</div>':"")+
-      '<p class="queue-hint">'+(selected.length>=6?"Use a rolagem horizontal para ver todos os Guias.":"Até cinco Guias são exibidos juntos, aproveitando toda a largura da tela.")+
+      (needle&&!visibleCount?'<div class="note">Nenhum paciente encontrado na fila de hoje com esse nome.</div>':"")+
+      '<p class="queue-hint">'+(visibleCount>=6?"Use a rolagem horizontal para ver todas as colunas.":"Até cinco colunas são exibidas juntas, incluindo a Triagem.")+
       ' Pacientes continuam visíveis independentemente do status; saem somente da fila diária quando muda a data.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
-      '<div class="queue-board'+(selected.length===1?" single":"")+(selected.length>=6?" is-scroll":"")+
-      '" data-guide-count="'+selected.length+'" style="--guide-count:'+Math.max(selected.length,1)+'">'+columns+'</div></div>';
+      '<div class="queue-board'+(visibleCount===1?" single":"")+(visibleCount>=6?" is-scroll":"")+
+      '" data-guide-count="'+visibleCount+'" style="--guide-count:'+Math.max(visibleCount,1)+'">'+columns+'</div></div>';
   }
   function patientForm(patient=null){
     if(!canWrite())return alertBox("Sua função não permite cadastrar ou editar pacientes.");
