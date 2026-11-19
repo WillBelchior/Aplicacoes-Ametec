@@ -254,14 +254,28 @@
       }).join("")||'<div class="note">Nenhum paciente encontrado.</div>')+'</div>';
   }
   function guidesPage(){
-    return title("Guias","Cadastre os Guias para organizar as filas e atribuir atendimentos.")+
-      (canWrite()?'<form id="live-guide-form" class="panel attendance-guide-form">'+
-      '<label>Nome do Guia <input name="nome" maxlength="120" required placeholder="Nome completo"></label>'+
-      '<label>Cor da coluna <input name="cor" type="color" value="#467C9C"></label>'+
-      '<button type="submit" class="button">＋ Cadastrar Guia</button><div class="attendance-form-error" role="alert" hidden></div></form>':"")+
-      '<div class="list-box">'+(state.guides.map(g=>'<div class="list-item"><div><strong><span class="guide-dot" style="background:'+esc(g.cor)+'"></span> '+
-      esc(g.nome)+'</strong><small>'+(g.ativo?"Ativo":"Inativo")+'</small></div><span>'+state.visits.filter(v=>v.guide_id===g.id).length+' atendimento(s)</span></div>').join("")||
-      '<div class="note">Nenhum Guia cadastrado.</div>')+'</div>';
+    const editing=state.guides.find(g=>g.id===state.guideEditingId);
+    const form=canWrite()?'<form id="live-guide-form" data-guide-id="'+esc(editing?.id||"")+
+      '" class="panel attendance-guide-form">'+
+      '<label>Nome do Guia <input name="nome" maxlength="120" required placeholder="Nome do Guia" value="'+
+      esc(editing?.nome||"")+'"></label>'+
+      '<label>Cor da coluna <input name="cor" type="color" value="'+esc(editing?.cor||"#467C9C")+'"></label>'+
+      '<label class="attendance-guide-active"><input name="ativo" type="checkbox"'+
+      (!editing||editing.ativo?' checked':'')+'> Guia ativo</label>'+
+      '<button type="submit" class="button">'+(editing?'Salvar alterações':'＋ Cadastrar Guia')+'</button>'+
+      (editing?'<button type="button" class="button ghost" data-live-guide-cancel>Cancelar edição</button>':'')+
+      '<div class="attendance-form-error" role="alert" hidden></div></form>':"";
+    const rows=state.guides.map(g=>{
+      const total=state.visits.filter(v=>v.guide_id===g.id).length;
+      const linked=state.patients.filter(p=>p.guide_id===g.id).length;
+      return '<div class="list-item attendance-guide-row"><div><strong><span class="guide-dot" style="background:'+esc(g.cor)+
+        '"></span> '+esc(g.nome)+'</strong><small>'+(g.ativo?'Ativo':'Inativo')+
+        ' · '+total+' atendimento(s) · '+linked+' paciente(s) vinculado(s)</small></div>'+
+        (canWrite()?'<button type="button" class="button ghost" data-live-guide-edit="'+esc(g.id)+
+        '" aria-label="Editar Guia '+esc(g.nome)+'">Editar</button>':'')+'</div>';
+    }).join("");
+    return title("Guias","Cadastre e edite o nome, a cor e a situação dos Guias. Os históricos preservam o nome registrado no dia do atendimento.")+
+      form+'<div class="list-box">'+(rows||'<div class="note">Nenhum Guia cadastrado.</div>')+'</div>';
   }
   function maskCpf(cpf){const x=String(cpf||"");return x.length===11?"***.***.***-"+x.slice(-2):"Não informado";}
   function patientDetail(route){
@@ -492,16 +506,29 @@
   }
   async function guideSubmit(form){
     if(state.busy||!canWrite())return;
-    const data=new FormData(form),nome=String(data.get("nome")||"").trim(),cor=String(data.get("cor")||"#467C9C");
-    if(nome.length<2)return fail(form,"Informe o nome do Guia.");
+    const values=new FormData(form),
+      id=String(form.dataset.guideId||""),
+      nome=String(values.get("nome")||"").trim().replace(/\s+/g," "),
+      cor=String(values.get("cor")||"#467C9C"),
+      ativo=values.get("ativo")!==null;
+    if(nome.length<2||nome.length>120)return fail(form,"Informe um nome de Guia entre 2 e 120 caracteres.");
+    if(!/^#[0-9a-fA-F]{6}$/.test(cor))return fail(form,"Selecione uma cor válida.");
+    if(id&&!guide(id))return fail(form,"Guia não encontrado para edição.");
+    if(state.guides.some(g=>g.id!==id&&normalize(g.nome)===normalize(nome)))
+      return fail(form,"Já existe um Guia cadastrado com esse nome.");
     const submit=form.querySelector('[type="submit"]');state.busy=true;if(submit)submit.disabled=true;
     try{
-      const {data:added,error}=await client().from("barquinha_attendance_guides").insert({nome,cor})
-        .select("id,nome,cor,ativo,created_at").single();
+      const request=id?client().from("barquinha_attendance_guides")
+        .update({nome,cor,ativo}).eq("id",id):
+        client().from("barquinha_attendance_guides").insert({nome,cor,ativo});
+      const {data:saved,error}=await request.select("id,nome,cor,ativo,created_at").single();
       if(error)throw error;
-      state.guides.push(added);state.notice="Guia cadastrado.";
+      const index=state.guides.findIndex(g=>g.id===saved.id);
+      if(index>=0)state.guides[index]=saved;else state.guides.push(saved);
+      state.guideEditingId=null;
+      state.notice=id?"Guia atualizado. Os atendimentos anteriores permanecem preservados.":"Guia cadastrado.";
       renderCallback();
-    }catch(e){fail(form,e.code==="23505"?"Já existe um Guia com esse nome.":"Não foi possível salvar o Guia: "+e.message);}
+    }catch(e){fail(form,e.code==="23505"?"Já existe um Guia com esse nome.":"Não foi possível salvar o Guia: "+(e.message||e));}
     finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
   }
   async function arrivalSubmit(form){
