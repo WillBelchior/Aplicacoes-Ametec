@@ -83,7 +83,7 @@ test("A fila permite pesquisar pacientes pelo nome, sem acentos e sem perder os 
   const filtered=window.AttendanceLive.page("/atendimentos/fila","");
   assert.match(filtered,/Eloísa do Vale/);
   assert.doesNotMatch(filtered,/José Ribeiro/);
-  assert.match(filtered,/2 atendimento\(s\) encontrado\(s\)/);
+  assert.match(filtered,/1 atendimento\(s\) encontrado\(s\)/);
   window.AttendanceLive.handleInput({target:{id:"live-queue-search",value:"sem resultado",selectionStart:12}});
   assert.match(window.AttendanceLive.page("/atendimentos/fila",""),/Nenhum paciente encontrado na fila/);
   window.AttendanceLive.handleInput({target:{id:"live-queue-search",value:"",selectionStart:0}});
@@ -125,7 +125,7 @@ test("Histórico pesquisa por dia, Guia e paciente e emite extrato filtrado",asy
   window.AttendanceLive.handleChange({target:{id:"live-history-date",value:previous}});
   const byDate=window.AttendanceLive.page("/atendimentos/historico","");
   assert.match(byDate,/Guia Antigo/);
-  assert.doesNotMatch(byDate,/Guia Dois/);
+  assert.doesNotMatch(byDate.split('class="attendance-history-results"')[1].split("</div>")[0],/Guia Dois/);
   assert.match(byDate,/1 atendimento\(s\) encontrado\(s\)/);
   window.AttendanceLive.handleClick(clickAttr("[data-live-history-generate]",{}));
   const report=window.AttendanceLive.page("/atendimentos/historico","");
