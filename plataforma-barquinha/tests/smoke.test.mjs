@@ -62,7 +62,7 @@ test("attendance routes are connected to the isolated RLS-backed module",()=>{
 test("O primeiro atendimento é identificado como piloto, não operação completa",()=>{
   assert.match(app,/module\.status==="pilot"/);
   assert.match(modules,/status:"pilot"/);
-  assert.match(read("attendance-live.js"),/Primeiro teste prático — modo piloto/);
+  assert.match(read("attendance-live.js"),/Cadastro institucional protegido/);
   assert.match(read("attendance-live.js"),/modalidade!=="presencial"/);
   assert.match(read("attendance-live.js"),/afterArrivalDeadline\(\)/);
 });
