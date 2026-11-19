@@ -155,8 +155,9 @@ CREATE TRIGGER attendance_ticket_before_insert
 -- Após fechar a sessão, alterações de situação também ficam protegidas no banco.
 CREATE OR REPLACE FUNCTION private.barquinha_attendance_guard_closed()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $$
+AS $
 BEGIN
+ PERFORM pg_catalog.pg_advisory_xact_lock(417219,pg_catalog.hashtext(old.service_date::text));
  IF EXISTS (SELECT 1 FROM public.barquinha_attendance_sessions s
    WHERE s.service_date=old.service_date AND s.closed_at IS NOT NULL) THEN
    RAISE EXCEPTION 'Atendimento encerrado; alteração não permitida';
