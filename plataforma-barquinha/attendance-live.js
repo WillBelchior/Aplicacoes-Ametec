@@ -318,43 +318,113 @@
       '</section>';
   }
 
-  function reportTable(date){
-    const today=state.visits.filter(v=>v.service_date===date);
-    const usedGuideIds=[...new Set(today.map(v=>v.guide_id))];
-    const gids=usedGuideIds.sort((a,b)=>(guide(a)?.nome||"").localeCompare(guide(b)?.nome||"","pt-BR"));
-    const rows=gids.map(guideId=>{
-      const visits=today.filter(v=>v.guide_id===guideId).sort((a,b)=>
-        (a.ficha_tipo==="P"?0:1)-(b.ficha_tipo==="P"?0:1)||
-        (a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem));
-      const title=guide(guideId)?.nome||"Guia não encontrado";
-      return visits.map(v=>'<tr><td>'+officialTicket(v)+'</td><td>'+
-        esc(person(v.patient_id)?.nome||"Paciente")+'</td><td>'+esc(title)+'</td><td>'+
+  function guideNameAtVisit(v){
+    return v.guia_nome_registro||guide(v.guide_id)?.nome||"Guia não encontrado";
+  }
+  function historyMatches(){
+    const needle=normalize(state.historyPatient);
+    return state.visits.filter(v=>
+      (!state.historyDate||v.service_date===state.historyDate)&&
+      (state.historyGuide==="todos"||v.guide_id===state.historyGuide)&&
+      (!needle||normalize(person(v.patient_id)?.nome||"").includes(needle)));
+  }
+  function historySorted(visits){
+    return visits.slice().sort((a,b)=>
+      b.service_date.localeCompare(a.service_date)||
+      guideNameAtVisit(a).localeCompare(guideNameAtVisit(b),"pt-BR")||
+      (a.ficha_tipo==="P"?0:1)-(b.ficha_tipo==="P"?0:1)||
+      (a.ficha_numero||a.ordem)-(b.ficha_numero||b.ordem));
+  }
+  function reportTable(visits,{official=false,caption=""}={}){
+    const sorted=historySorted(visits);
+    const groups=new Map();
+    sorted.forEach(v=>{
+      const key=JSON.stringify([v.service_date,v.guide_id,guideNameAtVisit(v)]);
+      if(!groups.has(key))groups.set(key,{date:v.service_date,title:guideNameAtVisit(v),visits:[]});
+      groups.get(key).visits.push(v);
+    });
+    const body=[...groups.values()].map(group=>
+      group.visits.map(v=>'<tr><td>'+officialTicket(v)+'</td><td>'+
+        esc(person(v.patient_id)?.nome||"Paciente não encontrado")+'</td><td>'+
+        esc(guideNameAtVisit(v))+'</td><td>'+fmtDay(v.service_date)+'</td><td>'+
         esc(v.status)+'</td></tr>').join("")+
-        '<tr class="attendance-report-subtotal"><td colspan="3">Total de atendimentos — Guia '+
-        esc(title)+'</td><td>'+visits.length+'</td></tr>';
-    }).join("");
-    const fallback=today.length?"":'<tr><td colspan="4">Nenhum atendimento registrado nesta data.</td></tr>';
+      '<tr class="attendance-report-subtotal"><td colspan="4">Total — Guia '+esc(group.title)+
+      ' · '+fmtDay(group.date)+'</td><td>'+group.visits.length+'</td></tr>'
+    ).join("");
+    const empty=sorted.length?"":'<tr><td colspan="5">Nenhum atendimento encontrado.</td></tr>';
+    const dates=[...new Set(sorted.map(v=>v.service_date))].sort().reverse();
+    const period=dates.length===1?fmtDay(dates[0]):dates.length?fmtDay(dates.at(-1))+
+      " a "+fmtDay(dates[0]):"Sem data selecionada";
+    const heading=official?"Barquinha — Lista oficial de atendimentos":"Barquinha — Histórico de Atendimentos";
+    const signDate=dates.length===1?fmtDay(dates[0]):"____/____/________";
     return '<section id="attendance-print-report" class="attendance-report">'+
-      '<h2>Barquinha — Lista oficial de atendimentos</h2><p>Data do atendimento: <strong>'+fmtDay(date)+'</strong></p>'+
-      '<table><thead><tr><th>Ordem de Atendimento</th><th>Nome Paciente</th><th>Guia</th><th>Situação</th></tr></thead>'+
-      '<tbody>'+rows+fallback+
-      '<tr class="attendance-report-total"><td colspan="3">TOTAL GERAL DE ATENDIMENTOS</td><td>'+
-      today.length+'</td></tr></tbody></table>'+
+      '<h2>'+heading+'</h2>'+
+      '<p>Período consultado: <strong>'+esc(period)+'</strong>'+
+      (caption?' · '+esc(caption):'')+'</p>'+
+      (!official?'<p class="attendance-report-caveat">Extrato de consulta. Atendimentos de dias não encerrados ainda podem sofrer alterações.</p>':'')+
+      '<table><thead><tr><th>Ordem de Atendimento</th><th>Nome Paciente</th><th>Guia</th>'+
+      '<th>Data</th><th>Situação</th></tr></thead><tbody>'+
+      body+empty+'<tr class="attendance-report-total"><td colspan="4">TOTAL GERAL DE ATENDIMENTOS</td>'+
+      '<td>'+sorted.length+'</td></tr></tbody></table>'+
       '<div class="attendance-report-signature"><div>____________________________________________</div>'+
-      '<strong>Assinatura do(a) Recepcionista</strong><span>Data: '+fmtDay(date)+'</span></div></section>';
+      '<strong>Assinatura do(a) Recepcionista</strong><span>Data: '+signDate+'</span></div></section>';
   }
   function shiftPage(){
-    const day=currentDay(),closed=state.closures.find(c=>c.service_date===day);
-    const count=state.visits.filter(v=>v.service_date===day).length;
-    const header=title("Encerramento dos Atendimentos",
-      "Ao finalizar o dia, todos os pacientes registrados entram na lista oficial, inclusive Concluído, Não compareceu e Desistente.");
-    const actions=closed?
-      '<div class="note">Expediente encerrado em '+fmtTime(closed.closed_at)+'. A lista foi preservada.</div>'+
-      '<button type="button" class="button" data-live-print>Imprimir ou salvar a lista em PDF</button>':
-      '<div class="note warn">Existem '+count+' atendimento(s) registrados para hoje. Encerre somente após o último paciente.</div>'+
-      (canWrite()?'<button type="button" class="button" data-live-close-day>Finalizar Atendimentos e emitir lista</button>':'');
-    return header+'<div class="attendance-shift-controls">'+actions+'</div>'+
-      (closed?reportTable(day):'<div class="panel attendance-placeholder">A lista oficial com assinatura será emitida após o encerramento.</div>');
+    const today=currentDay(),closed=state.closures.find(c=>c.service_date===today);
+    const visits=historySorted(historyMatches());
+    const options='<option value="todos">Todos os Guias</option>'+
+      state.guides.map(g=>'<option value="'+esc(g.id)+'"'+
+        (state.historyGuide===g.id?' selected':'')+'>'+esc(g.nome)+
+        (g.ativo?'':' (inativo)')+'</option>').join("");
+    const uniqueDates=[...new Set(visits.map(v=>v.service_date))];
+    const header=title("Histórico de Atendimentos",
+      "Pesquise atendimentos pelo dia, pelo Guia ou pelo nome do paciente e emita relatórios filtrados. Os registros permanecem no histórico.");
+    const filters='<section class="attendance-history-filters" aria-label="Filtros do Histórico">'+
+      '<label>Dia do atendimento<input type="date" id="live-history-date" value="'+esc(state.historyDate)+'"></label>'+
+      '<label>Guia<select id="live-history-guide">'+options+'</select></label>'+
+      '<label class="attendance-history-patient-search">Pesquisar paciente'+
+      '<input type="search" id="live-history-patient" value="'+esc(state.historyPatient)+
+      '" placeholder="Digite o nome do paciente" autocomplete="off"></label>'+
+      '<button type="button" class="button ghost" data-live-history-clear>Limpar filtros</button>'+
+      '</section>';
+    const summary='<div class="attendance-history-summary"><strong>'+visits.length+
+      ' atendimento(s) encontrado(s)</strong><span>'+uniqueDates.length+' dia(s) de atendimento</span>'+
+      '<span>'+new Set(visits.map(v=>v.guide_id)).size+' Guia(s)</span></div>';
+    const body=visits.map(v=>
+      '<tr><td>'+fmtDay(v.service_date)+'</td><td><strong class="'+(v.ficha_tipo==="P"?"attendance-history-priority":"")+
+      '">'+officialTicket(v)+'</strong></td><td><button type="button" class="attendance-history-patient-link" data-go="/atendimentos/paciente/'+
+      esc(v.patient_id)+'/'+esc(v.id)+'">'+esc(person(v.patient_id)?.nome||"Paciente não encontrado")+'</button></td>'+
+      '<td>'+esc(guideNameAtVisit(v))+'</td><td>'+esc(v.status)+'</td></tr>'
+    ).join("");
+    const results='<div class="attendance-history-results" role="region" tabindex="0" aria-label="Atendimentos encontrados">'+
+      '<table><thead><tr><th>Data</th><th>Ficha</th><th>Nome Paciente</th><th>Guia</th>'+
+      '<th>Situação</th></tr></thead><tbody>'+
+      (body||'<tr><td colspan="5">Nenhum atendimento corresponde aos filtros selecionados.</td></tr>')+
+      '</tbody></table></div>';
+    const dayCount=state.visits.filter(v=>v.service_date===today).length;
+    const closing='<section class="attendance-shift-controls">'+
+      (closed?'<div class="note">Expediente de '+fmtDay(today)+' encerrado em '+fmtTime(closed.closed_at)+
+      '. A lista oficial do dia pode ser consultada e emitida.</div>':
+      '<div class="note warn">Atendimentos de hoje: '+dayCount+
+      '. Finalize o expediente somente após o último paciente.</div>'+
+      (canWrite()?'<button type="button" class="button" data-live-close-day>Finalizar Atendimentos</button>':''))+
+      '</section>';
+    const fullClosedDay=Boolean(state.historyDate&&
+      state.closures.some(c=>c.service_date===state.historyDate)&&
+      state.historyGuide==="todos"&&!normalize(state.historyPatient));
+    const preview=state.historyReportVisible&&visits.length>0;
+    const autoOfficial=Boolean(closed&&!state.historyDate&&state.historyGuide==="todos"&&
+      !normalize(state.historyPatient));
+    const reportRows=preview?visits:autoOfficial?state.visits.filter(v=>v.service_date===today):[];
+    const official=preview?fullClosedDay:autoOfficial;
+    const caption=state.historyDate?"Dia: "+fmtDay(state.historyDate):"Todos os dias";
+    const actions='<div class="attendance-history-actions">'+
+      '<button type="button" class="button secondary" data-live-history-generate'+(visits.length?'':' disabled')+
+      '">Preparar relatório da pesquisa</button>'+
+      (reportRows.length?'<button type="button" class="button" data-live-print>Imprimir ou salvar em PDF</button>':'')+
+      '</div>';
+    return header+closing+filters+summary+results+actions+
+      (reportRows.length?reportTable(reportRows,{official,caption:preview?caption:"Encerramento do dia"}):'');
   }
   async function closeDay(){
     if(!canWrite()||state.busy||isClosed())return;
@@ -366,6 +436,7 @@
         .insert({service_date:currentDay()}).select("service_date,closed_at,closed_by").single();
       if(error)throw error;
       state.closures.push(data);
+      state.historyDate=currentDay();state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=true;
       state.notice="Atendimentos encerrados. Lista oficial preparada para impressão.";
     }catch(e){state.error="Não foi possível encerrar: "+(e.message||e);}
     finally{state.busy=false;renderCallback();}
