@@ -60,3 +60,47 @@ test("Módulo inicia sem pacientes fictícios e mostra os controles reais",async
   window.AttendanceLive.clear();
   assert.match(window.AttendanceLive.page("/atendimentos/fila",""),/Carregando/);
 });
+
+
+test("A fila usa toda a largura com até cinco Guias e ativa a rolagem com seis",async()=>{
+  async function renderGuides(count){
+    const rows={
+      barquinha_attendance_guides:Array.from({length:count},(_,i)=>({
+        id:"guide-"+i,nome:"Guia de Teste "+i,cor:"#467C9C",ativo:true,created_at:"2026-11-19T13:00:00Z"
+      })),
+      barquinha_attendance_patients:[],
+      barquinha_attendance_visits:[],
+      barquinha_attendance_events:[]
+    };
+    const client={from(table){
+      const builder={
+        select(){return builder},eq(){return builder},order(){return builder},
+        limit(){return Promise.resolve({data:rows[table],error:null})},
+        maybeSingle(){return Promise.resolve({data:{user_id:"test-layout",access_role:"recepcao",enabled:true},error:null})},
+        then(resolve,reject){return Promise.resolve({data:rows[table],error:null}).then(resolve,reject)}
+      };
+      return builder;
+    }};
+    const w={PlatformAuth:{user:{id:"test-layout"},client}};
+    const location={hash:"#/atendimentos/fila",hostname:"plataforma-barquinha-preview.vercel.app"};
+    new Function("window","document","location","queueMicrotask",live)(w,{},location,queueMicrotask);
+    w.AttendanceLive.connect(()=>{},()=>{});
+    w.AttendanceLive.page("/atendimentos/fila","");
+    for(let n=0;n<35;n++)await Promise.resolve();
+    return w.AttendanceLive.page("/atendimentos/fila","");
+  }
+  for(const count of [1,3,4,5]){
+    const output=await renderGuides(count);
+    assert.match(output,new RegExp('data-guide-count="'+count+'"'));
+    assert.doesNotMatch(output,/class="queue-board[^"]*is-scroll/);
+    assert.equal((output.match(/class="queue-guide-column"/g)||[]).length,count);
+  }
+  const six=await renderGuides(6);
+  assert.match(six,/class="queue-board is-scroll" data-guide-count="6"/);
+  assert.match(six,/Use a rolagem horizontal/);
+  assert.equal((six.match(/class="queue-guide-column"/g)||[]).length,6);
+  const styles=readFileSync(new URL("../attendance-live.css",import.meta.url),"utf8");
+  assert.match(styles,/#main-content \.queue-board\.is-scroll/);
+  assert.match(styles,/#main-content:has\(\.queue-board-scroll\) \.metrics/);
+  assert.match(styles,/grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+});
