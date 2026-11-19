@@ -127,8 +127,9 @@
     const filter='<option value="todos">Todos os Guias</option>'+guides.map(g=>
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
     const closed=isClosed(day);
-    const statusChoices=v=>STATUSES.concat(v.status==="Cancelado"?["Cancelado"]:[]).map(st=>
-      '<option value="'+esc(st)+'"'+(v.status===st?' selected':'')+'>'+esc(statusLabel(st))+'</option>').join("");
+    const statusChoices=v=>STATUSES.map(st=>
+      '<option value="'+esc(st)+'"'+(v.status===st||(v.status==="Cancelado"&&st==="Desistente")?' selected':'')+
+      '>'+esc(statusLabel(st))+'</option>').join("");
     const columns=selected.map(g=>{
       const visits=today.filter(v=>v.guide_id===g.id).sort((a,b)=>{
         return Number(isPriority(b))-Number(isPriority(a)) ||
