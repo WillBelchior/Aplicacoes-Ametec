@@ -98,7 +98,8 @@
     const user=auth()?.user;
     if(!user)return "";
     if(state.userId!==user.id)resetFor(user.id);
-    if(route!=="/atendimentos/novo-paciente"&&!route.startsWith("/atendimentos/editar-paciente/"))stopCamera();
+    // Every route render replaces the form markup: stop the stream before detaching its video element.
+    if(state.cameraStream)stopCamera();
     if(!state.loaded&&!state.loading)queueMicrotask(load);
     if(!state.loaded)return nav(tabs)+'<div class="panel attendance-placeholder">Carregando dados protegidos de Atendimentos…</div>';
     if(state.error)return nav(tabs)+info();
@@ -113,7 +114,7 @@
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
     else if(route==="/atendimentos/expediente")inner=sessionPage();
     else inner=queuePage();
-    const previewNotice='<div class="note warn" role="status"><strong>Primeiro teste prático — modo piloto.</strong> Utilize somente pacientes fictícios. Está habilitado o fluxo presencial de cadastro, chegada, fila e histórico. Autorizações, atendimento à distância, trabalhadores da casa e expediente completo ainda não estão liberados para uso real.</div>';
+    const previewNotice='<div class="note" role="status"><strong>Cadastro institucional protegido.</strong> Pacientes e Guias são registrados no Supabase por usuários autorizados. O cadastro à distância aceita nome e endereço, mas passagens à distância e chegadas após 17h dependem de autorização do Presidente e continuam bloqueadas até a conclusão desse fluxo.</div>';
     return nav(tabs)+previewNotice+info()+inner;
   }
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
