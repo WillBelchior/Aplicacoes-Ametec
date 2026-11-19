@@ -542,11 +542,44 @@
     }catch(e){select.value=before;state.error="Não foi possível alterar a situação: "+(e.message||e);renderCallback();}
     finally{state.busy=false;if(select.isConnected)select.disabled=false;}
   }
+  function syncArrivalPatient(){
+    const input=document.getElementById("live-arrival-patient-search");
+    if(!input)return;
+    const matched=state.patients.filter(p=>patientOptionText(p)===input.value.trim());
+    const p=matched.length===1?matched[0]:null;
+    const guideSelect=document.getElementById("live-arrival-guide");
+    const priority=document.getElementById("live-arrival-priority");
+    const hint=document.getElementById("live-arrival-age-hint");
+    if(p){
+      if(guideSelect&&p.guide_id&&guide(p.guide_id))guideSelect.value=p.guide_id;
+      if(priority)priority.value=agePriority(p.nascimento)?"Idoso":"Normal";
+      if(hint)hint.textContent=ageYears(p.nascimento)===null?
+        "Idade não informada. Selecione a prioridade aplicável.":
+        "Idade: "+ageYears(p.nascimento)+" anos"+(agePriority(p.nascimento)?" — PRIORIDADE IDOSO":" — classificação normal");
+    }else if(hint){hint.textContent="Digite e selecione um paciente da lista para preencher o Guia e a idade.";}
+  }
+  function syncPatientForm(){
+    const mode=document.getElementById("live-patient-mode")?.value||"presencial";
+    const birth=document.getElementById("live-patient-birth");
+    const address=document.getElementById("live-patient-address");
+    const age=document.getElementById("live-patient-age");
+    if(birth)birth.required=mode!=="distancia";
+    if(address)address.required=mode==="distancia";
+    if(age&&birth){
+      const years=ageYears(birth.value);
+      age.textContent=years===null?"Não informada":years+" anos"+(years>=60?" · PRIORIDADE: IDOSO":"");
+    }
+  }
   function handleClick(event){
     const refreshButton=event.target.closest("[data-live-refresh]");
     if(refreshButton){event.preventDefault();refresh();return true;}
     const tab=event.target.closest("[data-live-tab]");
     if(tab){event.preventDefault();state.profileTab=tab.dataset.liveTab;renderCallback();return true;}
+    if(event.target.closest("[data-live-camera-start]")){event.preventDefault();void startWebcam();return true;}
+    if(event.target.closest("[data-live-camera-capture]")){event.preventDefault();void captureWebcam();return true;}
+    if(event.target.closest("[data-live-camera-stop]")){event.preventDefault();stopWebcam();return true;}
+    if(event.target.closest("[data-live-close-day]")){event.preventDefault();void closeDay();return true;}
+    if(event.target.closest("[data-live-print]")){event.preventDefault();window.print();return true;}
     return false;
   }
   function handleSubmit(event){
@@ -559,13 +592,18 @@
   function handleChange(event){
     const target=event.target;
     if(target?.id==="live-guide-filter"){state.filter=target.value;renderCallback();return true;}
+    if(target?.id==="live-patient-mode"||target?.id==="live-patient-birth"){syncPatientForm();return true;}
+    if(target?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
     if(target?.matches?.("[data-live-status]")){void changeStatus(target);return true;}
     return false;
   }
   function handleInput(event){
-    if(event.target?.id!=="live-patient-search")return false;
-    state.search=event.target.value;
-    const pos=event.target.selectionStart;renderCallback();
+    const t=event.target;
+    if(t?.id==="live-patient-birth"||t?.id==="live-patient-mode"){syncPatientForm();return true;}
+    if(t?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
+    if(t?.id!=="live-patient-search")return false;
+    state.search=t.value;
+    const pos=t.selectionStart;renderCallback();
     const next=document.getElementById("live-patient-search");
     if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
     return true;
