@@ -272,14 +272,18 @@
     const visits=state.visits.filter(v=>v.patient_id===p.id).sort((a,b)=>b.ordem-a.ordem);
     let details="";
     if(state.profileTab==="dados")details='<dl><div><dt>Nascimento</dt><dd>'+fmtDay(p.nascimento)+'</dd></div>'+
+      '<div><dt>Idade / Prioridade</dt><dd>'+(ageAt(p.nascimento)===null?'Não informada':ageAt(p.nascimento)+' anos'+(isElderly(p)?' · PRIORIDADE IDOSO':''))+'</dd></div>'+
+      '<div><dt>Guia associado</dt><dd>'+esc(guide(p.preferred_guide_id)?.nome||"Sem Guia definido")+'</dd></div>'+
+      '<div><dt>Modalidade de cadastro</dt><dd>'+esc(p.modalidade_cadastro==="distancia"?"À distância":p.modalidade_cadastro==="trabalhador"?"Trabalhador da casa":"Presencial")+'</dd></div>'+
+      '<div><dt>Endereço</dt><dd>'+esc(p.endereco||"Não informado")+'</dd></div>'+
       '<div><dt>Telefone</dt><dd>'+esc(p.telefone||"Não informado")+'</dd></div>'+
       '<div><dt>CPF</dt><dd>'+esc(maskCpf(p.cpf))+'</dd></div>'+
       '<div><dt>Atendimentos</dt><dd>'+visits.length+'</dd></div>'+
-      '<div><dt>Encaminhamento</dt><dd>'+esc(p.encaminhamento||"Não informado")+'</dd></div></dl>';
+      (p.encaminhamento?'<div><dt>Informação histórica</dt><dd>'+esc(p.encaminhamento)+'</dd></div>':"")+'</dl>';
     if(state.profileTab==="historico")details='<div class="list-box">'+(visits.map(v=>{
       const g=guide(v.guide_id),changes=state.events.filter(e=>e.visit_id===v.id);
       return '<div class="attendance-history-entry"><strong>'+fmtDay(v.service_date)+' · Guia '+esc(g?.nome||"Não encontrado")+'</strong> '+
-        pill(v.status)+'<div class="muted">Ordem '+v.ordem+' · '+esc(v.prioridade)+'</div>'+
+        pill(v.status)+'<div class="muted">Ficha '+ticket(v)+' · '+esc(v.prioridade)+'</div>'+
         '<div class="attendance-event-list">'+changes.map(e=>'<small>'+fmtTime(e.changed_at)+' · '+esc(e.previous_status||"Entrada")+' → '+esc(e.next_status)+'</small>').join("")+'</div></div>';
     }).join("")||'<div class="note">Este paciente ainda não possui atendimentos.</div>')+'</div>';
     if(state.profileTab==="materiais")details='<div class="note">O controle de materiais e devoluções será implementado em uma próxima etapa.</div>';
@@ -288,8 +292,8 @@
       '<div class="avatar patient-avatar attendance-avatar-fallback" aria-label="Sem fotografia">♙</div>';
     const current=selected?'<div class="attendance-current"><div class="guide-highlight"><i style="background:'+esc(guide(selected.guide_id)?.cor||"#467C9C")+'"></i>'+
       '<div><strong>Atendimento selecionado · Guia '+esc(guide(selected.guide_id)?.nome||"—")+'</strong>'+
-      '<div class="muted">Ordem '+selected.ordem+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
-      '<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'">'+STATUSES.map(st=>
+      '<div class="muted">Ficha '+ticket(selected)+' · '+fmtDay(selected.service_date)+' · '+esc(selected.prioridade)+'</div></div></div>'+
+      '<div class="attendance-status-control"><label>Situação do atendimento <select data-live-status="'+esc(selected.id)+'"'+(isClosed(selected.service_date)?' disabled':'')+'>'+STATUSES.map(st=>
       '<option value="'+esc(st)+'"'+(selected.status===st?" selected":"")+'>'+esc(st)+'</option>').join("")+'</select></label>'+
       pill(selected.status)+'</div></div>':"";
     return '<button class="breadcrumb" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
@@ -297,7 +301,8 @@
       '<div class="muted">Ficha individual · dados protegidos</div></div></div>'+current+
       '<div class="module-tabs" role="group" aria-label="Seções da ficha">'+[["dados","Dados"],["historico","Histórico"],["materiais","Materiais"]].map(t=>
       '<button class="tab '+(state.profileTab===t[0]?"active":"")+'" data-live-tab="'+t[0]+'">'+t[1]+'</button>').join("")+'</div>'+details+
-      (canWrite()?'<div class="attendance-detail-actions"><button class="button" type="button" data-go="/atendimentos/nova-chegada">＋ Novo atendimento</button></div>':"")+
+      (canWrite()?'<div class="attendance-detail-actions"><button class="button" type="button" data-go="/atendimentos/editar-paciente/'+esc(p.id)+'">Editar informações</button>'+
+      (!isClosed(currentDay())?'<button class="button secondary" type="button" data-go="/atendimentos/nova-chegada">＋ Novo atendimento</button>':"")+'</div>':"")+
       '</section>';
   }
   async function loadSignedPhoto(path){
