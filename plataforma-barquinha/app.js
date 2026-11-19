@@ -412,12 +412,10 @@
     }
     const main=app.querySelector("#main-content"),embed=app.querySelector("#project-embed");
     if(!main||!embed)return;
-    const officialHost=location.hostname==="obra-facil-acompanhamento.vercel.app"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
-    const isolatedPreview=projects&&!officialHost;
-    main.hidden=projects&&!isolatedPreview;embed.hidden=!projects||isolatedPreview;
-    if(isolatedPreview){
-      main.innerHTML="<section class=\"panel\"><h3>Projetos Barquinha preservado</h3><p>Esta prévia serve para testar Atendimentos. Para usar as obras reais, abra o aplicativo oficial em outra aba.</p><a class=\"button\" href=\"https://obra-facil-acompanhamento.vercel.app/\" target=\"_blank\" rel=\"noopener noreferrer\">Abrir Projetos Barquinha oficial ↗</a></section>";
-    }else if(projects){
+    // Ambos os módulos são servidos pela mesma origem da Plataforma.
+    // Nunca redirecionar Projetos ao domínio antigo: ele já encaminha à Plataforma.
+    main.hidden=projects;embed.hidden=!projects;
+    if(projects){
       app.querySelector("#project-subnav").innerHTML=projectTabMarkup(route);
       const f=app.querySelector("#projects-frame");
       if(f&&!f.getAttribute("src"))f.setAttribute("src","./projetos/index.html");
