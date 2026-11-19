@@ -128,6 +128,14 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.barquinha_attendance_sessions s WHERE s.service_date=new.service_date AND s.closed_at IS NOT NULL) THEN
     RAISE EXCEPTION 'Expediente encerrado para esta data';
   END IF;
+  -- Até existir autorização do Presidente, o servidor também bloqueia
+  -- passagens à distância e chegadas após 17h.
+  IF new.modalidade <> 'presencial' THEN
+    RAISE EXCEPTION 'Passagens à distância ou de trabalhadores dependem da autorização e liberação do fluxo';
+  END IF;
+  IF (now() AT TIME ZONE 'America/Fortaleza')::time >= time '17:00' THEN
+    RAISE EXCEPTION 'Chegadas após 17h dependem de autorização do Presidente';
+  END IF;
   SELECT nascimento INTO v_birth FROM public.barquinha_attendance_patients WHERE id=new.patient_id;
   IF new.prioridade='Normal' AND v_birth IS NOT NULL
      AND v_birth <= (new.service_date - interval '60 years')::date THEN
