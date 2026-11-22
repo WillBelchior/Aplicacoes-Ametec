@@ -93,7 +93,7 @@ test("Pesquisa inteligente não mostra CPF nas sugestões e guarda ID separado",
  assert.match(arrival,/id="live-arrival-selected-id"/);
  assert.match(arrival,/id="live-arrival-suggestions"/);
  assert.match(arrival,/Digite nome ou CPF/);
- assert.match(js,/searchArrivalPatients\(query\)/);
+ assert.match(js,/searchArrivalPatients=query=>/);
  assert.match(js,/data-live-patient-pick/);
  assert.match(js,/cpf\.startsWith\(digits\)/);
  assert.match(js,/esc\(p\.nome\)/);
