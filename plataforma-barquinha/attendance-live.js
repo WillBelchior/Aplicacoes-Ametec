@@ -134,6 +134,7 @@
     if(state.userId!==user.id)resetFor(user.id);
     if(state.currentRoute!==route){
       if(state.currentRoute?.includes("paciente")){stopWebcam();state.webcamBlob=null;}
+      if(route==="/atendimentos/nova-chegada"){state.arrivalSearch="";state.arrivalSelectedId="";}
       state.currentRoute=route;
     }
     if(!state.loaded&&!state.loading)queueMicrotask(load);
@@ -1024,7 +1025,7 @@
     finally{state.busy=false;}
   }
   async function routeTriage(select){
-    if(state.busy||!canWrite()||isClosed())return;
+    if(state.busy||!canWrite()||isClosed()||!isShiftStarted())return;
     const visit=state.visits.find(v=>v.id===select.dataset.liveRouteTriage);
     const newGuide=guide(select.value);
     if(!visit||visit.guide_id||!newGuide?.ativo)return;
@@ -1053,7 +1054,7 @@
     }
   }
   async function changeStatus(select){
-    if(state.busy||!canChangeStatus()||isClosed()||!STATUSES.includes(select.value))return;
+    if(state.busy||!canChangeStatus()||isClosed()||!isShiftStarted()||!STATUSES.includes(select.value))return;
     const visit=state.visits.find(v=>v.id===select.dataset.liveStatus);
     if(!visit)return;
     const before=visit.status,newStatus=select.value;
@@ -1062,10 +1063,10 @@
     try{
       const {data,error}=await client().from("barquinha_attendance_visits")
         .update({status:newStatus}).eq("id",visit.id).eq("status",before)
-        .select("id,status,status_changed_at").maybeSingle();
+        .select("id,status,status_changed_at,timer_started_at,atendimento_segundos,atendimento_iniciado_em,atendimento_finalizado_em").maybeSingle();
       if(error)throw error;
       if(!data)throw Error("A situação já foi alterada por outra pessoa. Atualize e tente novamente.");
-      visit.status=data.status;visit.status_changed_at=data.status_changed_at;
+      Object.assign(visit,data);
       await reloadEvents();state.notice="Situação alterada de "+before+" para "+newStatus+".";
       renderCallback();
     }catch(e){select.value=before;state.error="Não foi possível alterar a situação: "+(e.message||e);renderCallback();}
