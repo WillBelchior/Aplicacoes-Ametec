@@ -289,28 +289,56 @@
       '<button type="button" class="button ghost" data-go="'+(edit?'/atendimentos/paciente/'+esc(p.id):'/atendimentos/pacientes')+'">Cancelar</button>'+
       '<button type="submit" class="button">'+(edit?"Salvar alterações":"Salvar paciente")+'</button></div></form>';
   }
-  const patientOptionText=p=>p.nome+" · "+fmtDay(p.nascimento)+" · "+p.id.slice(0,6);
+  const searchArrivalPatients=query=>{
+    const normalized=normalize(query),digits=cpfDigits(query);
+    if(!normalized&&!digits)return [];
+    return state.patients
+      .map(p=>{
+        const name=normalize(p.nome),cpf=cpfDigits(p.cpf);
+        const score=name===normalized?0:name.startsWith(normalized)?1:
+          digits.length>=3&&cpf.startsWith(digits)?2:
+          name.includes(normalized)?3:
+          digits.length>=3&&cpf.includes(digits)?4:99;
+        return {p,score};
+      }).filter(x=>x.score<99).sort((a,b)=>a.score-b.score||
+        a.p.nome.localeCompare(b.p.nome,"pt-BR"))
+      .slice(0,12).map(x=>x.p);
+  };
+  const arrivalSuggestItem=p=>'<button type="button" role="option" class="attendance-arrival-option" '+
+    'data-live-patient-pick="'+esc(p.id)+'">'+esc(p.nome)+'</button>';
   function arrivalForm(){
     if(!canWrite())return alertBox("Sua função não permite registrar chegadas.");
-    const options=state.patients.map(p=>'<option value="'+esc(patientOptionText(p))+'"></option>').join("");
-    const guides=state.guides.filter(g=>g.ativo).map(g=>'<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
+    const options=state.arrivalSearch?searchArrivalPatients(state.arrivalSearch):[];
+    const guides=state.guides.filter(g=>g.ativo).map(g=>
+      '<option value="'+esc(g.id)+'">'+esc(g.nome)+'</option>').join("");
+    const locked=!isShiftStarted()||isClosed();
     return '<button class="breadcrumb" type="button" data-go="/atendimentos/fila">← Voltar à fila</button>'+
-      title("Registrar chegada","Localize o paciente pelo nome. Na primeira visita, se ainda não houver Guia definido, selecione Triagem.")+
+      title("Registrar chegada","Pesquise pelo nome ou CPF. As sugestões mostram somente o nome; o Guia e a prioridade são sugeridos ao selecionar.")+
+      (!isShiftStarted()?alertBox("Inicie os atendimentos na Fila Geral antes de registrar chegadas."):'')+
       (isClosed()?alertBox("O expediente de hoje foi encerrado. Novas chegadas estão bloqueadas."):'')+
-      (!options?alertBox("Cadastre ao menos um paciente antes de registrar uma chegada."):"")+
+      (!state.patients.length?alertBox("Cadastre ao menos um paciente antes de registrar uma chegada."):"")+
       '<form id="live-arrival-form" class="panel attendance-form"><div class="patient-fields">'+
-      '<label>Paciente *<input type="search" name="patient_name" id="live-arrival-patient-search" list="live-patient-options" required placeholder="Digite o nome para localizar…" autocomplete="off">'+
-      '<datalist id="live-patient-options">'+options+'</datalist></label>'+
+      '<label class="attendance-arrival-search-label">Paciente *'+
+      '<input type="search" name="patient_name" id="live-arrival-patient-search"'+
+      ' value="'+esc(state.arrivalSelectedId?person(state.arrivalSelectedId)?.nome||"":state.arrivalSearch)+'"'+
+      ' placeholder="Digite nome ou CPF…" autocomplete="off" aria-autocomplete="list"'+
+      ' aria-controls="live-arrival-suggestions" aria-expanded="'+(options.length?"true":"false")+'">'+
+      '<input type="hidden" name="patient_id" id="live-arrival-selected-id" value="'+esc(state.arrivalSelectedId)+'">'+
+      '<div class="attendance-arrival-suggestions" id="live-arrival-suggestions" role="listbox"'+
+      (options.length?'':' hidden')+'>'+options.map(arrivalSuggestItem).join("")+'</div>'+
+      '<small>Digite parte do nome ou do CPF, depois selecione a sugestão.</small></label>'+
       '<label>Guia / Triagem<select name="guide_id" id="live-arrival-guide">'+
       '<option value="">Triagem — primeiro atendimento sem Guia</option>'+guides+
-      '</select><small>Use a Triagem apenas na primeira chegada, enquanto o Guia não for definido.</small></label>'+
-      '<label>Modalidade *<select name="modalidade"><option value="presencial">Presencial</option></select>'+
-      '<small>Atendimento à distância e trabalhadores da casa: aguardam autorização do Presidente.</small></label>'+
+      '</select><small>É possível alterar o Guia sugerido antes de registrar a chegada.</small></label>'+
+      '<label>Modalidade *<select name="modalidade" id="live-arrival-mode">'+
+      MODES.map(m=>'<option value="'+m[0]+'">'+m[1]+'</option>').join("")+'</select>'+
+      '<small>Presencial, à distância ou trabalhador da casa.</small></label>'+
       '<label>Prioridade *<select name="prioridade" id="live-arrival-priority">'+priorityOptions()+'</select>'+
-      '<small id="live-arrival-age-hint">A prioridade Idoso será preenchida quando o paciente tiver 60 anos ou mais.</small></label>'+
+      '<small id="live-arrival-age-hint">A prioridade Idoso é sugerida a partir de 60 anos completos, mas pode ser alterada.</small></label>'+
       '</div><div class="attendance-form-error" role="alert" hidden></div><div class="patient-form-actions">'+
       '<button class="button ghost" type="button" data-go="/atendimentos/fila">Cancelar</button>'+
-      '<button class="button" type="submit"'+(!options||isClosed()?' disabled':'')+'>Registrar chegada</button></div></form>';
+      '<button class="button" type="submit"'+(locked||!state.patients.length?' disabled':'')+
+      '>Registrar chegada</button></div></form>';
   }
   function patientsPage(){
     const results=state.patients.filter(p=>String(p.nome||"").toLocaleLowerCase("pt-BR").includes(state.search.toLocaleLowerCase("pt-BR")));
@@ -679,9 +707,7 @@
   async function arrivalSubmit(form){
     if(state.busy||!canWrite())return;
     const data=new FormData(form);
-    const patientLabel=String(data.get("patient_name")||"").trim();
-    const matched=state.patients.filter(p=>patientOptionText(p)===patientLabel);
-    const patient=matched.length===1?matched[0]:null;
+    const patient=person(String(data.get("patient_id")||""));
     const guideId=String(data.get("guide_id")||""),
       modalidade=String(data.get("modalidade")||"presencial"),
       prioridade=String(data.get("prioridade")||"Normal");
@@ -690,9 +716,9 @@
       return fail(form,"Selecione um Guia ativo ou a Triagem e informe a prioridade.");
     if(!guideId&&state.visits.some(v=>v.patient_id===patient.id))
       return fail(form,"Triagem somente na primeira visita. Para atendimentos posteriores, selecione um Guia.");
-    if(modalidade!=="presencial")
-      return fail(form,"Atendimentos à distância dependem de autorização do Presidente; o cadastro do paciente está disponível separadamente.");
+    if(!MODES.some(m=>m[0]===modalidade))return fail(form,"Modalidade de atendimento inválida.");
     if(isClosed())return fail(form,"O expediente de hoje já foi encerrado.");
+    if(!isShiftStarted())return fail(form,"Inicie os atendimentos na Fila Geral antes de registrar chegadas.");
     if(afterArrivalDeadline())
       return fail(form,"Chegadas após 17h exigem autorização do Presidente. Este procedimento ainda está em preparação.");
     const priority=agePriority(patient.nascimento)&&prioridade==="Normal"?"Idoso":prioridade;
