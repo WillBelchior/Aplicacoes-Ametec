@@ -54,7 +54,7 @@ test("Módulo inicia sem pacientes fictícios e mostra os controles reais",async
   assert.match(queue,/Registrar chegada/);
   assert.match(queue,/Nenhum Guia cadastrado/);
   assert.doesNotMatch(queue,/Maria Silva|Carlos Souza/);
-  assert.deepEqual(calls.sort(),["barquinha_attendance_access","barquinha_attendance_guides","barquinha_attendance_patients","barquinha_attendance_visits","barquinha_attendance_events","barquinha_attendance_closures"].sort());
+  assert.deepEqual(calls.sort(),["barquinha_attendance_access","barquinha_attendance_guides","barquinha_attendance_guide_workers","barquinha_attendance_patients","barquinha_attendance_visits","barquinha_attendance_events","barquinha_attendance_visit_audit","barquinha_attendance_shifts","barquinha_attendance_closures"].sort());
   assert.ok(callsRender>0);
   assert.match(window.AttendanceLive.page("/atendimentos/novo-paciente",""),/live-patient-form/);
   assert.match(window.AttendanceLive.page("/atendimentos/nova-chegada",""),/live-arrival-form/);
@@ -91,13 +91,12 @@ test("A fila usa toda a largura com até cinco Guias e ativa a rolagem com seis"
     for(let n=0;n<35;n++)await Promise.resolve();
     return w.AttendanceLive.page("/atendimentos/fila","");
   }
-  // A Triagem é uma coluna própria; a partir de 6 colunas totais, rolar.
+  // A Triagem conta como uma coluna; até seis colunas cabem lado a lado.
   for(const count of [1,3,4,5]){
     const output=await renderGuides(count),total=count+1;
     assert.match(output,new RegExp('data-guide-count="'+total+'"'));
     assert.match(output,/queue-triage-column/);
-    if(total>=6)assert.match(output,/class="queue-board is-scroll"/);
-    else assert.doesNotMatch(output,/class="queue-board[^"]*is-scroll/);
+    assert.doesNotMatch(output,/class="queue-board[^"]*is-scroll/);
     assert.equal((output.match(/class="queue-guide-column/g)||[]).length,total);
   }
   const six=await renderGuides(6);
@@ -143,7 +142,7 @@ test("Fila não oculta os concluídos e usa fichas P01 e 01 por Guia",async()=>{
   assert.match(queue,/Total do Guia/);
   assert.match(queue,/Total de atendimentos hoje/);
   const report=w.AttendanceLive.page("/atendimentos/expediente","");
-  assert.match(report,/Finalizar Atendimentos/);
+  assert.match(report,/Iniciar Atendimentos/);
   assert.doesNotMatch(report,/attendance-print-report/);
 });
 

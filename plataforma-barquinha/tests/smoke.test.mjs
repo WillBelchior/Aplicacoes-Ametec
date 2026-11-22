@@ -59,9 +59,11 @@ test("attendance routes are connected to the isolated RLS-backed module",()=>{
   assert.match(styles,/queue-board-scroll\s*\{[^}]*overflow-x:auto/);
 });
 
-test("Cadastro oficial ativo, sem liberar atendimento remoto não autorizado",()=>{
+test("Cadastro oficial e todas modalidades ativadas, mantendo restrição após 17h",()=>{
   assert.match(modules,/status:"active"/);
   assert.match(read("attendance-live.js"),/Atendimentos Barquinha/);
-  assert.match(read("attendance-live.js"),/modalidade!=="presencial"/);
+  assert.match(read("attendance-live.js"),/MODES\.map\(m=>/);
   assert.match(read("attendance-live.js"),/afterArrivalDeadline\(\)/);
+  assert.match(read("attendance-live.js"),/isShiftStarted\(\)/);
+  assert.doesNotMatch(read("attendance-live.js"),/modalidade!=="presencial"/);
 });

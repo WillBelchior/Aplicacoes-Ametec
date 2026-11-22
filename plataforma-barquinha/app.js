@@ -486,6 +486,14 @@
     const next=document.getElementById("search-patient");
     if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
   });
+  app.addEventListener("keydown",function(event){
+    if(window.AttendanceLive?.handleKeydown?.(event))return;
+  });
+  // Atualiza apenas os números dos cronômetros, sem re-renderizar telas e sem consultas ao banco.
+  window.setInterval(()=>{
+    if(document.visibilityState==="hidden"||!window.PlatformAuth?.user)return;
+    window.AttendanceLive?.tickTimers?.();
+  },1000);
   window.addEventListener("message",event=>{
     if(event.origin!==location.origin||event.source!==document.getElementById("projects-frame")?.contentWindow)return;
     if(event.data?.type==="barquinha:project-ready"){projectFrameReady=true;sendProjectTab(currentRoute());}

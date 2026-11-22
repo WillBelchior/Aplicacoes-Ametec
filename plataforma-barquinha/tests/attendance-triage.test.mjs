@@ -43,7 +43,8 @@ async function setup(){
     barquinha_attendance_visits:[{id:"v1",patient_id:"p1",guide_id:null,service_date:today,
       ordem:44,ficha_tipo:null,ficha_numero:null,guia_nome_registro:null,modalidade:"presencial",
       prioridade:"Idoso",status:"Aguardando"}],
-    barquinha_attendance_events:[],barquinha_attendance_closures:[]
+    barquinha_attendance_events:[],barquinha_attendance_closures:[],
+    barquinha_attendance_shifts:[{service_date:today,started_at:new Date().toISOString(),finished_at:null}]
   };
   const routeCalls=[],client=fakeClient(rows,routeCalls);
   const window={PlatformAuth:{user:{id:"worker"},client}};

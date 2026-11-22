@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/barquinha-fila-fichas-e-cadastro-remoto
+      - feature/barquinha-atendimentos-pacote-2-20261122
   pull_request:
     paths:
       - 'plataforma-barquinha/**'
