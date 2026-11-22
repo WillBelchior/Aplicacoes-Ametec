@@ -150,7 +150,7 @@
     else if(route==="/atendimentos/autorizacoes")inner=deferred("Autorizações","As regras de autorização e exceções serão ativadas após a conclusão do fluxo básico.");
     else if(route==="/atendimentos/expediente"||route==="/atendimentos/historico")inner=shiftPage();
     else inner=queuePage();
-    const previewNotice='<div class="note" role="status"><strong>Atendimentos Barquinha.</strong> Fichas por Guia: 01, 02… e prioritárias P01, P02…. Cadastros à distância são permitidos com nome e endereço; a realização de atendimentos remotos ainda exige autorização do Presidente.</div>';
+    const previewNotice='<div class="note" role="status"><strong>Atendimentos Barquinha.</strong> Fichas por Guia: 01, 02… e prioritárias P01, P02…. Atendimentos à distância não exigem autorização especial; chegadas após 17h continuam sujeitas à autorização do Presidente.</div>';
     return nav(tabs)+previewNotice+info()+inner;
   }
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
@@ -519,13 +519,14 @@
       '<th>Situação</th></tr></thead><tbody>'+
       (body||'<tr><td colspan="5">Nenhum atendimento corresponde aos filtros selecionados.</td></tr>')+
       '</tbody></table></div>';
-    const dayCount=state.visits.filter(v=>v.service_date===today).length;
+    const dayCount=liveVisits().filter(v=>v.service_date===today).length;
     const closing='<section class="attendance-shift-controls">'+
       (closed?'<div class="note">Expediente de '+fmtDay(today)+' encerrado em '+fmtTime(closed.closed_at)+
       '. A lista oficial do dia pode ser consultada e emitida.</div>':
       '<div class="note warn">Atendimentos de hoje: '+dayCount+
       '. Finalize o expediente somente após o último paciente.</div>'+
-      (canWrite()?'<button type="button" class="button" data-live-close-day>Finalizar Atendimentos</button>':''))+
+      (canWrite()?isShiftStarted()?'<button type="button" class="button danger" data-live-close-day>Finalizar Atendimentos</button>':
+        '<button type="button" class="button" data-live-start-day>Iniciar Atendimentos</button>':'') )+
       '</section>';
     const fullClosedDay=Boolean(state.historyDate&&
       state.closures.some(c=>c.service_date===state.historyDate)&&
@@ -533,7 +534,7 @@
     const preview=state.historyReportVisible&&visits.length>0;
     const autoOfficial=Boolean(closed&&!state.historyDate&&state.historyGuide==="todos"&&
       !normalize(state.historyPatient));
-    const reportRows=preview?visits:autoOfficial?state.visits.filter(v=>v.service_date===today):[];
+    const reportRows=preview?visits:autoOfficial?liveVisits().filter(v=>v.service_date===today):[];
     const official=preview?fullClosedDay:autoOfficial;
     const caption=state.historyDate?"Dia: "+fmtDay(state.historyDate):"Todos os dias";
     const actions='<div class="attendance-history-actions">'+
@@ -544,20 +545,77 @@
     return header+closing+filters+summary+results+actions+
       (reportRows.length?reportTable(reportRows,{official,caption:preview?caption:"Encerramento do dia"}):'');
   }
-  async function closeDay(){
-    if(!canWrite()||state.busy||isClosed())return;
-    if(!confirm("Encerrar o atendimento de "+fmtDay(currentDay())+
-      "? A fila ficará bloqueada para novas chegadas e alterações. A lista oficial será emitida."))return;
+  async function startDay(){
+    if(!canWrite()||state.busy||isClosed()||isShiftStarted())return;
     state.busy=true;
     try{
-      const {data,error}=await client().from("barquinha_attendance_closures")
-        .insert({service_date:currentDay()}).select("service_date,closed_at,closed_by").single();
+      const {data,error}=await client().rpc("barquinha_attendance_start_shift").single();
       if(error)throw error;
-      state.closures.push(data);
+      const existing=state.shifts.findIndex(x=>x.service_date===data.service_date);
+      if(existing>=0)state.shifts[existing]=data;else state.shifts.push(data);
+      state.notice="Atendimentos iniciados em "+fmtTime(data.started_at)+". Registro de chegadas liberado.";
+      renderCallback();
+    }catch(e){state.error="Falha ao iniciar o expediente: "+(e.message||e);renderCallback();}
+    finally{state.busy=false;}
+  }
+  async function closeDay(){
+    if(!canWrite()||state.busy||isClosed()||!isShiftStarted())return;
+    if(!confirm("Finalizar os atendimentos de "+fmtDay(currentDay())+
+      "? O horário será registrado, as chegadas serão bloqueadas e o relatório poderá ser emitido."))return;
+    state.busy=true;
+    try{
+      const {data,error}=await client().rpc("barquinha_attendance_finish_shift").single();
+      if(error)throw error;
+      const index=state.shifts.findIndex(x=>x.service_date===data.service_date);
+      if(index>=0)state.shifts[index]=data;else state.shifts.push(data);
+      if(!state.closures.some(x=>x.service_date===data.service_date))
+        state.closures.push({service_date:data.service_date,closed_at:data.finished_at});
+      for(const v of state.visits)if(v.service_date===data.service_date&&v.timer_started_at){
+        v.atendimento_segundos=durationSeconds(v);
+        v.timer_started_at=null;
+      }
       state.historyDate=currentDay();state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=true;
-      state.notice="Atendimentos encerrados. Lista oficial preparada para impressão.";
-    }catch(e){state.error="Não foi possível encerrar: "+(e.message||e);}
-    finally{state.busy=false;renderCallback();}
+      state.notice="Expediente finalizado em "+fmtTime(data.finished_at)+
+        ". Tempo total: "+durationLabel((Date.parse(data.finished_at)-Date.parse(data.started_at))/1000)+".";
+      navigateCallback("/atendimentos/historico");
+    }catch(e){state.error="Não foi possível finalizar: "+(e.message||e);renderCallback();}
+    finally{state.busy=false;}
+  }
+  function tickTimers(){
+    if(!state.loaded||!state.access||!document?.querySelectorAll)return;
+    const now=Date.now();
+    document.querySelectorAll("[data-live-visit-timer]").forEach(node=>{
+      const visit=state.visits.find(v=>v.id===node.dataset.liveVisitTimer);
+      if(visit)node.textContent=durationLabel(durationSeconds(visit,now));
+    });
+    document.querySelectorAll("[data-live-shift-timer]").forEach(node=>{
+      const start=Date.parse(node.dataset.liveShiftTimer);
+      const end=Date.parse(node.dataset.finished||"");
+      if(Number.isFinite(start))
+        node.textContent=durationLabel(((Number.isFinite(end)?end:now)-start)/1000);
+    });
+  }
+  async function removePatientPhoto(patientId){
+    if(!canWrite()||state.busy)return;
+    const p=person(patientId);
+    if(!p?.foto_path)return;
+    if(!confirm("Remover a fotografia deste paciente? Os demais dados e atendimentos serão mantidos."))return;
+    state.busy=true;
+    const original=p.foto_path;
+    try{
+      const {data,error}=await client().from("barquinha_attendance_patients")
+        .update({foto_path:null}).eq("id",p.id)
+        .select("id,foto_path").single();
+      if(error)throw error;
+      p.foto_path=data.foto_path;
+      state.photoUrls.delete(original);state.photoErrors.delete(original);
+      state.notice="Fotografia removida da ficha. Os dados do paciente foram mantidos.";
+      const remove=await client().storage.from(PHOTO_BUCKET).remove([original]);
+      if(remove.error)state.notice+=" A imagem não pôde ser excluída do armazenamento; solicite revisão ao administrador.";
+      renderCallback();
+    }catch(e){
+      state.error="Não foi possível remover a foto: "+(e.message||e);renderCallback();
+    }finally{state.busy=false;}
   }
   async function loadSignedPhoto(path){
     if(state.photoRequests.has(path))return;
