@@ -509,7 +509,7 @@
   }
   function historyMatches(){
     const needle=normalize(state.historyPatient);
-    return state.visits.filter(v=>
+    return (state.historyIncludeExcluded?state.visits:liveVisits()).filter(v=>
       (!state.historyDate||v.service_date===state.historyDate)&&
       (state.historyGuide==="todos"||state.historyGuide==="triagem"&&!v.guide_id||v.guide_id===state.historyGuide)&&
       (!needle||normalize(person(v.patient_id)?.nome||"").includes(needle)));
@@ -533,11 +533,11 @@
       group.visits.map(v=>'<tr><td>'+officialTicket(v)+'</td><td>'+
         esc(person(v.patient_id)?.nome||"Paciente não encontrado")+'</td><td>'+
         esc(guideNameAtVisit(v))+'</td><td>'+fmtDay(v.service_date)+'</td><td>'+
-        esc(v.status)+'</td></tr>').join("")+
-      '<tr class="attendance-report-subtotal"><td colspan="4">Total — Guia '+esc(group.title)+
+        esc(v.excluded_at?'Excluído':v.status)+'</td><td>'+durationLabel(durationSeconds(v))+'</td></tr>').join("")+
+      '<tr class="attendance-report-subtotal"><td colspan="5">Total — Guia '+esc(group.title)+
       ' · '+fmtDay(group.date)+'</td><td>'+group.visits.length+'</td></tr>'
     ).join("");
-    const empty=sorted.length?"":'<tr><td colspan="5">Nenhum atendimento encontrado.</td></tr>';
+    const empty=sorted.length?"":'<tr><td colspan="6">Nenhum atendimento encontrado.</td></tr>';
     const dates=[...new Set(sorted.map(v=>v.service_date))].sort().reverse();
     const period=dates.length===1?fmtDay(dates[0]):dates.length?fmtDay(dates.at(-1))+
       " a "+fmtDay(dates[0]):"Sem data selecionada";
@@ -549,15 +549,52 @@
       (caption?' · '+esc(caption):'')+'</p>'+
       (!official?'<p class="attendance-report-caveat">Extrato de consulta. Atendimentos de dias não encerrados ainda podem sofrer alterações.</p>':'')+
       '<table><thead><tr><th>Ordem de Atendimento</th><th>Nome Paciente</th><th>Guia</th>'+
-      '<th>Data</th><th>Situação</th></tr></thead><tbody>'+
-      body+empty+'<tr class="attendance-report-total"><td colspan="4">TOTAL GERAL DE ATENDIMENTOS</td>'+
+      '<th>Data</th><th>Situação</th><th>Tempo de atendimento</th></tr></thead><tbody>'+
+      body+empty+'<tr class="attendance-report-total"><td colspan="5">TOTAL GERAL DE ATENDIMENTOS</td>'+
       '<td>'+sorted.length+'</td></tr></tbody></table>'+
+      '<p class="attendance-report-duration">Tempo total contabilizado: '+
+      durationLabel(sorted.reduce((seconds,v)=>seconds+durationSeconds(v),0))+'</p>'+
       '<div class="attendance-report-signature"><div>____________________________________________</div>'+
       '<strong>Assinatura do(a) Recepcionista</strong><span>Data: '+signDate+'</span></div></section>';
+  }
+  function exportHistoryXlsx(){
+    const visits=historySorted(historyMatches().filter(v=>!v.excluded_at));
+    if(!visits.length)return;
+    if(!window.BarquinhaAttendanceXlsx?.download){
+      state.error="O exportador Excel não foi carregado. Atualize a página e tente novamente.";
+      renderCallback();return;
+    }
+    const headers=["Data","Ficha","Paciente","Guia","Modalidade","Prioridade",
+      "Situação","Duração HH:MM:SS","Ordem de chegada"];
+    const groups=new Map();
+    for(const v of visits){
+      const key=v.service_date+"|"+v.guide_id;
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(v);
+    }
+    const rows=[];
+    for(const group of groups.values()){
+      for(const v of group){
+        rows.push([fmtDay(v.service_date),officialTicket(v),person(v.patient_id)?.nome||"Paciente",
+          guideNameAtVisit(v),MODES.find(m=>m[0]===v.modalidade)?.[1]||v.modalidade,
+          v.prioridade,v.status,durationLabel(durationSeconds(v)),v.ordem]);
+      }
+      rows.push(["Subtotal do Guia",group.length,"","","","","",
+        durationLabel(group.reduce((n,v)=>n+durationSeconds(v),0)),""]);
+    }
+    rows.push(["TOTAL GERAL",visits.length,"","","","","",
+      durationLabel(visits.reduce((n,v)=>n+durationSeconds(v),0)),""]);
+    const name="historico-atendimentos-"+(state.historyDate||currentDay())+".xlsx";
+    try{
+      window.BarquinhaAttendanceXlsx.download(headers,rows,name);
+      state.notice="Planilha Excel gerada localmente com os filtros selecionados.";
+      renderCallback();
+    }catch(e){state.error="Falha ao gerar XLSX: "+(e.message||e);renderCallback();}
   }
   function shiftPage(){
     const today=currentDay(),closed=state.closures.find(c=>c.service_date===today);
     const visits=historySorted(historyMatches());
+    const activeVisits=visits.filter(v=>!v.excluded_at);
     const options='<option value="todos">Todos os Guias e Triagem</option>'+
       '<option value="triagem"'+(state.historyGuide==="triagem"?' selected':'')+'>Triagem — sem Guia</option>'+
       state.guides.map(g=>'<option value="'+esc(g.id)+'"'+
@@ -572,21 +609,34 @@
       '<label class="attendance-history-patient-search">Pesquisar paciente'+
       '<input type="search" id="live-history-patient" value="'+esc(state.historyPatient)+
       '" placeholder="Digite o nome do paciente" autocomplete="off"></label>'+
+      '<label class="attendance-show-excluded"><input id="live-history-excluded" type="checkbox"'+
+      (state.historyIncludeExcluded?' checked':'')+'> Mostrar registros excluídos (auditoria)</label>'+
       '<button type="button" class="button ghost" data-live-history-clear>Limpar filtros</button>'+
       '</section>';
     const summary='<div class="attendance-history-summary"><strong>'+visits.length+
       ' atendimento(s) encontrado(s)</strong><span>'+uniqueDates.length+' dia(s) de atendimento</span>'+
       '<span>'+new Set(visits.map(v=>v.guide_id)).size+' Guia(s)</span></div>';
-    const body=visits.map(v=>
-      '<tr><td>'+fmtDay(v.service_date)+'</td><td><strong class="'+(v.ficha_tipo==="P"?"attendance-history-priority":"")+
-      '">'+officialTicket(v)+'</strong></td><td><button type="button" class="attendance-history-patient-link" data-go="/atendimentos/paciente/'+
-      esc(v.patient_id)+'/'+esc(v.id)+'">'+esc(person(v.patient_id)?.nome||"Paciente não encontrado")+'</button></td>'+
-      '<td>'+esc(guideNameAtVisit(v))+'</td><td>'+esc(v.status)+'</td></tr>'
-    ).join("");
+    const body=visits.map(v=>{
+      const priority=v.ficha_tipo==="P",excluded=!!v.excluded_at;
+      const color=guide(v.guide_id)?.cor||"#c39d55";
+      return '<tr class="attendance-history-card-row'+(excluded?' is-excluded':'')+'">'+
+        '<td>'+fmtDay(v.service_date)+'</td>'+
+        '<td><span class="attendance-history-ticket'+(priority?' is-priority':'')+'">'+
+        officialTicket(v)+'</span></td>'+
+        '<td><button type="button" class="attendance-history-patient-link" data-go="/atendimentos/paciente/'+
+        esc(v.patient_id)+'/'+esc(v.id)+'">'+esc(person(v.patient_id)?.nome||"Paciente não encontrado")+'</button>'+
+        '<small>'+esc(v.prioridade)+'</small></td>'+
+        '<td><span class="attendance-history-guide" style="border-left:4px solid '+esc(color)+'">'+
+        esc(guideNameAtVisit(v))+'</span></td>'+
+        '<td>'+esc(MODES.find(m=>m[0]===v.modalidade)?.[1]||v.modalidade)+'</td>'+
+        '<td><span class="attendance-history-status'+(excluded?' is-excluded':v.status==="Concluído"?' is-done':
+          v.status==="Em atendimento"?' is-running':"")+'">'+esc(excluded?"Excluído":v.status)+'</span></td>'+
+        '<td class="attendance-history-time">'+durationLabel(durationSeconds(v))+'</td></tr>';
+    }).join("");
     const results='<div class="attendance-history-results" role="region" tabindex="0" aria-label="Atendimentos encontrados">'+
       '<table><thead><tr><th>Data</th><th>Ficha</th><th>Nome Paciente</th><th>Guia</th>'+
-      '<th>Situação</th></tr></thead><tbody>'+
-      (body||'<tr><td colspan="5">Nenhum atendimento corresponde aos filtros selecionados.</td></tr>')+
+      '<th>Modalidade</th><th>Situação</th><th>Tempo</th></tr></thead><tbody>'+
+      (body||'<tr><td colspan="7">Nenhum atendimento corresponde aos filtros selecionados.</td></tr>')+
       '</tbody></table></div>';
     const dayCount=liveVisits().filter(v=>v.service_date===today).length;
     const closing='<section class="attendance-shift-controls">'+
@@ -600,15 +650,17 @@
     const fullClosedDay=Boolean(state.historyDate&&
       state.closures.some(c=>c.service_date===state.historyDate)&&
       state.historyGuide==="todos"&&!normalize(state.historyPatient));
-    const preview=state.historyReportVisible&&visits.length>0;
+    const preview=state.historyReportVisible&&activeVisits.length>0;
     const autoOfficial=Boolean(closed&&!state.historyDate&&state.historyGuide==="todos"&&
       !normalize(state.historyPatient));
-    const reportRows=preview?visits:autoOfficial?liveVisits().filter(v=>v.service_date===today):[];
+    const reportRows=preview?activeVisits:autoOfficial?liveVisits().filter(v=>v.service_date===today):[];
     const official=preview?fullClosedDay:autoOfficial;
     const caption=state.historyDate?"Dia: "+fmtDay(state.historyDate):"Todos os dias";
     const actions='<div class="attendance-history-actions">'+
-      '<button type="button" class="button secondary" data-live-history-generate'+(visits.length?'':' disabled')+
+      '<button type="button" class="button secondary" data-live-history-generate'+(activeVisits.length?'':' disabled')+
       '">Preparar relatório da pesquisa</button>'+
+      '<button type="button" class="button ghost" data-live-history-xlsx'+
+      (activeVisits.length?'':' disabled')+'>Exportar Excel (.xlsx)</button>'+
       (reportRows.length?'<button type="button" class="button" data-live-print>Imprimir ou salvar em PDF</button>':'')+
       '</div>';
     return header+closing+filters+summary+results+actions+
