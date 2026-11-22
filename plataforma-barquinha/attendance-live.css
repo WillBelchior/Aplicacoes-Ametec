@@ -392,3 +392,129 @@
     transition:none!important;transform:none!important;
   }
 }
+
+/* Pacote 02: cronômetros, seis colunas, Guia principal e trabalhador vinculado. */
+#main-content[data-section="attendance"] .attendance-shift-main-controls{
+ display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:3px 0 12px;
+ padding:11px 13px;border:1px solid #cbdcec;background:#f7faff;border-radius:12px;
+}
+#main-content[data-section="attendance"] .attendance-main-clock{
+ margin-left:auto;color:#365570;font-size:12px;font-weight:700;
+}
+#main-content[data-section="attendance"] .attendance-main-clock strong{
+ font-size:20px;letter-spacing:.5px;color:#164e83;font-variant-numeric:tabular-nums;
+}
+#main-content[data-section="attendance"] .button.danger{
+ background:#a92730;color:white;border-color:#a92730;
+}
+#main-content[data-section="attendance"] .button.danger:hover{background:#871923}
+#main-content .attendance-live-duration{
+ font-size:11px;font-weight:750;color:#244c71;font-variant-numeric:tabular-nums;
+ background:#e8f2fa;border-radius:5px;padding:4px 6px;
+}
+#main-content .attendance-visit-edit-inline{
+ font-size:10px;color:#205791;font-weight:750;background:#e8f2fc;
+ border:1px solid #ccdfec;border-radius:6px;padding:5px 8px;cursor:pointer;
+}
+#main-content .attendance-visit-edit-inline:disabled{opacity:.5;cursor:not-allowed}
+#main-content[data-section="attendance"] .attendance-patient-last-date{
+ display:grid;gap:6px;padding:10px;border:1px solid #d6e7f3;
+ border-radius:9px;background:#f2f8fc;color:#365b79;font-size:12px;
+}
+#main-content[data-section="attendance"] .attendance-patient-last-date strong{
+ color:#1c476b;font-size:15px;
+}
+#main-content[data-section="attendance"] .attendance-remove-photo{
+ display:block;margin-top:8px;min-height:36px;padding:8px 12px;width:fit-content;
+}
+#main-content .attendance-arrival-search-label{position:relative;grid-column:span 2}
+#main-content .attendance-arrival-suggestions{
+ display:grid;position:relative;z-index:20;max-height:245px;overflow:auto;
+ background:#fff;border:1px solid #b9d1e5;border-radius:10px;
+ box-shadow:0 10px 28px rgb(29 65 102 / 12%);margin-top:5px;
+}
+#main-content .attendance-arrival-suggestions[hidden]{display:none}
+#main-content .attendance-arrival-option{
+ padding:10px 12px;min-height:39px;cursor:pointer;font-size:13px;
+ font-weight:650;text-align:left;color:#214968;background:transparent;
+ border:0;border-bottom:1px solid #eef2f7;
+}
+#main-content .attendance-arrival-option:hover,
+#main-content .attendance-arrival-option:focus-visible{
+ background:#e5f1ff;outline:2px solid #5184bc;outline-offset:-2px;
+}
+#main-content .attendance-audit-notice{font-size:12px;color:#61778b;margin:0}
+#main-content .attendance-visit-detail-edit{margin-top:9px;max-width:max-content}
+#main-content .attendance-guide-list{display:grid;gap:10px}
+#main-content .attendance-guide-group{
+ border:1px solid #dce7f1;background:#fff;border-radius:11px;overflow:hidden;
+}
+#main-content .attendance-guide-buttons{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+#main-content .attendance-guide-workers{padding:3px 13px 10px 36px;display:grid;gap:5px}
+#main-content .attendance-guide-worker-row{
+ display:flex;justify-content:space-between;align-items:center;gap:10px;
+ border:1px solid #e2ebf1;border-left:3px solid #8cb1cf;background:#fafcfe;
+ padding:9px 10px;border-radius:8px;
+}
+#main-content .attendance-guide-worker-row small{display:block;color:#59738a;font-size:11px;margin-top:3px}
+#main-content .attendance-guide-workers-empty{
+ padding:7px 15px 12px 35px;font-size:11px;color:#8293a1;
+}
+#main-content .attendance-worker-panel{padding:16px;margin-top:14px}
+#main-content .attendance-worker-panel h3{font-size:17px;margin-bottom:11px}
+#main-content .attendance-worker-form{
+ display:flex;flex-wrap:wrap;align-items:end;gap:10px;
+}
+#main-content .attendance-worker-form label{display:grid;gap:6px;flex:1 1 160px;min-width:0;font-size:12px;font-weight:700;color:#36556d}
+#main-content .attendance-worker-form input,#main-content .attendance-worker-form select{
+ width:100%;min-height:41px;border:1px solid #d1dfe9;border-radius:9px;
+ padding:9px 11px;background:#fff;font-size:13px;
+}
+#main-content .attendance-worker-form .attendance-guide-active{flex:0 0 auto}
+#main-content .attendance-worker-form .attendance-form-error{flex:1 1 100%}
+#main-content .attendance-history-results table{min-width:840px;border-collapse:separate;border-spacing:0 5px}
+#main-content .attendance-history-results tbody tr.attendance-history-card-row td{
+ background:#f8fbfe;border-block:1px solid #dbe8f1;padding:9px 11px;vertical-align:middle;
+}
+#main-content .attendance-history-results tbody tr.attendance-history-card-row:hover td{
+ background:#edf6fe;
+}
+#main-content .attendance-history-results tbody tr.attendance-history-card-row td:first-child{
+ border-left:1px solid #dbe8f1;border-radius:9px 0 0 9px;
+}
+#main-content .attendance-history-results tbody tr.attendance-history-card-row td:last-child{
+ border-right:1px solid #dbe8f1;border-radius:0 9px 9px 0;
+}
+#main-content .attendance-history-results tr.is-excluded td{
+ opacity:.64;background:#f5f4f4!important;
+}
+#main-content .attendance-history-ticket{
+ display:inline-block;padding:6px 9px;min-width:37px;text-align:center;
+ font-size:12px;font-weight:800;background:#e4ecf6;color:#244b70;border-radius:7px;
+}
+#main-content .attendance-history-ticket.is-priority{background:#bb2424;color:white}
+#main-content .attendance-history-patient-link+small{
+ display:block;color:#7a8c9c;font-size:10px;margin-top:3px;
+}
+#main-content .attendance-history-guide{display:block;padding:7px;color:#244761;font-weight:750;min-width:115px}
+#main-content .attendance-history-status{
+ display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:750;
+ color:#395676;background:#e6eef7;white-space:nowrap;
+}
+#main-content .attendance-history-status.is-running{color:#0e5f91;background:#dceffa}
+#main-content .attendance-history-status.is-done{color:#136d4b;background:#e1f4e9}
+#main-content .attendance-history-status.is-excluded{color:#933234;background:#f9e6e7}
+#main-content .attendance-history-time{font-variant-numeric:tabular-nums;font-weight:800;color:#214e73;white-space:nowrap}
+#main-content .attendance-report-duration{font-size:13px;font-weight:800;margin:13px 0}
+#main-content .attendance-show-excluded{display:flex;align-items:center;gap:7px;white-space:nowrap}
+#main-content .attendance-show-excluded input{width:17px;min-height:17px;height:17px;flex:0 0 17px}
+@media(max-width:720px){
+ #main-content .attendance-arrival-search-label{grid-column:1/-1}
+ #main-content[data-section="attendance"] .attendance-main-clock{margin-left:0;width:100%}
+ #main-content .attendance-guide-worker-row{flex-wrap:wrap}
+ #main-content .attendance-guide-workers{padding-left:12px}
+ #main-content .attendance-visit-edit-inline{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+ #main-content .attendance-arrival-option{transition:none}
+}
