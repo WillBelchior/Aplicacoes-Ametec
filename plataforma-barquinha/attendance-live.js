@@ -1072,20 +1072,54 @@
     finally{state.busy=false;if(select.isConnected)select.disabled=false;}
   }
   function syncArrivalPatient(){
-    const input=document.getElementById("live-arrival-patient-search");
+    const input=document?.getElementById?.("live-arrival-patient-search");
+    const hidden=document?.getElementById?.("live-arrival-selected-id");
+    const results=document?.getElementById?.("live-arrival-suggestions");
     if(!input)return;
-    const matched=state.patients.filter(p=>patientOptionText(p)===input.value.trim());
-    const p=matched.length===1?matched[0]:null;
-    const guideSelect=document.getElementById("live-arrival-guide");
-    const priority=document.getElementById("live-arrival-priority");
-    const hint=document.getElementById("live-arrival-age-hint");
-    if(p){
-      if(guideSelect)guideSelect.value=p.guide_id&&guide(p.guide_id)?p.guide_id:"";
-      if(priority)priority.value=agePriority(p.nascimento)?"Idoso":"Normal";
-      if(hint)hint.textContent=ageYears(p.nascimento)===null?
-        "Idade não informada. Selecione a prioridade aplicável.":
-        "Idade: "+ageYears(p.nascimento)+" anos"+(agePriority(p.nascimento)?" — PRIORIDADE IDOSO":" — classificação normal");
-    }else{if(guideSelect)guideSelect.value="";if(priority)priority.value="Normal";if(hint)hint.textContent="Digite e selecione um paciente da lista para preencher o Guia e a idade.";}
+    const selected=person(state.arrivalSelectedId);
+    const candidates=selected?[]:searchArrivalPatients(input.value);
+    if(results){
+      results.innerHTML=candidates.map(arrivalSuggestItem).join("");
+      results.hidden=!candidates.length;
+    }
+    input.setAttribute?.("aria-expanded",String(candidates.length>0));
+    if(hidden)hidden.value=selected?.id||"";
+    const guideSelect=document?.getElementById?.("live-arrival-guide");
+    const priority=document?.getElementById?.("live-arrival-priority");
+    const hint=document?.getElementById?.("live-arrival-age-hint");
+    if(selected){
+      if(guideSelect)guideSelect.value=selected.guide_id&&guide(selected.guide_id)?.ativo?selected.guide_id:"";
+      if(priority)priority.value=agePriority(selected.nascimento)?"Idoso":"Normal";
+      if(hint)hint.textContent=ageYears(selected.nascimento)===null?
+        "Nascimento não informado. Selecione a prioridade aplicável.":
+        "Idade: "+ageYears(selected.nascimento)+" anos"+
+        (agePriority(selected.nascimento)?" · Prioridade idoso sugerida":" · Classificação normal sugerida");
+    }else if(hint)hint.textContent="Selecione uma sugestão para preencher automaticamente Guia e prioridade.";
+  }
+  function pickArrivalPatient(id){
+    const p=person(id);if(!p)return;
+    state.arrivalSelectedId=p.id;
+    state.arrivalSearch=p.nome;
+    const input=document?.getElementById?.("live-arrival-patient-search");
+    if(input)input.value=p.nome;
+    syncArrivalPatient();
+  }
+  function handleKeydown(event){
+    if(event.target?.id!=="live-arrival-patient-search")return false;
+    const items=searchArrivalPatients(event.target.value);
+    if(event.key==="Escape"){
+      const area=document?.getElementById?.("live-arrival-suggestions");
+      if(area)area.hidden=true;
+      event.preventDefault();return true;
+    }
+    if(event.key==="ArrowDown"){
+      const first=document?.querySelector?.("[data-live-patient-pick]");
+      if(first){event.preventDefault();first.focus();return true;}
+    }
+    if(event.key==="Enter"&&items.length===1&&!state.arrivalSelectedId){
+      event.preventDefault();pickArrivalPatient(items[0].id);return true;
+    }
+    return false;
   }
   function syncPatientForm(){
     const mode=document.getElementById("live-patient-mode")?.value||"presencial";
@@ -1106,41 +1140,54 @@
     if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch(e){}}
   }
   function handleClick(event){
-    const refreshButton=event.target.closest("[data-live-refresh]");
-    if(refreshButton){event.preventDefault();refresh();return true;}
-    const tab=event.target.closest("[data-live-tab]");
+    const match=selector=>event.target?.closest?.(selector);
+    const candidate=match("[data-live-patient-pick]");
+    if(candidate){event.preventDefault();pickArrivalPatient(candidate.dataset.livePatientPick);return true;}
+    if(match("[data-live-refresh]")){event.preventDefault();refresh();return true;}
+    const tab=match("[data-live-tab]");
     if(tab){event.preventDefault();state.profileTab=tab.dataset.liveTab;renderCallback();return true;}
-    const editGuide=event.target.closest("[data-live-guide-edit]");
-    if(editGuide){
-      event.preventDefault();
-      state.guideEditingId=guide(editGuide.dataset.liveGuideEdit)?.id||null;
-      renderCallback();return true;
+    const editGuide=match("[data-live-guide-edit]");
+    if(editGuide){event.preventDefault();state.guideEditingId=guide(editGuide.dataset.liveGuideEdit)?.id||null;renderCallback();return true;}
+    if(match("[data-live-guide-cancel]")){event.preventDefault();state.guideEditingId=null;renderCallback();return true;}
+    const editWorker=match("[data-live-worker-edit]");
+    if(editWorker){event.preventDefault();state.workerEditingId=editWorker.dataset.liveWorkerEdit;renderCallback();return true;}
+    const addWorker=match("[data-live-worker-guide]");
+    if(addWorker){
+      event.preventDefault();state.workerGuideId=addWorker.dataset.liveWorkerGuide;
+      state.workerEditingId=null;renderCallback();return true;
     }
-    const cancelGuide=event.target.closest("[data-live-guide-cancel]");
-    if(cancelGuide){event.preventDefault();state.guideEditingId=null;renderCallback();return true;}
-    const clearHistory=event.target.closest("[data-live-history-clear]");
-    if(clearHistory){
-      event.preventDefault();
-      state.historyDate="";state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=false;
-      renderCallback();return true;
+    if(match("[data-live-worker-cancel]")){
+      event.preventDefault();state.workerEditingId=null;renderCallback();return true;
     }
-    const generate=event.target.closest("[data-live-history-generate]");
-    if(generate){
+    if(match("[data-live-history-clear]")){
       event.preventDefault();
-      if(historyMatches().length){state.historyReportVisible=true;renderCallback();}
-      return true;
+      state.historyDate="";state.historyGuide="todos";state.historyPatient="";
+      state.historyReportVisible=false;state.historyIncludeExcluded=false;renderCallback();return true;
     }
-    if(event.target.closest("[data-live-camera-start]")){event.preventDefault();void startWebcam();return true;}
-    if(event.target.closest("[data-live-camera-capture]")){event.preventDefault();void captureWebcam();return true;}
-    if(event.target.closest("[data-live-camera-stop]")){event.preventDefault();stopWebcam();return true;}
-    if(event.target.closest("[data-live-close-day]")){event.preventDefault();void closeDay();return true;}
-    if(event.target.closest("[data-live-print]")){event.preventDefault();window.print();return true;}
+    if(match("[data-live-history-generate]")){
+      event.preventDefault();if(historyMatches().some(v=>!v.excluded_at)){
+        state.historyReportVisible=true;renderCallback();
+      }return true;
+    }
+    if(match("[data-live-history-xlsx]")){event.preventDefault();exportHistoryXlsx();return true;}
+    const photo=match("[data-live-remove-photo]");
+    if(photo){event.preventDefault();void removePatientPhoto(photo.dataset.liveRemovePhoto);return true;}
+    const exclude=match("[data-live-exclude-visit]");
+    if(exclude){event.preventDefault();void excludeVisit(exclude.dataset.liveExcludeVisit);return true;}
+    if(match("[data-live-camera-start]")){event.preventDefault();void startWebcam();return true;}
+    if(match("[data-live-camera-capture]")){event.preventDefault();void captureWebcam();return true;}
+    if(match("[data-live-camera-stop]")){event.preventDefault();stopWebcam();return true;}
+    if(match("[data-live-start-day]")){event.preventDefault();void startDay();return true;}
+    if(match("[data-live-close-day]")){event.preventDefault();void closeDay();return true;}
+    if(match("[data-live-print]")){event.preventDefault();window.print();return true;}
     return false;
   }
   function handleSubmit(event){
     const form=event.target;
     if(form?.id==="live-patient-form"){event.preventDefault();void patientSubmit(form);return true;}
     if(form?.id==="live-guide-form"){event.preventDefault();void guideSubmit(form);return true;}
+    if(form?.id==="live-worker-form"){event.preventDefault();void workerSubmit(form);return true;}
+    if(form?.id==="live-visit-edit-form"){event.preventDefault();void saveVisitEdit(form);return true;}
     if(form?.id==="live-arrival-form"){event.preventDefault();void arrivalSubmit(form);return true;}
     return false;
   }
@@ -1153,9 +1200,11 @@
     if(target?.id==="live-history-guide"){
       state.historyGuide=target.value;state.historyReportVisible=false;renderCallback();return true;
     }
+    if(target?.id==="live-history-excluded"){
+      state.historyIncludeExcluded=!!target.checked;state.historyReportVisible=false;renderCallback();return true;
+    }
     if(target?.name==="foto"){state.webcamBlob=null;return true;}
     if(target?.id==="live-patient-mode"||target?.id==="live-patient-birth"){syncPatientForm();return true;}
-    if(target?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
     if(target?.matches?.("[data-live-route-triage]")){void routeTriage(target);return true;}
     if(target?.matches?.("[data-live-status]")){void changeStatus(target);return true;}
     return false;
@@ -1163,7 +1212,14 @@
   function handleInput(event){
     const t=event.target;
     if(t?.id==="live-patient-birth"||t?.id==="live-patient-mode"){syncPatientForm();return true;}
-    if(t?.id==="live-arrival-patient-search"){syncArrivalPatient();return true;}
+    if(t?.id==="live-arrival-patient-search"){
+      state.arrivalSelectedId="";state.arrivalSearch=t.value;
+      const guideEl=document?.getElementById?.("live-arrival-guide");
+      const priorityEl=document?.getElementById?.("live-arrival-priority");
+      if(guideEl)guideEl.value="";
+      if(priorityEl)priorityEl.value="Normal";
+      syncArrivalPatient();return true;
+    }
     if(t?.id==="live-queue-search"){
       state.queueSearch=t.value;rerenderSearchInput("live-queue-search",t);return true;
     }
@@ -1172,11 +1228,10 @@
       rerenderSearchInput("live-history-patient",t);return true;
     }
     if(t?.id!=="live-patient-search")return false;
-    state.search=t.value;rerenderSearchInput("live-patient-search",t);
-    return true;
+    state.search=t.value;rerenderSearchInput("live-patient-search",t);return true;
   }
   function syncQuietly(){
     if(state.loaded&&state.access&&!state.loading&&!state.busy)void load();
   }
-  window.AttendanceLive={connect,page,handleClick,handleSubmit,handleChange,handleInput,syncQuietly,clear:()=>resetFor(null)};
+  window.AttendanceLive={connect,page,handleClick,handleSubmit,handleChange,handleInput,handleKeydown,tickTimers,syncQuietly,clear:()=>resetFor(null)};
 })();
