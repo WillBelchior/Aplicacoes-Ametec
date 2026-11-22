@@ -369,6 +369,8 @@
   }
   function guidesPage(){
     const editing=state.guides.find(g=>g.id===state.guideEditingId);
+    const worker=state.workers.find(w=>w.id===state.workerEditingId);
+    const selectedWorkerGuide=worker?.guide_id||state.workerGuideId||state.guides.find(g=>g.ativo)?.id||"";
     const form=canWrite()?'<form id="live-guide-form" data-guide-id="'+esc(editing?.id||"")+
       '" class="panel attendance-guide-form">'+
       '<label>Nome do Guia <input name="nome" maxlength="120" required placeholder="Nome do Guia" value="'+
@@ -380,16 +382,42 @@
       (editing?'<button type="button" class="button ghost" data-live-guide-cancel>Cancelar edição</button>':'')+
       '<div class="attendance-form-error" role="alert" hidden></div></form>':"";
     const rows=state.guides.map(g=>{
-      const total=state.visits.filter(v=>v.guide_id===g.id).length;
-      const linked=state.patients.filter(p=>p.guide_id===g.id).length;
-      return '<div class="list-item attendance-guide-row"><div><strong><span class="guide-dot" style="background:'+esc(g.cor)+
-        '"></span> '+esc(g.nome)+'</strong><small>'+(g.ativo?'Ativo':'Inativo')+
-        ' · '+total+' atendimento(s) · '+linked+' paciente(s) vinculado(s)</small></div>'+
-        (canWrite()?'<button type="button" class="button ghost" data-live-guide-edit="'+esc(g.id)+
-        '" aria-label="Editar Guia '+esc(g.nome)+'">Editar</button>':'')+'</div>';
+      const children=state.workers.filter(w=>w.guide_id===g.id);
+      const childRows=children.map(w=>
+        '<div class="attendance-guide-worker-row"><div><strong>'+esc(w.nome)+'</strong>'+
+        '<small>'+esc(w.funcao||"Trabalhador vinculado")+
+        ' · '+(w.ativo?"Ativo":"Inativo")+'</small></div>'+
+        (canWrite()?'<button type="button" class="button ghost" data-live-worker-edit="'+esc(w.id)+
+        '">Editar trabalhador</button>':"")+'</div>').join("");
+      return '<section class="attendance-guide-group"><div class="list-item attendance-guide-row"><div>'+
+        '<strong><span class="guide-dot" style="background:'+esc(g.cor)+'"></span> '+esc(g.nome)+'</strong>'+
+        '<small>'+(g.ativo?'Ativo':'Inativo')+'</small></div>'+
+        (canWrite()?'<div class="attendance-guide-buttons"><button type="button" class="button ghost"'+
+          ' data-live-guide-edit="'+esc(g.id)+'">Editar Guia</button>'+
+          '<button type="button" class="button ghost" data-live-worker-guide="'+esc(g.id)+
+          '">＋ Vincular trabalhador</button></div>':'')+'</div>'+
+        (childRows?'<div class="attendance-guide-workers">'+childRows+'</div>':
+          '<div class="attendance-guide-workers-empty">Nenhum trabalhador vinculado.</div>')+
+        '</section>';
     }).join("");
-    return title("Guias","Cadastre e edite o nome, a cor e a situação dos Guias. Os históricos preservam o nome registrado no dia do atendimento.")+
-      form+'<div class="list-box">'+(rows||'<div class="note">Nenhum Guia cadastrado.</div>')+'</div>';
+    const workerForm=canWrite()?'<section class="panel attendance-worker-panel">'+
+      '<h3>'+(worker?'Editar trabalhador vinculado':'Vincular trabalhador ao Guia')+'</h3>'+
+      '<form id="live-worker-form" data-worker-id="'+esc(worker?.id||"")+'" class="attendance-worker-form">'+
+      '<label>Guia principal<select name="guide_id" required'+(worker?' disabled':'')+'>'+
+      state.guides.map(g=>'<option value="'+esc(g.id)+'"'+
+        (selectedWorkerGuide===g.id?' selected':'')+'>'+esc(g.nome)+'</option>').join("")+'</select></label>'+
+      '<label>Nome do trabalhador<input name="nome" maxlength="120" required value="'+
+      esc(worker?.nome||"")+'" placeholder="Nome do trabalhador"></label>'+
+      '<label>Função / atividade<input name="funcao" maxlength="120" value="'+
+      esc(worker?.funcao||"")+'" placeholder="Ex.: auxiliar"></label>'+
+      '<label class="attendance-guide-active"><input name="ativo" type="checkbox"'+
+      (!worker||worker.ativo?' checked':'')+'> Ativo</label>'+
+      '<button class="button" type="submit">'+(worker?'Salvar trabalhador':'Vincular trabalhador')+'</button>'+
+      (worker?'<button type="button" class="button ghost" data-live-worker-cancel>Cancelar</button>':'')+
+      '<div class="attendance-form-error" role="alert" hidden></div></form></section>':"";
+    return title("Guias","Cadastre Guias e vincule trabalhadores auxiliares a cada Guia principal. Esses trabalhadores não recebem login automático.")+
+      form+'<div class="attendance-guide-list">'+(rows||'<div class="note">Nenhum Guia cadastrado.</div>')+
+      '</div>'+workerForm;
   }
   function maskCpf(cpf){const x=String(cpf||"");return x.length===11?"***.***.***-"+x.slice(-2):"Não informado";}
   function patientDetail(route){
@@ -777,6 +805,35 @@
       renderCallback();
     }catch(e){fail(form,e.code==="23505"?"Já existe um Guia com esse nome.":"Não foi possível salvar o Guia: "+(e.message||e));}
     finally{state.busy=false;if(submit?.isConnected)submit.disabled=false;}
+  }
+  async function workerSubmit(form){
+    if(state.busy||!canWrite())return;
+    const values=new FormData(form),id=String(form.dataset.workerId||"");
+    const old=state.workers.find(w=>w.id===id);
+    const guideId=old?.guide_id||String(values.get("guide_id")||"");
+    const name=String(values.get("nome")||"").trim().replace(/\s+/g," ");
+    const funcao=String(values.get("funcao")||"").trim();
+    const ativo=values.get("ativo")!==null;
+    if(name.length<2||name.length>120||funcao.length>120)return fail(form,"Confira o nome e a função.");
+    if(!guide(guideId))return fail(form,"Selecione um Guia válido.");
+    if(state.workers.some(w=>w.id!==id&&w.guide_id===guideId&&normalize(w.nome)===normalize(name)))
+      return fail(form,"Esse trabalhador já está vinculado ao Guia.");
+    state.busy=true;
+    try{
+      const payload={nome:name,funcao:funcao||null,ativo};
+      const request=old?client().from("barquinha_attendance_guide_workers")
+          .update(payload).eq("id",old.id):
+        client().from("barquinha_attendance_guide_workers")
+          .insert({guide_id:guideId,...payload});
+      const {data,error}=await request.select("id,guide_id,nome,funcao,ativo,created_at").single();
+      if(error)throw error;
+      const index=state.workers.findIndex(w=>w.id===data.id);
+      if(index>=0)state.workers[index]=data;else state.workers.push(data);
+      state.workerEditingId=null;state.workerGuideId=guideId;
+      state.notice=old?"Trabalhador atualizado.":"Trabalhador vinculado ao Guia.";
+      renderCallback();
+    }catch(e){fail(form,"Não foi possível salvar o trabalhador: "+(e.message||e));}
+    finally{state.busy=false;}
   }
   async function arrivalSubmit(form){
     if(state.busy||!canWrite())return;
