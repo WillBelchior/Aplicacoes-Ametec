@@ -156,7 +156,7 @@
   function deferred(title,detail){return '<section class="intro"><div class="eyebrow">EM PREPARAÇÃO</div><h1>'+esc(title)+'</h1><p>'+esc(detail)+'</p></section>';}
   function title(t,description){return '<section class="intro"><div class="eyebrow">ATENDIMENTOS BARQUINHA</div><h1>'+esc(t)+'</h1><p>'+esc(description)+'</p></section>';}
   function queuePage(){
-    const day=currentDay(),today=state.visits.filter(v=>v.service_date===day);
+    const day=currentDay(),today=liveVisits().filter(v=>v.service_date===day);
     const pending=today.filter(v=>!CLOSED.has(v.status));
     const completed=today.filter(v=>CLOSED.has(v.status));
     const needle=normalize(state.queueSearch);
@@ -171,7 +171,7 @@
     const filter='<option value="todos">Todos os Guias e Triagem</option>'+
       '<option value="triagem"'+(state.filter==="triagem"?' selected':'')+'>Triagem — sem Guia</option>'+available.map(g=>
       '<option value="'+esc(g.id)+'"'+(g.id===state.filter?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
-    const locked=isClosed();
+    const locked=isClosed()||!isShiftStarted();
     const triageBody=triageVisits.map(v=>{
       const p=person(v.patient_id);if(!p)return "";
       const priority=v.prioridade!=="Normal";
@@ -215,7 +215,11 @@
           (!canChangeStatus()||locked?' disabled':'')+'>'+
           STATUSES.map(st=>'<option value="'+st+'"'+(v.status===st?' selected':'')+'>'+st+'</option>').join('')+
           (v.status==="Cancelado"?'<option value="Cancelado" selected>Cancelado (histórico)</option>':'')+
-          '</select></div></div>';
+          '</select><span class="attendance-live-duration" data-live-visit-timer="'+esc(v.id)+'">'+
+          durationLabel(durationSeconds(v))+'</span>'+
+          (canWrite()?'<button type="button" class="attendance-visit-edit-inline" data-go="/atendimentos/editar-atendimento/'+
+            esc(v.id)+'"'+(locked?' disabled':'')+'>Editar</button>':'')+
+          '</div></div>';
       }).join("");
       return '<section class="queue-guide-column"><div class="queue-guide-header" style="border-top-color:'+esc(g.cor)+
         '"><div class="queue-guide-info"><span class="guide-dot" style="background:'+esc(g.cor)+'"></span><h3 title="Guia '+esc(g.nome)+'">Guia '+esc(g.nome)+'</h3></div>'+
@@ -224,14 +228,26 @@
         '<div class="queue-guide-total">Total do Guia: <strong>'+visits.length+'</strong></div></section>';
     }).join("");
     const visibleCount=selected.length+(showTriage?1:0);
-    const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada"'+(locked?' disabled':'')+
-      '>＋ Registrar chegada</button><button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
+    const session=shiftForDay(day);
+    const startStop=canWrite()?isClosed()?'<span class="pill green">Atendimentos encerrados</span>':
+      isShiftStarted()?'<button class="button danger" type="button" data-live-close-day>■ Finalizar Atendimentos</button>':
+      '<button class="button" type="button" data-live-start-day>▶ Iniciar Atendimentos</button>':"";
+    const sessionTime=session?'<span class="attendance-live-shift-timer" data-live-shift-timer="'+
+      esc(session.started_at)+'" data-finished="'+esc(session.finished_at||"")+'">'+
+      durationLabel(Math.floor(((session.finished_at?Date.parse(session.finished_at):Date.now())-
+        Date.parse(session.started_at))/1000))+'</span>':'<span class="attendance-live-shift-timer">00:00:00</span>';
+    const buttons=canWrite()?'<button class="button" type="button" data-go="/atendimentos/nova-chegada"'+
+      (locked?' disabled':'')+'>＋ Registrar chegada</button>'+
+      '<button class="button secondary" type="button" data-go="/atendimentos/novo-paciente">＋ Cadastrar paciente</button>':"";
     return title("Fila Geral — Atendimento do Dia","Fichas por Guia de "+fmtDay(day)+
       " · Prioritárias P01, P02… e normais 01, 02…, em listas independentes.")+
-      (locked?'<div class="note">Expediente encerrado. Os registros permanecem visíveis e o relatório está disponível em Histórico de Atendimentos.</div>':'')+
+      (isClosed()?'<div class="note">Expediente encerrado. O relatório está disponível em Histórico de Atendimentos.</div>':
+      !isShiftStarted()?'<div class="note warn">A recepção deve iniciar os atendimentos para liberar novas chegadas.</div>':"")+
       '<div class="metrics"><div class="metric"><strong>'+pending.length+'</strong><span>Em andamento</span></div>'+
       '<div class="metric"><strong>'+completed.length+'</strong><span>Finalizados hoje</span></div>'+
       '<div class="metric"><strong>'+today.length+'</strong><span>Total de atendimentos hoje</span></div></div>'+
+      '<div class="attendance-shift-main-controls">'+startStop+
+        '<div class="attendance-main-clock">Tempo de expediente: <strong>'+sessionTime+'</strong></div></div>'+
       '<div class="filters"><div class="queue-actions"><h3>Fila Geral por Guia e Triagem</h3>'+buttons+
       '<button type="button" class="button ghost" data-live-refresh>↻ Atualizar</button></div>'+
       '<label>Visualizar <select id="live-guide-filter">'+filter+'</select></label>'+
@@ -244,10 +260,10 @@
       ' atendimento(s) encontrado(s) para "'+esc(state.queueSearch)+'".</p>':'')+
       (!state.guides.length?alertBox("Nenhum Guia cadastrado. Abra a aba Guias para começar."):"")+
       (needle&&!visibleCount?'<div class="note">Nenhum paciente encontrado na fila de hoje com esse nome.</div>':"")+
-      '<p class="queue-hint">'+(visibleCount>=6?"Use a rolagem horizontal para ver todas as colunas.":"Até cinco colunas são exibidas juntas, incluindo a Triagem.")+
+      '<p class="queue-hint">'+(visibleCount>=7?"Use a rolagem horizontal para ver as demais colunas.":"Até seis colunas são exibidas juntas, incluindo a Triagem.")+
       ' Pacientes continuam visíveis independentemente do status; saem somente da fila diária quando muda a data.</p>'+
       '<div class="queue-board-scroll" role="region" tabindex="0" aria-label="Filas de atendimentos por Guia">'+
-      '<div class="queue-board'+(visibleCount===1?" single":"")+(visibleCount>=6?" is-scroll":"")+
+      '<div class="queue-board'+(visibleCount===1?" single":"")+(visibleCount>=7?" is-scroll":"")+
       '" data-guide-count="'+visibleCount+'" style="--guide-count:'+Math.max(visibleCount,1)+'">'+columns+'</div></div>';
   }
   function patientForm(patient=null){
