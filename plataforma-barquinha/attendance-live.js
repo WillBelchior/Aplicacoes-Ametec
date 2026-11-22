@@ -256,7 +256,7 @@
     const optionValue=(name,value)=>' value="'+esc(value||"")+'"';
     return '<button class="breadcrumb" type="button" data-go="'+(edit?'/atendimentos/paciente/'+esc(p.id):'/atendimentos/pacientes')+
       '">← Voltar</button>'+
-      title(edit?"Editar paciente":"Cadastrar paciente","O Guia será sugerido automaticamente em cada chegada. Atendimento à distância pode ser cadastrado apenas com nome e endereço; sua realização exige autorização separada.")+
+      title(edit?"Editar paciente":"Cadastrar paciente","Guia sugerido nas próximas chegadas. Cadastro à distância permite nome e endereço sem exigir CPF ou nascimento.")+
       '<form id="live-patient-form" data-edit-id="'+esc(p.id||"")+'" class="panel attendance-form">'+
       '<div class="patient-fields">'+
       '<label>Modalidade de cadastro *<select name="cadastro_modalidade" id="live-patient-mode">'+
@@ -267,6 +267,8 @@
       '<label>Idade calculada automaticamente <output id="live-patient-age" aria-live="polite">'+
       (ageYears(p.nascimento)===null?"Não informada":ageYears(p.nascimento)+" anos"+(agePriority(p.nascimento)?" · Prioridade: IDOSO":""))+
       '</output></label>'+
+      (edit?'<div class="attendance-patient-last-date"><span>Último atendimento registrado</span>'+
+        '<strong>'+fmtDay(lastAttendanceDate(p.id))+'</strong></div>':"")+
       '<label>Telefone<input name="telefone" type="tel" maxlength="40"'+optionValue("telefone",p.telefone)+'></label>'+
       '<label>CPF<input name="cpf" type="text" maxlength="14" inputmode="numeric" autocomplete="off"'+optionValue("cpf",p.cpf)+'></label>'+
       '<label>Guia <select name="guide_id">'+selectGuide(p.guide_id||"","Selecione o Guia")+'</select></label>'+
@@ -275,7 +277,9 @@
       (p.cadastro_modalidade==="distancia"?' required':'')+' placeholder="Rua, número, bairro, cidade, referência…">'+esc(p.endereco||"")+'</textarea>'+
       '<small>Obrigatório para cadastro à distância.</small></label>'+
       '<label>Fotografia<input type="file" name="foto" accept="image/jpeg,image/png,image/webp" capture="environment">'+
-      '<small>JPG/PNG/WebP, compactada para armazenamento privado.</small></label>'+
+      '<small>JPG/PNG/WebP, compactada para armazenamento privado.</small>'+
+      (edit&&p.foto_path?'<button type="button" class="button danger attendance-remove-photo" data-live-remove-photo="'+
+        esc(p.id)+'">Remover fotografia atual</button>':'')+'</label>'+
       '<div class="webcam-controls"><button type="button" class="button ghost" data-live-camera-start>📷 Abrir webcam</button>'+
       '<button type="button" class="button ghost" data-live-camera-capture hidden>Capturar foto</button>'+
       '<button type="button" class="button ghost" data-live-camera-stop hidden>Fechar câmera</button>'+
@@ -348,12 +352,13 @@
     const segments=route.split("/"),p=person(segments[3]);if(!p)return alertBox("Paciente não encontrado.")+
       '<button class="button" type="button" data-go="/atendimentos/pacientes">Voltar</button>';
     const selected=state.visits.find(v=>v.id===segments[4]&&v.patient_id===p.id);
-    const visits=state.visits.filter(v=>v.patient_id===p.id).sort((a,b)=>b.ordem-a.ordem);
+    const visits=liveVisits().filter(v=>v.patient_id===p.id).sort((a,b)=>b.ordem-a.ordem);
     let details="";
     if(state.profileTab==="dados")details='<dl><div><dt>Modalidade</dt><dd>'+
       esc(MODES.find(m=>m[0]===p.cadastro_modalidade)?.[1]||"Presencial")+'</dd></div>'+
       '<div><dt>Nascimento</dt><dd>'+fmtDay(p.nascimento)+'</dd></div>'+
       '<div><dt>Idade</dt><dd>'+(ageYears(p.nascimento)===null?"Não informada":ageYears(p.nascimento)+" anos")+'</dd></div>'+
+      '<div><dt>Último atendimento</dt><dd>'+fmtDay(lastAttendanceDate(p.id))+'</dd></div>'+
       '<div><dt>Telefone</dt><dd>'+esc(p.telefone||"Não informado")+'</dd></div>'+
       '<div><dt>CPF</dt><dd>'+esc(maskCpf(p.cpf))+'</dd></div>'+
       '<div><dt>Guia associado</dt><dd>'+esc(guide(p.guide_id)?.nome||"Não definido")+'</dd></div>'+
