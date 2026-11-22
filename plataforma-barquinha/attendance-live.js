@@ -6,9 +6,6 @@
   const PRIORITIES=["Normal","Idoso","Gestante","Deficiência","Outra"];
   const MODES=[["presencial","Presencial"],["distancia","À distância"],["trabalhador","Trabalhador da casa"]];
   const CLOSED=new Set(["Concluído","Não compareceu","Desistente","Cancelado"]);
-  // Primeiro teste de recepção: somente atendimentos presenciais; os demais
-  // dependem das autorizações e da ordem de atendimento ainda não implementadas.
-  const PILOT_ONLY=false;
   function afterArrivalDeadline(){
     const hour=Number(new Intl.DateTimeFormat("en-GB",{
       timeZone:"America/Fortaleza",hour:"2-digit",hourCycle:"h23"
@@ -17,7 +14,7 @@
   }
   const PHOTO_BUCKET="barquinha-attendance-photos";
   const state={userId:null,loaded:false,loading:false,error:"",notice:"",access:null,
-    guides:[],patients:[],visits:[],events:[],closures:[],filter:"todos",search:"",queueSearch:"",historyDate:"",historyGuide:"todos",historyPatient:"",historyReportVisible:false,guideEditingId:null,profileTab:"dados",arrivalSearch:"",webcamStream:null,webcamBlob:null,editId:null,
+    guides:[],workers:[],patients:[],visits:[],events:[],audit:[],shifts:[],closures:[],filter:"todos",search:"",queueSearch:"",historyDate:"",historyGuide:"todos",historyPatient:"",historyReportVisible:false,historyIncludeExcluded:false,guideEditingId:null,workerEditingId:null,profileTab:"dados",arrivalSearch:"",arrivalSelectedId:"",arrivalMatches:[],webcamStream:null,webcamBlob:null,editId:null,
     photoUrls:new Map(),photoRequests:new Set(),photoErrors:new Set(),busy:false,currentRoute:null};
   let renderCallback=()=>{},navigateCallback=route=>{location.hash="#"+route;};
   const auth=()=>window.PlatformAuth;
@@ -36,6 +33,21 @@
   const canWrite=()=>["administrador","recepcao"].includes(state.access?.access_role);
   const canChangeStatus=()=>["administrador","recepcao","guia"].includes(state.access?.access_role);
   const isClosed=()=>state.closures.some(c=>c.service_date===currentDay());
+  const shiftForDay=(date=currentDay())=>state.shifts.find(s=>s.service_date===date);
+  const isShiftStarted=()=>!!shiftForDay()&&!shiftForDay().finished_at&&!isClosed();
+  const liveVisits=()=>state.visits.filter(v=>!v.excluded_at);
+  const durationSeconds=(v,at=Date.now())=>
+    Math.max(0,Number(v.atendimento_segundos||0)+
+      (v.timer_started_at?Math.max(0,Math.floor((at-Date.parse(v.timer_started_at))/1000)):0));
+  const durationLabel=seconds=>{
+    seconds=Math.max(0,Math.floor(seconds||0));
+    return String(Math.floor(seconds/3600)).padStart(2,"0")+":"+
+      String(Math.floor((seconds%3600)/60)).padStart(2,"0")+":"+
+      String(seconds%60).padStart(2,"0");
+  };
+  const lastAttendanceDate=pId=>liveVisits()
+    .filter(v=>v.patient_id===pId)
+    .map(v=>v.service_date).sort().at(-1)||null;
   const officialTicket=v=>!v.guide_id?"Triagem":(v.ficha_tipo==="P"?"P":"")+String(v.ficha_numero||v.ordem||0).padStart(2,"0");
   function ageYears(date,at=currentDay()){
     if(!date)return null;
@@ -53,8 +65,8 @@
   function connect(render,navigate){renderCallback=render;navigateCallback=navigate;}
   function resetFor(userId){
     state.userId=userId;state.loaded=false;state.loading=false;state.error="";state.access=null;
-    stopWebcam();state.guides=[];state.patients=[];state.visits=[];state.events=[];state.closures=[];state.notice="";state.arrivalSearch="";state.editId=null;
-    state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";state.queueSearch="";state.historyDate="";state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=false;state.guideEditingId=null;
+    stopWebcam();state.guides=[];state.workers=[];state.patients=[];state.visits=[];state.events=[];state.audit=[];state.shifts=[];state.closures=[];state.notice="";state.arrivalSearch="";state.arrivalSelectedId="";state.arrivalMatches=[];state.editId=null;
+    state.photoUrls.clear();state.photoRequests.clear();state.photoErrors.clear();state.filter="todos";state.search="";state.queueSearch="";state.historyDate="";state.historyGuide="todos";state.historyPatient="";state.historyReportVisible=false;state.historyIncludeExcluded=false;state.guideEditingId=null;state.workerEditingId=null;
   }
   // Consultas paginadas evitam perder atendimentos antigos por causa do limite
   // de linhas por resposta da API Supabase (geralmente 1.000).
@@ -85,20 +97,25 @@
       if(!state.access){state.loaded=true;return;}
       const requests=[
         client().from("barquinha_attendance_guides").select("id,nome,cor,ativo,created_at").order("nome"),
+        readAllPages("barquinha_attendance_guide_workers","id,guide_id,nome,funcao,ativo,created_at","created_at"),
         readAllPages("barquinha_attendance_patients",
           "id,nome,nascimento,telefone,cpf,encaminhamento,foto_path,created_at,cadastro_modalidade,endereco,guide_id","nome"),
         readAllPages("barquinha_attendance_visits",
-          "id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at",
+          "id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at,atendimento_iniciado_em,atendimento_finalizado_em,timer_started_at,atendimento_segundos,excluded_at,excluded_by,exclusion_reason",
           "created_at",false),
         readAllPages("barquinha_attendance_events",
           "id,visit_id,previous_status,next_status,changed_at","changed_at",false),
+        readAllPages("barquinha_attendance_visit_audit",
+          "id,visit_id,operation,previous_data,current_data,reason,actor_id,changed_at","changed_at",false),
+        readAllPages("barquinha_attendance_shifts",
+          "service_date,started_at,started_by,finished_at,finished_by","service_date",false),
         readAllPages("barquinha_attendance_closures",
           "service_date,closed_at,closed_by","service_date",false)
       ];
       const results=await Promise.all(requests);
       for(const result of results)if(result.error)throw result.error;
       if(auth()?.user?.id!==userId)return;
-      [state.guides,state.patients,state.visits,state.events,state.closures]=results.map(r=>r.data||[]);
+      [state.guides,state.workers,state.patients,state.visits,state.events,state.audit,state.shifts,state.closures]=results.map(r=>r.data||[]);
       state.loaded=true;
     }catch(error){state.error="Falha ao consultar Atendimentos: "+(error.message||error);state.loaded=true;}
     finally{state.loading=false;if(auth()?.user?.id===userId)renderCallback();}
@@ -678,7 +695,7 @@
     try{
       const {data:saved,error}=await client().from("barquinha_attendance_visits")
         .insert({patient_id:patient.id,guide_id:guideId||null,modalidade,prioridade:priority})
-        .select("id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at").single();
+        .select("id,ordem,ficha_tipo,ficha_numero,guia_nome_registro,patient_id,guide_id,service_date,modalidade,prioridade,status,created_at,status_changed_at,atendimento_iniciado_em,atendimento_finalizado_em,timer_started_at,atendimento_segundos,excluded_at,excluded_by,exclusion_reason").single();
       if(error)throw error;
       state.visits.unshift(saved);
       state.notice=guideId?"Chegada registrada. Ficha "+officialTicket(saved)+" do Guia "+
