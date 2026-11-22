@@ -163,7 +163,7 @@ begin
    where sh.service_date=old.service_date and sh.finished_at is null) then
   raise exception 'O turno não está em andamento';
  end if;
- if old.guide_id is null then
+ if old.guide_id is null and new.guide_id is null and new.status is distinct from old.status then
   raise exception 'Encaminhe o paciente da Triagem antes de mudar seu status';
  end if;
  return new;
@@ -286,6 +286,8 @@ begin
  end if;
  update public.barquinha_attendance_visits
    set excluded_at=now(),excluded_by=auth.uid(),exclusion_reason=trim(p_reason),
+   atendimento_segundos=atendimento_segundos+case when timer_started_at is null then 0 else
+     greatest(0,extract(epoch from(now()-timer_started_at))::integer) end,
    timer_started_at=null
  where id=v.id returning * into v;
  insert into public.barquinha_attendance_visit_audit(visit_id,operation,previous_data,current_data,reason,actor_id)
