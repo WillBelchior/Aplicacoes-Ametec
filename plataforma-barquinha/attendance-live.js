@@ -144,6 +144,7 @@
     if(route==="/atendimentos/novo-paciente")inner=patientForm();
     else if(route.startsWith("/atendimentos/editar-paciente/"))inner=patientForm(person(route.split("/")[3]));
     else if(route==="/atendimentos/nova-chegada")inner=arrivalForm();
+    else if(route.startsWith("/atendimentos/editar-atendimento/"))inner=editVisitForm(route.split("/")[3]);
     else if(route.startsWith("/atendimentos/paciente/"))inner=patientDetail(route);
     else if(route==="/atendimentos/pacientes")inner=patientsPage();
     else if(route==="/atendimentos/guias")inner=guidesPage();
@@ -356,6 +357,43 @@
       '<button class="button" type="submit"'+(locked||!state.patients.length?' disabled':'')+
       '>Registrar chegada</button></div></form>';
   }
+  function editVisitForm(visitId){
+    if(!canWrite())return alertBox("Somente a recepção pode corrigir registros de chegada.");
+    const v=state.visits.find(x=>x.id===visitId);
+    if(!v)return alertBox("Registro de atendimento não encontrado.");
+    const editable=v.service_date===currentDay()&&!isClosed()&&isShiftStarted()&&!v.excluded_at;
+    const patients=state.patients.map(p=>
+      '<option value="'+esc(p.id)+'"'+(p.id===v.patient_id?' selected':'')+'>'+esc(p.nome)+'</option>').join("");
+    const guides=state.guides.filter(g=>g.ativo||g.id===v.guide_id).map(g=>
+      '<option value="'+esc(g.id)+'"'+(g.id===v.guide_id?' selected':'')+'>'+esc(g.nome)+'</option>').join("");
+    const options=MODES.map(m=>
+      '<option value="'+m[0]+'"'+(v.modalidade===m[0]?' selected':'')+'>'+m[1]+'</option>').join("");
+    return '<button type="button" class="breadcrumb" data-go="/atendimentos/paciente/'+
+      esc(v.patient_id)+'/'+esc(v.id)+'">← Voltar à ficha</button>'+
+      title("Editar registro de atendimento","Corrija o paciente, Guia, modalidade, prioridade ou situação. A ordem original de chegada é preservada.")+
+      (editable?'':'<div class="note warn">Atendimento anterior, encerrado ou excluído: alterações bloqueadas para proteger o histórico.</div>')+
+      '<form id="live-visit-edit-form" data-visit-id="'+esc(v.id)+'" class="panel attendance-form">'+
+      '<div class="patient-fields">'+
+      '<label>Paciente<select name="patient_id" required'+(editable?'':' disabled')+'>'+patients+'</select></label>'+
+      '<label>Guia<select name="guide_id"'+(editable?'':' disabled')+'>'+
+      '<option value="">Triagem — sem Guia</option>'+guides+'</select></label>'+
+      '<label>Modalidade<select name="modalidade" required'+(editable?'':' disabled')+'>'+options+'</select></label>'+
+      '<label>Prioridade<select name="prioridade" required'+(editable?'':' disabled')+'>'+
+      priorityOptions(v.prioridade)+'</select></label>'+
+      '<label>Situação<select name="status" required'+(editable?'':' disabled')+'>'+
+      STATUSES.map(x=>'<option value="'+x+'"'+(x===v.status?' selected':'')+'>'+x+'</option>').join("")+
+      '</select></label>'+
+      '<label>Ficha existente<output>'+officialTicket(v)+'</output></label>'+
+      '<label>Ordem original de chegada<output>'+esc(v.ordem)+'</output></label>'+
+      '<label>Tempo de atendimento<output>'+durationLabel(durationSeconds(v))+'</output></label>'+
+      '</div><div class="attendance-form-error" role="alert" hidden></div>'+
+      '<div class="patient-form-actions"><button type="button" class="button ghost" data-go="/atendimentos/paciente/'+
+      esc(v.patient_id)+'/'+esc(v.id)+'">Voltar</button>'+
+      (editable?'<button type="submit" class="button">Salvar correções</button>'+
+        '<button type="button" class="button danger" data-live-exclude-visit="'+esc(v.id)+
+        '">Excluir registro de chegada</button>':'')+
+      '</div><p class="attendance-audit-notice">Exclusões não apagam a auditoria: ficam registradas com motivo, usuário e horário.</p></form>';
+  }
   function patientsPage(){
     const results=state.patients.filter(p=>String(p.nome||"").toLocaleLowerCase("pt-BR").includes(state.search.toLocaleLowerCase("pt-BR")));
     return title("Pacientes","Cadastros únicos, separados dos atendimentos. Pesquise e abra a ficha para consultar o histórico.")+
@@ -453,6 +491,9 @@
       '<option value="'+esc(st)+'"'+(selected.status===st?" selected":"")+'>'+esc(st)+'</option>').join("")+'</select></label>'+
       pill(selected.status)+'</div>':
         '<div class="note">Paciente na Triagem. Selecione um Guia pela Fila Geral para emitir sua ficha.</div>')+
+      (canWrite()&&selected.service_date===currentDay()&&!isClosed()&&isShiftStarted()?
+        '<button type="button" class="button ghost attendance-visit-detail-edit" data-go="/atendimentos/editar-atendimento/'+
+          esc(selected.id)+'">Editar registro de atendimento</button>':'')+
       '</div>':"";
     return '<button class="breadcrumb" data-go="/atendimentos/pacientes">← Voltar aos pacientes</button>'+
       '<section class="profile"><div class="profile-header">'+img+'<div><h2>'+esc(p.nome)+'</h2>'+
@@ -880,6 +921,55 @@
     const {data,error}=await client().from("barquinha_attendance_events")
       .select("id,visit_id,previous_status,next_status,changed_at").order("changed_at",{ascending:false}).limit(5000);
     if(!error)state.events=data||[];
+  }
+  async function saveVisitEdit(form){
+    if(!canWrite()||state.busy||!isShiftStarted())return;
+    const data=new FormData(form),id=String(form.dataset.visitId||"");
+    const v=state.visits.find(x=>x.id===id);
+    if(!v||v.excluded_at)return fail(form,"Registro não disponível.");
+    const payload={
+      p_visit_id:id,
+      p_patient_id:String(data.get("patient_id")||""),
+      p_guide_id:String(data.get("guide_id")||"")||null,
+      p_modalidade:String(data.get("modalidade")||""),
+      p_prioridade:String(data.get("prioridade")||""),
+      p_status:String(data.get("status")||"")
+    };
+    if(!person(payload.p_patient_id)||!MODES.some(m=>m[0]===payload.p_modalidade))
+      return fail(form,"Revise o paciente e a modalidade.");
+    if(!payload.p_guide_id&&payload.p_status!=="Aguardando")
+      return fail(form,"Registros em Triagem devem permanecer como Aguardando.");
+    state.busy=true;
+    try{
+      const {data:saved,error}=await client().rpc("barquinha_attendance_edit_visit",payload).single();
+      if(error)throw error;
+      Object.assign(v,saved);
+      if(saved.guide_id){const p=person(saved.patient_id);if(p)p.guide_id=saved.guide_id;}
+      state.notice="Registro corrigido. A alteração foi preservada na auditoria.";
+      navigateCallback("/atendimentos/paciente/"+saved.patient_id+"/"+saved.id);
+    }catch(e){fail(form,"Falha ao corrigir registro: "+(e.message||e));}
+    finally{state.busy=false;}
+  }
+  async function excludeVisit(id){
+    if(!canWrite()||state.busy||!isShiftStarted())return;
+    const v=state.visits.find(v=>v.id===id);
+    if(!v||v.excluded_at)return;
+    if(!confirm("Excluir o registro de chegada? O paciente e o histórico de auditoria serão preservados."))return;
+    const reason=prompt("Informe o motivo da exclusão do registro de atendimento:");
+    if(reason===null)return;
+    const normalized=reason.trim();
+    if(normalized.length<5){state.error="Informe um motivo de pelo menos 5 caracteres.";renderCallback();return;}
+    state.busy=true;
+    try{
+      const {data,error}=await client().rpc("barquinha_attendance_exclude_visit",{
+        p_visit_id:id,p_reason:normalized
+      }).single();
+      if(error)throw error;
+      Object.assign(v,data);
+      state.notice="Registro excluído da fila e do relatório, com motivo preservado na auditoria.";
+      navigateCallback("/atendimentos/fila");
+    }catch(e){state.error="Não foi possível excluir o registro: "+(e.message||e);renderCallback();}
+    finally{state.busy=false;}
   }
   async function routeTriage(select){
     if(state.busy||!canWrite()||isClosed())return;
