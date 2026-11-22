@@ -27,7 +27,7 @@
       id:"atendimentos", name:"Atendimentos Barquinha", shortName:"Atendimentos", icon:"☷",
       route:"/atendimentos/fila", status:"active", group:"management",
       permissionKey:"attendance.view",
-      description:"Cadastro oficial de pacientes e Guias, fichas por Guia, fila diária e relatório de fechamento. Atendimento remoto depende de autorização."
+      description:"Cadastro oficial de pacientes e Guias, fichas por Guia, fila diária e relatório de fechamento. Atendimento à distância sem autorização especial; chegadas após 17h continuam restritas."
     },
     {
       id:"igreja", name:"Gestão da Igreja", shortName:"Igreja", icon:"♧",
